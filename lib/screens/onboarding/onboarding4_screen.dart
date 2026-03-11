@@ -1,0 +1,140 @@
+﻿import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../theme/app_theme.dart';
+
+class Onboarding4Screen extends StatelessWidget {
+  const Onboarding4Screen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            children: [
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.all(48),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [AppColors.accent, AppColors.primary],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.auto_awesome,
+                    size: 120, color: Colors.white),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                "Ready to Start Your Journey?",
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.foreground,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Let's create your account and begin tracking your health with AI-powered insights",
+                style: TextStyle(fontSize: 16, color: AppColors.mutedForeground),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("What's Next?",
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.foreground)),
+                    const SizedBox(height: 16),
+                    _step(1, 'Create your account', AppColors.primary),
+                    const SizedBox(height: 12),
+                    _step(2, 'Input your health data', AppColors.secondary),
+                    const SizedBox(height: 12),
+                    _step(3, 'Get personalized insights', AppColors.accent),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [_dot(), _dot(), _dot(), _dot(active: true)],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => context.go('/register'),
+                  icon: const Icon(Icons.chevron_right),
+                  label: const Text('Create Account'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => context.go('/login'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 56),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    side: const BorderSide(color: AppColors.border),
+                  ),
+                  child: const Text('I Already Have an Account',
+                      style: TextStyle(color: AppColors.foreground)),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _step(int number, String text, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          child: Center(
+            child: Text('$number',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(text, style: const TextStyle(color: AppColors.foreground, fontSize: 15)),
+      ],
+    );
+  }
+
+  Widget _dot({bool active = false}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      width: active ? 24 : 8,
+      height: 4,
+      decoration: BoxDecoration(
+        color: active ? AppColors.primary : AppColors.muted,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
