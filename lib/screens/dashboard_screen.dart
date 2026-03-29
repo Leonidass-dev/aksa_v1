@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -362,13 +362,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _QuickAction(icon: Icons.description_outlined, label: 'Raporlar', subtitle: 'Analizler', color: AppColors.accent, path: '/app/reports'),
       _QuickAction(icon: Icons.warning_amber_outlined, label: 'Uyarılar', subtitle: '1 yeni uyarı', color: AppColors.destructive, path: '/app/alerts'),
     ];
+    final screenWidth = MediaQuery.of(context).size.width;
+    // Calculate aspect ratio dynamically based on screen width
+    // Narrower screens need a smaller ratio (more height)
+    final double dynamicAspectRatio = screenWidth < 360 ? 1.1 : 1.3;
+
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.4,
+      childAspectRatio: dynamicAspectRatio,
       children: actions.map((a) => _buildActionCard(context, a)).toList(),
     );
   }
@@ -397,11 +402,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Icon(action.icon, color: action.color, size: 22),
             ),
             const Spacer(),
-            Text(action.label,
-                style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface, fontSize: 14)),
+            Text(
+              action.label,
+              style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface, fontSize: 13),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 2),
-            Text(action.subtitle,
-                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+            Text(
+              action.subtitle,
+              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),

@@ -1,12 +1,14 @@
 import logging
-from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import Optional
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from models.exercise_model import (
     ExerciseRequest,
     ExercisePlanResponse,
     generate_exercise_plan
 )
+from database import get_db
+from auth import get_current_user
+import crud
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +18,44 @@ router = APIRouter(
 )
 
 @router.post("", response_model=ExercisePlanResponse)
-async def get_exercise_plan(req: ExerciseRequest):
+async def get_exercise_plan(
+    req: ExerciseRequest,
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Kullanıcının profil ve sağlık durumuna göre Gemini AI'dan dinamik
-    egzersiz planı çeker.
+    egzersiz planı çeker ve PostgreSQL'e kaydeder.
     """
     try:
         plan = await generate_exercise_plan(req)
+
+        # DB'ye kaydet
+        if plan:
+            user = await crud.get_or_create_user(db, uid)
+            exercises_data = []
+            if plan.exercises:
+                exercises_data = [
+                    {
+                        "title": e.title,
+                        "duration_minutes": e.duration_minutes,
+                        "intensity": e.intensity,
+                        "calories": e.calories,
+                        "type": e.type,
+                        "description": e.description,
+                    }
+                    for e in plan.exercises
+                ]
+
+            await crud.save_exercise_plan(
+                db, user,
+                exercises=exercises_data,
+                total_duration=plan.total_duration_minutes,
+                total_calories=plan.total_calories,
+                ai_advice=plan.ai_advice or "",
+            )
+
         return plan
     except Exception as e:
         logger.error(f"Egzersiz planı router hatası: {e}")
-        # Hata durumunda model zaten fallback dönse de buraya da ek güvenlik koyabiliriz
-        pass 
+        pass

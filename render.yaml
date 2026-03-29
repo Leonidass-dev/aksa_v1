@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: aksa-backend
+    env: python
+    region: frankfurt
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        value: "postgresql+asyncpg://neondb_owner:npg_9z3QqJpZtdWv@ep-round-sound-anz7abfg-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require"
+      - key: GEMINI_API_KEY
+        sync: false # Güvenlik için Render panelinden girilmeli veya burada bırakılabilir

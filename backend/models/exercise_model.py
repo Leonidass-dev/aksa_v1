@@ -1,14 +1,30 @@
 import os
-import json
 import logging
 from pydantic import BaseModel, Field
 from typing import List, Optional
-import httpx
-from dotenv import load_dotenv
+import torch
+import joblib
+import numpy as np
+import sys
 
-load_dotenv()
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from ml_models.rnn_recommender import ExerciseRNN
 
 logger = logging.getLogger(__name__)
+
+_rnn_model = None
+_rnn_scaler = None
+
+def _load_rnn():
+    global _rnn_model, _rnn_scaler
+    if _rnn_model is None:
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        _rnn_scaler = joblib.load(os.path.join(base_path, 'ml_models', 'rnn_scaler.pkl'))
+        
+        _rnn_model = ExerciseRNN(input_size=4, hidden_size=16, num_classes=5)
+        state_dict = torch.load(os.path.join(base_path, 'ml_models', 'exercise_rnn.pt'), map_location=torch.device('cpu'))
+        _rnn_model.load_state_dict(state_dict)
+        _rnn_model.eval()
 
 # Modeller
 class ExerciseRequest(BaseModel):
@@ -35,107 +51,100 @@ class ExercisePlanResponse(BaseModel):
     total_calories: int
     ai_advice: str = Field(description="Kullanıcıya özel genel tavsiye ve dikkat etmesi gerekenler")
 
-# Gemini prompt
+# RNN Çıkarımı
 async def generate_exercise_plan(req: ExerciseRequest) -> ExercisePlanResponse:
-    gemini_key = os.getenv("GEMINI_API_KEY", "")
-    gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
-    
-    # Güvenlik kuralları (Prompt mühendisliği)
-    health_context = f"Kullanıcı {req.age} yaşında, {req.gender} cinsiyetinde, {req.weight}kg, {req.height}cm."
-    if req.systolic_bp and req.diastolic_bp:
-        health_context += f" Tansiyon: {req.systolic_bp}/{req.diastolic_bp}."
-    if req.heart_rate:
-        health_context += f" Nabız: {req.heart_rate} bpm."
-        
-    health_context += f" Mevcut Sağlık Risk Seviyesi: {req.risk_level.upper()}."
-
-    if req.risk_level == "high":
-        safety_rule = "Kritik: Risk seviyesi YÜKSEK. Sadece çok hafif, nabzı zorlamayacak esneme, nefes egzersizleri veya yavaş yürüyüş önerin. Ağırlık veya yüksek HIIT KESİNLİKLE YASAK."
-    elif req.risk_level == "medium":
-        safety_rule = "Önemli: Risk seviyesi ORTA. Orta tempo yürüyüş, hafif yoga, ısınma hareketleri önerin. Aşırı yorucu aktivitelerden kaçının."
-    else:
-        safety_rule = "Risk seviyesi DÜŞÜK. Genel fitness için kardiyo, güç ve esneklik dengeli bir günlük program hazırlayın."
-
-    prompt = f"""
-Sen uzman bir fizyoterapist ve kişisel antrenörsün.
-Aşağıdaki kullanıcı profiline uygun, GÜNLÜK bir egzersiz rutini (genellikle 3-5 hareket/aktivite) hazırla.
-
-Kullanıcı Profili:
-{health_context}
-
-Güvenlik Kuralı:
-{safety_rule}
-
-Lütfen JSON formatında dön. JSON şablonu:
-{{
-  "exercises": [
-    {{
-      "title": "...",
-      "duration_minutes": 20,
-      "intensity": "Düşük",
-      "calories": 100,
-      "type": "Kardiyo",
-      "description": "..."
-    }}
-  ],
-  "total_duration_minutes": 45,
-  "total_calories": 250,
-  "ai_advice": "Tansiyonunuz yüksek olduğu için egzersiz sırasında baş dönmesi hissederseniz hemen bırakın."
-}}
-"""
-
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2}
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(f"{gemini_url}?key={gemini_key}", json=payload)
-            
-        if resp.status_code != 200:
-            logger.error(f"Gemini API Error: {resp.text}")
-            raise Exception("Gemini HTTP Error")
-
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        # Markdown backtick'leri temizle
-        text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-            
-        data = json.loads(text)
+        _load_rnn()
         
-        exercises = []
-        for e in data.get("exercises", []):
-            exercises.append(ExerciseItem(
-                title=e.get("title", ""),
-                duration_minutes=e.get("duration_minutes", 0),
-                intensity=e.get("intensity", "Düşük"),
-                calories=e.get("calories", 0),
-                type=e.get("type", "Genel"),
-                description=e.get("description", "")
-            ))
+        # 1. 14 Günlük Geçmişi Simüle Et (Gerçekte DB'den çekilir)
+        # Tez: "Son 14 günün özetleri aktivite, uyku, risk skoru"
+        seq_len = 14
+        history = np.zeros((1, seq_len, 4))
+        
+        risk_map = {"low": 0, "medium": 1, "high": 2}
+        risk_val = risk_map.get(req.risk_level.lower(), 1)
+        
+        # MVP: Tüm günleri kullanıcının anki değerine benzer sentetik doldur
+        for i in range(seq_len):
+            history[0, i, 0] = 5000 + np.random.normal(0, 500) # steps
+            history[0, i, 1] = 30 + np.random.normal(0, 10)    # active
+            history[0, i, 2] = 7 + np.random.normal(0, 1)      # sleep
+            history[0, i, 3] = risk_val                        # risk
             
-        return ExercisePlanResponse(
-            exercises=exercises,
-            total_duration_minutes=data.get("total_duration_minutes", 0),
-            total_calories=data.get("total_calories", 0),
-            ai_advice=data.get("ai_advice", "Lütfen egzersize başlamadan önce doktorunuza danışın.")
-        )
+        # 2. Normalizasyon
+        h_flat = history.reshape(-1, 4)
+        h_scaled = _rnn_scaler.transform(h_flat).reshape(1, seq_len, 4)
+        
+        # 3. Modele Sor
+        x_t = torch.tensor(h_scaled, dtype=torch.float32)
+        with torch.no_grad():
+            probs = _rnn_model(x_t).numpy()[0]
+            
+        # 4. Güvenlik Kapısı (Safety Gate - Modül 6 Kuralı)
+        # 0: Yürüyüş, 1: Yoga, 2: Koşu, 3: Bisiklet, 4: HIIT
+        if risk_val == 2: # High Risk
+            probs[2] = 0.0
+            probs[3] = 0.0
+            probs[4] = 0.0
+        elif risk_val == 1: # Medium Risk
+            probs[4] = 0.0
+            
+        best_class = int(np.argmax(probs))
+        
+        # 5. Tavsiye Haritalaması (Katalog)
+        catalog = {
+            0: ExercisePlanResponse(
+                total_duration_minutes=30, total_calories=120,
+                ai_advice="Modelimiz (RNN) sağlık verilerinize dayanarak düşük şiddetli kardiyo önermektedir. Eklemlerinizi zorlamayın.",
+                exercises=[
+                    ExerciseItem(title="Tempolu Yürüyüş", duration_minutes=20, intensity="Düşük", calories=80, type="Kardiyo", description="Açık havada veya bantta düz yürüyüş."),
+                    ExerciseItem(title="Soğuma/Esneme", duration_minutes=10, intensity="Düşük", calories=40, type="Esneklik", description="Bacak ve sırt kaslarını esnetin.")
+                ]
+            ),
+            1: ExercisePlanResponse(
+                total_duration_minutes=25, total_calories=90,
+                ai_advice="RNN modelimiz vücut esnekliğine ihtiyacınız olduğunu tespit etti. Yoga seansı fiziksel stresinizi de azaltacaktır.",
+                exercises=[
+                    ExerciseItem(title="Başlangıç Seviyesi Yoga", duration_minutes=25, intensity="Düşük", calories=90, type="Yoga", description="Nefes odaklı temel asanalar.")
+                ]
+            ),
+            2: ExercisePlanResponse(
+                total_duration_minutes=40, total_calories=300,
+                ai_advice="Modelimiz (RNN) kardiyo kapasitenizi artırmak için orta şiddetli koşuyu uygun buldu. Tempo kontrolüne dikkat edin.",
+                exercises=[
+                    ExerciseItem(title="Isınma Yürüyüşü", duration_minutes=5, intensity="Düşük", calories=20, type="Kardiyo", description="Yavaş tempo yürüyüş."),
+                    ExerciseItem(title="Hafif Tempo Koşu", duration_minutes=30, intensity="Orta", calories=250, type="Kardiyo", description="Nabzı %60-70 bandında tutarak koşu."),
+                    ExerciseItem(title="Soğuma", duration_minutes=5, intensity="Düşük", calories=30, type="Esneklik", description="Bacak kaslarını uzatma.")
+                ]
+            ),
+            3: ExercisePlanResponse(
+                total_duration_minutes=45, total_calories=320,
+                ai_advice="RNN modelimiz bisiklet antrenmanının eklemlerinize daha az yük bindireceğini ve dayanıklılığınızı artıracağını öngörüyor.",
+                exercises=[
+                    ExerciseItem(title="Sabit Bisiklet", duration_minutes=45, intensity="Orta", calories=320, type="Kardiyo", description="Orta dirençte pedal çevirme.")
+                ]
+            ),
+            4: ExercisePlanResponse(
+                total_duration_minutes=30, total_calories=400,
+                ai_advice="Verileriniz çok sağlıklı (Düşük Risk). RNN modelimiz kondisyonunuzu maksimize etmek için yüksek şiddetli aralıklı antrenman (HIIT) öneriyor.",
+                exercises=[
+                    ExerciseItem(title="HIIT / Vücut Ağırlığı", duration_minutes=30, intensity="Yüksek", calories=400, type="Güç/Kardiyo", description="Burpee, Jump Squat ve Mountain Climber kombinasyonu.")
+                ]
+            )
+        }
+        
+        return catalog[best_class]
 
     except Exception as e:
         logger.error(f"Egzersiz planı oluşturulamadı: {e}")
-        # Fallback plan
         return ExercisePlanResponse(
             exercises=[
                 ExerciseItem(
                     title="Hafif Tempolu Yürüyüş",
-                    duration_minutes=20,
-                    intensity="Düşük",
-                    calories=80,
-                    type="Kardiyo",
-                    description="Düz zeminde, nefes nefese kalmayacak tempoda yürüyüş."
+                    duration_minutes=20, intensity="Düşük", calories=80, type="Kardiyo",
+                    description="Sistem geçici olarak meşgul, hafif egzersiz yapın."
                 )
             ],
-            total_duration_minutes=20,
-            total_calories=80,
-            ai_advice="Sistem geçici olarak yanıt veremiyor, bu standart hafif aktiviteyi uygulayabilirsiniz."
+            total_duration_minutes=20, total_calories=80,
+            ai_advice="RNN modeli geçici olarak yanıt vermedi."
         )

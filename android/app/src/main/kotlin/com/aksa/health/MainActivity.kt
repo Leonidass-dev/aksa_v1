@@ -1,4 +1,4 @@
-package com.example.aksa_v1
+package com.aksa.health
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,0 +1,282 @@
+"""
+AKSA Backend — CRUD İşlemleri
+Veritabanı okuma/yazma fonksiyonları.
+"""
+
+from datetime import datetime, date, timedelta
+from sqlalchemy import select, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from db_models import (
+    User, HealthRecord, RiskScore,
+    MealRecord, ExercisePlan, ChatMessage,
+)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  USER
+# ═══════════════════════════════════════════════════════════════════
+
+async def get_or_create_user(
+    db: AsyncSession,
+    firebase_uid: str,
+    email: str = "",
+    full_name: str = "",
+) -> User:
+    """Firebase UID ile kullanıcıyı bul veya oluştur."""
+    stmt = select(User).where(User.firebase_uid == firebase_uid)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(
+            firebase_uid=firebase_uid,
+            email=email,
+            full_name=full_name,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    return user
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  HEALTH RECORDS
+# ═══════════════════════════════════════════════════════════════════
+
+async def save_health_record(
+    db: AsyncSession,
+    user: User,
+    data: dict,
+) -> HealthRecord:
+    """Günlük sağlık verisini kaydet (upsert: aynı gün varsa güncelle)."""
+    record_date = data.get("record_date", date.today())
+    if isinstance(record_date, str):
+        record_date = date.fromisoformat(record_date)
+
+    stmt = select(HealthRecord).where(
+        HealthRecord.user_id == user.id,
+        HealthRecord.record_date == record_date,
+    )
+    result = await db.execute(stmt)
+    record = result.scalar_one_or_none()
+
+    if record is None:
+        record = HealthRecord(user_id=user.id, record_date=record_date)
+        db.add(record)
+
+    # Alanları güncelle (0 veya None ise mevcut değeri koru)
+    for field in [
+        "steps", "heart_rate", "resting_heart_rate", "spo2",
+        "systolic", "diastolic", "sleep_hours", "sleep_deep_min",
+        "sleep_light_min", "sleep_rem_min", "sleep_awake_min",
+        "active_calories", "total_calories", "distance_m",
+        "stress_level", "weight",
+    ]:
+        new_val = data.get(field)
+        if new_val is not None and new_val > 0:
+            setattr(record, field, new_val)
+
+    if "source" in data:
+        record.source = data["source"]
+
+    record.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+async def get_health_records(
+    db: AsyncSession,
+    user: User,
+    days: int = 7,
+) -> list[HealthRecord]:
+    """Son N günün sağlık kayıtlarını getir."""
+    since = date.today() - timedelta(days=days)
+    stmt = (
+        select(HealthRecord)
+        .where(
+            HealthRecord.user_id == user.id,
+            HealthRecord.record_date >= since,
+        )
+        .order_by(desc(HealthRecord.record_date))
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def get_today_health(db: AsyncSession, user: User) -> HealthRecord | None:
+    """Bugünün sağlık kaydını getir."""
+    stmt = select(HealthRecord).where(
+        HealthRecord.user_id == user.id,
+        HealthRecord.record_date == date.today(),
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  RISK SCORES
+# ═══════════════════════════════════════════════════════════════════
+
+async def save_risk_score(
+    db: AsyncSession,
+    user: User,
+    score: float,
+    level: str,
+    level_label: str,
+    top_factors: list[dict],
+    recommendations: list[str],
+    model_version: str = "rule-v1",
+) -> RiskScore:
+    """Risk skoru sonucunu kaydet."""
+    record = RiskScore(
+        user_id=user.id,
+        score=score,
+        level=level,
+        level_label=level_label,
+        top_factors=top_factors,
+        recommendations=recommendations,
+        model_version=model_version,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+async def get_risk_history(
+    db: AsyncSession,
+    user: User,
+    limit: int = 30,
+) -> list[RiskScore]:
+    """Risk skoru geçmişini getir."""
+    stmt = (
+        select(RiskScore)
+        .where(RiskScore.user_id == user.id)
+        .order_by(desc(RiskScore.calculated_at))
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  MEAL RECORDS
+# ═══════════════════════════════════════════════════════════════════
+
+async def save_meal_record(
+    db: AsyncSession,
+    user: User,
+    food_name: str,
+    portion: str,
+    calories: int,
+    protein_g: float,
+    carbs_g: float,
+    fat_g: float,
+    fiber_g: float,
+    health_score: int,
+    recommendation: str,
+    tags: list[str],
+) -> MealRecord:
+    """Yemek analizi sonucunu kaydet."""
+    record = MealRecord(
+        user_id=user.id,
+        food_name=food_name,
+        portion=portion,
+        calories=calories,
+        protein_g=protein_g,
+        carbs_g=carbs_g,
+        fat_g=fat_g,
+        fiber_g=fiber_g,
+        health_score=health_score,
+        recommendation=recommendation,
+        tags=tags,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+async def get_meal_history(
+    db: AsyncSession,
+    user: User,
+    limit: int = 30,
+) -> list[MealRecord]:
+    """Yemek analiz geçmişini getir."""
+    stmt = (
+        select(MealRecord)
+        .where(MealRecord.user_id == user.id)
+        .order_by(desc(MealRecord.analyzed_at))
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  EXERCISE PLANS
+# ═══════════════════════════════════════════════════════════════════
+
+async def save_exercise_plan(
+    db: AsyncSession,
+    user: User,
+    exercises: list[dict],
+    total_duration: int,
+    total_calories: int,
+    ai_advice: str,
+) -> ExercisePlan:
+    """Egzersiz planı sonucunu kaydet."""
+    record = ExercisePlan(
+        user_id=user.id,
+        exercises=exercises,
+        total_duration_minutes=total_duration,
+        total_calories=total_calories,
+        ai_advice=ai_advice,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  CHAT MESSAGES
+# ═══════════════════════════════════════════════════════════════════
+
+async def save_chat_message(
+    db: AsyncSession,
+    user: User,
+    role: str,
+    content: str,
+    is_safe: bool = True,
+) -> ChatMessage:
+    """Chat mesajını kaydet."""
+    msg = ChatMessage(
+        user_id=user.id,
+        role=role,
+        content=content,
+        is_safe=is_safe,
+    )
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    return msg
+
+
+async def get_chat_history(
+    db: AsyncSession,
+    user: User,
+    limit: int = 50,
+) -> list[ChatMessage]:
+    """Chat geçmişini getir (eskiden yeniye)."""
+    stmt = (
+        select(ChatMessage)
+        .where(ChatMessage.user_id == user.id)
+        .order_by(ChatMessage.created_at)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

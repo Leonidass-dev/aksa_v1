@@ -1,6 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 from models.risk_model import HealthSnapshot, compute_risk
+from database import get_db
+from auth import get_current_user
+import crud
 
 router = APIRouter()
 
@@ -48,6 +52,17 @@ class RiskResponse(BaseModel):
     model_version: str
 
 
+class RiskHistoryItem(BaseModel):
+    id: int
+    score: float
+    level: str
+    level_label: str | None
+    top_factors: list | None
+    recommendations: list | None
+    model_version: str
+    calculated_at: str
+
+
 LEVEL_LABELS = {
     "low": "Düşük Risk",
     "medium": "Orta Risk",
@@ -56,14 +71,16 @@ LEVEL_LABELS = {
 
 
 @router.post("/risk-score", response_model=RiskResponse)
-def calculate_risk(req: RiskRequest):
+async def calculate_risk(
+    req: RiskRequest,
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     M3 — Sağlık Risk Skoru Hesaplama
 
     Kullanıcının günlük sağlık verilerini alıp 0-100 arası risk skoru üretir.
-    - 0–33: Düşük risk
-    - 34–66: Orta risk
-    - 67–100: Yüksek risk
+    Sonucu PostgreSQL'e kaydeder.
     """
     snap = HealthSnapshot(
         steps=req.steps,
@@ -83,28 +100,66 @@ def calculate_risk(req: RiskRequest):
     )
 
     result = compute_risk(snap)
+    level_label = LEVEL_LABELS.get(result.level, result.level)
+
+    factors_response = [
+        RiskFactorResponse(
+            name=f.name,
+            contribution=f.contribution,
+            description=f.description,
+        )
+        for f in result.top_factors
+    ]
+
+    # DB'ye kaydet
+    user = await crud.get_or_create_user(db, uid)
+    await crud.save_risk_score(
+        db, user,
+        score=result.score,
+        level=result.level,
+        level_label=level_label,
+        top_factors=[f.model_dump() for f in factors_response],
+        recommendations=result.recommendations,
+        model_version=result.model_version,
+    )
 
     return RiskResponse(
         score=result.score,
         level=result.level,
-        level_label=LEVEL_LABELS.get(result.level, result.level),
-        top_factors=[
-            RiskFactorResponse(
-                name=f.name,
-                contribution=f.contribution,
-                description=f.description,
-            )
-            for f in result.top_factors
-        ],
+        level_label=level_label,
+        top_factors=factors_response,
         recommendations=result.recommendations,
         model_version=result.model_version,
     )
 
 
+@router.get("/risk-history", response_model=list[RiskHistoryItem])
+async def risk_history(
+    limit: int = 30,
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kullanıcının risk skoru geçmişini getirir."""
+    user = await crud.get_or_create_user(db, uid)
+    records = await crud.get_risk_history(db, user, limit)
+    return [
+        RiskHistoryItem(
+            id=r.id,
+            score=r.score,
+            level=r.level,
+            level_label=r.level_label,
+            top_factors=r.top_factors,
+            recommendations=r.recommendations,
+            model_version=r.model_version,
+            calculated_at=r.calculated_at.isoformat(),
+        )
+        for r in records
+    ]
+
+
 @router.get("/risk-score/demo", response_model=RiskResponse)
 def demo_risk():
     """Demo veriyle risk skoru — bağlantı testi için."""
-    from models.risk_model import HealthSnapshot
     snap = HealthSnapshot(
         steps=6500, sleep_hours=6.0, heart_rate_resting=78,
         systolic=128, diastolic=84, spo2=97, stress_level=45,

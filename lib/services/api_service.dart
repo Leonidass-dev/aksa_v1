@@ -1,24 +1,38 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'health_service.dart';
 
 /// FastAPI backend'e HTTP istekleri gönderen servis.
-/// Emülatörde localhost = 10.0.2.2, gerçek cihazda bilgisayarın yerel IP'si.
+/// Tüm istekler Firebase token ile korunur.
 class ApiService {
+  // Production build: flutter build apk --dart-define=API_BASE_URL=https://your-production-url.com/api
+  // Dev build: varsayılan olarak localhost kullanır
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api', // Android emülatör
+    defaultValue: 'http://10.0.2.2:8000/api', // Android emülatör localhost
   );
+
+  // ── Firebase Token Helper ─────────────────────────────────────
+  static Future<Map<String, String>> _authHeaders() async {
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
 
   // ── Yemek Fotoğrafı Analizi ──────────────────────────────────
   static Future<FoodAnalysisResult?> analyzeFoodImage(
       List<int> imageBytes) async {
     try {
       final base64Image = base64Encode(imageBytes);
+      final headers = await _authHeaders();
       final response = await http
           .post(
             Uri.parse('$_baseUrl/analyze-food'),
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: jsonEncode({'image_base64': base64Image}),
           )
           .timeout(const Duration(seconds: 30));
@@ -36,9 +50,10 @@ class ApiService {
     required Map<String, dynamic> today,
   }) async {
     try {
+      final headers = await _authHeaders();
       final res = await http.post(
         Uri.parse('$_baseUrl/anomaly-check'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode({'history': history, 'today': today}),
       );
       if (res.statusCode == 200) {
@@ -53,9 +68,10 @@ class ApiService {
   // ── Egzersiz Planı Önerisi ─────────────────────────────────────
   static Future<ExerciseApiResult?> fetchExercisePlan(ExerciseApiRequest req) async {
     try {
+      final headers = await _authHeaders();
       final res = await http.post(
         Uri.parse('$_baseUrl/exercise-plan'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode(req.toJson()),
       );
       if (res.statusCode == 200) {
@@ -70,10 +86,11 @@ class ApiService {
   // ── Risk Skoru ────────────────────────────────────────────────
   static Future<RiskApiResult?> fetchRiskScore(RiskApiRequest req) async {
     try {
+      final headers = await _authHeaders();
       final response = await http
           .post(
             Uri.parse('$_baseUrl/risk-score'),
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: jsonEncode(req.toJson()),
           )
           .timeout(const Duration(seconds: 10));
@@ -100,13 +117,56 @@ class ApiService {
     return null;
   }
 
+  // ── Risk Geçmişi ──────────────────────────────────────────────
+  static Future<List<RiskHistoryItem>> fetchRiskHistory({int limit = 30}) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/risk-history?limit=$limit'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+        return list.map((e) => RiskHistoryItem.fromJson(e)).toList();
+      }
+    } catch (e) {
+      debugPrint('Risk history hatası: $e');
+    }
+    return [];
+  }
+
+  // ── Yemek Geçmişi ────────────────────────────────────────────
+  static Future<List<MealHistoryItem>> fetchMealHistory({int limit = 30}) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/meal-history?limit=$limit'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+        return list.map((e) => MealHistoryItem.fromJson(e)).toList();
+      }
+    } catch (e) {
+      debugPrint('Meal history hatası: $e');
+    }
+    return [];
+  }
+
   // ── AI Asistan Chat ────────────────────────────────────────────
   static Future<AssistantChatResponse?> sendAssistantMessage(String message) async {
     try {
+      final headers = await _authHeaders();
       final response = await http
           .post(
             Uri.parse('$_baseUrl/assistant/chat'),
-            headers: {'Content-Type': 'application/json'},
+            headers: headers,
             body: jsonEncode({'message': message}),
           )
           .timeout(const Duration(seconds: 45));
@@ -118,6 +178,68 @@ class ApiService {
       debugPrint('Assistant API hatası: $e');
     }
     return null;
+  }
+
+  // ── Chat Geçmişi ──────────────────────────────────────────────
+  static Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50}) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/assistant/history?limit=$limit'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+        return list.map((e) => ChatHistoryItem.fromJson(e)).toList();
+      }
+    } catch (e) {
+      debugPrint('Chat history hatası: $e');
+    }
+    return [];
+  }
+
+  // ── Sağlık Verisi Backend Sync ────────────────────────────────
+  /// Firestore'daki sağlık verisini backend PostgreSQL'e de gönderir.
+  static Future<bool> syncHealthToBackend(HealthEntry entry) async {
+    try {
+      final headers = await _authHeaders();
+      final body = {
+        'record_date': '${entry.date.year}-${entry.date.month.toString().padLeft(2, '0')}-${entry.date.day.toString().padLeft(2, '0')}',
+        'steps': entry.steps,
+        'heart_rate': entry.heartRate,
+        'resting_heart_rate': entry.restingHeartRate,
+        'spo2': entry.spo2,
+        'systolic': entry.systolic,
+        'diastolic': entry.diastolic,
+        'sleep_hours': entry.sleepHours,
+        'sleep_deep_min': entry.sleepDeepMin,
+        'sleep_light_min': entry.sleepLightMin,
+        'sleep_rem_min': entry.sleepRemMin,
+        'sleep_awake_min': entry.sleepAwakeMin,
+        'active_calories': entry.activeCalories,
+        'total_calories': entry.totalCalories,
+        'distance_m': entry.distanceM,
+        'stress_level': entry.stressLevel,
+        'weight': entry.weight,
+        'source': entry.source,
+      };
+
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/health'),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Health sync hatası: $e');
+      return false;
+    }
   }
 }
 
@@ -421,4 +543,78 @@ class AssistantChatResponse {
       isSafe: json['is_safe'] ?? true,
     );
   }
+}
+
+// ── Geçmiş Veri Modelleri (Yeni) ────────────────────────────────────────
+
+class RiskHistoryItem {
+  final int id;
+  final double score;
+  final String level;
+  final String? levelLabel;
+  final String calculatedAt;
+
+  const RiskHistoryItem({
+    required this.id,
+    required this.score,
+    required this.level,
+    this.levelLabel,
+    required this.calculatedAt,
+  });
+
+  factory RiskHistoryItem.fromJson(Map<String, dynamic> json) => RiskHistoryItem(
+    id: json['id'] as int,
+    score: (json['score'] as num).toDouble(),
+    level: json['level'] as String,
+    levelLabel: json['level_label'] as String?,
+    calculatedAt: json['calculated_at'] as String,
+  );
+}
+
+class MealHistoryItem {
+  final int id;
+  final String foodName;
+  final int calories;
+  final int healthScore;
+  final String analyzedAt;
+
+  const MealHistoryItem({
+    required this.id,
+    required this.foodName,
+    required this.calories,
+    required this.healthScore,
+    required this.analyzedAt,
+  });
+
+  factory MealHistoryItem.fromJson(Map<String, dynamic> json) => MealHistoryItem(
+    id: json['id'] as int,
+    foodName: json['food_name'] as String,
+    calories: (json['calories'] ?? 0) as int,
+    healthScore: (json['health_score'] ?? 0) as int,
+    analyzedAt: json['analyzed_at'] as String,
+  );
+}
+
+class ChatHistoryItem {
+  final int id;
+  final String role;
+  final String content;
+  final bool isSafe;
+  final String createdAt;
+
+  const ChatHistoryItem({
+    required this.id,
+    required this.role,
+    required this.content,
+    required this.isSafe,
+    required this.createdAt,
+  });
+
+  factory ChatHistoryItem.fromJson(Map<String, dynamic> json) => ChatHistoryItem(
+    id: json['id'] as int,
+    role: json['role'] as String,
+    content: json['content'] as String,
+    isSafe: json['is_safe'] as bool? ?? true,
+    createdAt: json['created_at'] as String,
+  );
 }

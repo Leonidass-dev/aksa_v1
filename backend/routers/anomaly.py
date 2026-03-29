@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from models.anomaly_model import DailySnapshot, detect_anomalies
+from auth import get_current_user
 
 router = APIRouter()
 
@@ -56,7 +57,10 @@ def _to_snapshot(r: DailySnapshotRequest) -> DailySnapshot:
 
 
 @router.post("/anomaly-check", response_model=AnomalyCheckResponse)
-def check_anomaly(req: AnomalyCheckRequest):
+def check_anomaly(
+    req: AnomalyCheckRequest,
+    uid: str = Depends(get_current_user),
+):
     """
     M7 — Anomali Tespiti (Z-Skor)
 

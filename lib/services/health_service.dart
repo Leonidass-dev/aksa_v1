@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:health/health.dart';
 
 /// Firestore sağlık verisi okuma / yazma servisi (M1 — Veri Toplama Katmanı).
+/// Redmi Watch 4 → Mi Fitness → Health Connect → Bu Servis → Firestore + Backend
 class HealthService {
   static final _db = FirebaseFirestore.instance;
   static final Health _healthFactory = Health();
@@ -23,19 +24,37 @@ class HealthService {
         .set(entry.toJson(), SetOptions(merge: true));
   }
 
-  // ── Sensörlerden (Health Connect) Otomatik Veri Çekme (M1) ───
+  // ── Sensörlerden (Health Connect) Otomatik Veri Çekme ─────────
+  // Redmi Watch 4'ün tüm sensör verilerini Mi Fitness → Health Connect
+  // üzerinden çeker.
   static Future<bool> syncFromDevice() async {
     final uid = _uid;
     if (uid == null) return false;
 
-    // İsteyeceğimiz veri tipleri
+    // Redmi Watch 4'ün Health Connect üzerinden paylaştığı tüm veri tipleri
     final types = [
-      HealthDataType.STEPS,
-      HealthDataType.SLEEP_ASLEEP,
-      HealthDataType.HEART_RATE,
-      HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
-      HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
-      HealthDataType.BLOOD_OXYGEN,
+      // ── Aktivite ──────────────────────────────────────────────
+      HealthDataType.STEPS,                      // Günlük adım
+      HealthDataType.ACTIVE_ENERGY_BURNED,       // Aktif yakılan kalori
+      HealthDataType.TOTAL_CALORIES_BURNED,      // Toplam kalori
+      HealthDataType.DISTANCE_WALKING_RUNNING,   // Yürüme/koşma mesafesi
+
+      // ── Kardiyovasküler (PPG 4-kanal sensör) ──────────────────
+      HealthDataType.HEART_RATE,                 // Ortalama nabız
+      HealthDataType.RESTING_HEART_RATE,         // Dinlenik nabız
+
+      // ── SpO2 ──────────────────────────────────────────────────
+      HealthDataType.BLOOD_OXYGEN,               // Kan oksijen saturasyonu
+
+      // ── Tansiyon ──────────────────────────────────────────────
+      HealthDataType.BLOOD_PRESSURE_SYSTOLIC,    // Sistolik
+      HealthDataType.BLOOD_PRESSURE_DIASTOLIC,   // Diastolik
+
+      // ── Uyku (detaylı) ────────────────────────────────────────
+      HealthDataType.SLEEP_ASLEEP,               // Toplam uyku süresi
+      HealthDataType.SLEEP_DEEP,                 // Derin uyku
+      HealthDataType.SLEEP_LIGHT,                // Hafif uyku
+      HealthDataType.SLEEP_REM,                  // REM uyku
     ];
 
     final permissions = types.map((e) => HealthDataAccess.READ).toList();
@@ -49,7 +68,7 @@ class HealthService {
       final now = DateTime.now();
       final yesterday = now.subtract(const Duration(days: 1));
 
-      // Verileri çek (Öğrenilmiş verileri temizleyip filtreliyoruz)
+      // Verileri çek
       List<HealthDataPoint> healthData = await _healthFactory.getHealthDataFromTypes(
         startTime: yesterday,
         endTime: now,
@@ -58,61 +77,124 @@ class HealthService {
 
       healthData = Health().removeDuplicates(healthData);
 
+      // Varsa önceki günün verisini al ki üzerine yazmayalım
+      final todayEntry = await getTodayEntry();
+
+      // ── Veri toplama değişkenleri ────────────────────────────
       double totalSteps = 0;
-      double avgSleepHours = 0;
       double avgHeartRate = 0;
+      double avgRestingHr = 0;
+      double avgSpo2 = 0;
       double avgSystolic = 0;
       double avgDiastolic = 0;
-      double avgSpo2 = 0;
+      double totalSleepMin = 0;
+      double sleepDeepMin = 0;
+      double sleepLightMin = 0;
+      double sleepRemMin = 0;
+      double activeCalories = 0;
+      double totalCalories = 0;
+      double distanceM = 0;
 
-      int sleepCount = 0;
       int hrCount = 0;
+      int restHrCount = 0;
+      int spo2Count = 0;
       int sysCount = 0;
       int diaCount = 0;
-      int spo2Count = 0;
 
       for (var point in healthData) {
-        if (point.type == HealthDataType.STEPS) {
-          totalSteps += double.tryParse(point.value.toString()) ?? 0;
-        } else if (point.type == HealthDataType.SLEEP_ASLEEP) {
-          final val = double.tryParse(point.value.toString()) ?? 0;
-          avgSleepHours += (val / 60); // genelde dakika gelir
-          sleepCount++;
-        } else if (point.type == HealthDataType.HEART_RATE) {
-          avgHeartRate += double.tryParse(point.value.toString()) ?? 0;
-          hrCount++;
-        } else if (point.type == HealthDataType.BLOOD_PRESSURE_SYSTOLIC) {
-          avgSystolic += double.tryParse(point.value.toString()) ?? 0;
-          sysCount++;
-        } else if (point.type == HealthDataType.BLOOD_PRESSURE_DIASTOLIC) {
-          avgDiastolic += double.tryParse(point.value.toString()) ?? 0;
-          diaCount++;
-        } else if (point.type == HealthDataType.BLOOD_OXYGEN) {
-          avgSpo2 += double.tryParse(point.value.toString()) ?? 0;
-          spo2Count++;
+        final val = double.tryParse(point.value.toString()) ?? 0;
+
+        switch (point.type) {
+          // Aktivite
+          case HealthDataType.STEPS:
+            totalSteps += val;
+            break;
+          case HealthDataType.ACTIVE_ENERGY_BURNED:
+            activeCalories += val;
+            break;
+          case HealthDataType.TOTAL_CALORIES_BURNED:
+            totalCalories += val;
+            break;
+          case HealthDataType.DISTANCE_WALKING_RUNNING:
+            distanceM += val;
+            break;
+
+          // Kardiyovasküler
+          case HealthDataType.HEART_RATE:
+            avgHeartRate += val;
+            hrCount++;
+            break;
+          case HealthDataType.RESTING_HEART_RATE:
+            avgRestingHr += val;
+            restHrCount++;
+            break;
+
+          // SpO2
+          case HealthDataType.BLOOD_OXYGEN:
+            avgSpo2 += val;
+            spo2Count++;
+            break;
+
+          // Tansiyon
+          case HealthDataType.BLOOD_PRESSURE_SYSTOLIC:
+            avgSystolic += val;
+            sysCount++;
+            break;
+          case HealthDataType.BLOOD_PRESSURE_DIASTOLIC:
+            avgDiastolic += val;
+            diaCount++;
+            break;
+
+          // Uyku
+          case HealthDataType.SLEEP_ASLEEP:
+            totalSleepMin += val; // genelde dakika gelir
+            break;
+          case HealthDataType.SLEEP_DEEP:
+            sleepDeepMin += val;
+            break;
+          case HealthDataType.SLEEP_LIGHT:
+            sleepLightMin += val;
+            break;
+          case HealthDataType.SLEEP_REM:
+            sleepRemMin += val;
+            break;
+
+          default:
+            break;
         }
       }
 
-      // Varsa önceki günün verisini al ki üzerine yazmayalım
-      final todayEntry = await getTodayEntry();
-      
-      // Ortalama hesapları
-      if (sleepCount > 0) avgSleepHours /= sleepCount;
+      // Ortalama hesapla
       if (hrCount > 0) avgHeartRate /= hrCount;
+      if (restHrCount > 0) avgRestingHr /= restHrCount;
+      if (spo2Count > 0) avgSpo2 /= spo2Count;
       if (sysCount > 0) avgSystolic /= sysCount;
       if (diaCount > 0) avgDiastolic /= diaCount;
-      if (spo2Count > 0) avgSpo2 /= spo2Count;
 
-      // Eğer Health Connect yeni bir adım getirdiyse eskisiyle değiştir (Yoksa eskisi kalsın)
+      // Toplam uyku saati hesapla
+      double sleepHours = totalSleepMin > 0
+          ? totalSleepMin / 60.0
+          : (sleepDeepMin + sleepLightMin + sleepRemMin) / 60.0;
+
+      // Yeni entry oluştur (sensör verisi yoksa eskisi kalsın)
       final newEntry = HealthEntry(
         date: now,
         weight: todayEntry?.weight ?? 0,
         steps: totalSteps > 0 ? totalSteps : (todayEntry?.steps ?? 0),
-        sleepHours: avgSleepHours > 0 ? avgSleepHours : (todayEntry?.sleepHours ?? 0),
         heartRate: avgHeartRate > 0 ? avgHeartRate : (todayEntry?.heartRate ?? 0),
+        restingHeartRate: avgRestingHr > 0 ? avgRestingHr : (todayEntry?.restingHeartRate ?? 0),
+        spo2: avgSpo2 > 0 ? avgSpo2 : (todayEntry?.spo2 ?? 0),
         systolic: avgSystolic > 0 ? avgSystolic : (todayEntry?.systolic ?? 0),
         diastolic: avgDiastolic > 0 ? avgDiastolic : (todayEntry?.diastolic ?? 0),
-        spo2: avgSpo2 > 0 ? avgSpo2 : (todayEntry?.spo2 ?? 0),
+        sleepHours: sleepHours > 0 ? sleepHours : (todayEntry?.sleepHours ?? 0),
+        sleepDeepMin: sleepDeepMin > 0 ? sleepDeepMin : (todayEntry?.sleepDeepMin ?? 0),
+        sleepLightMin: sleepLightMin > 0 ? sleepLightMin : (todayEntry?.sleepLightMin ?? 0),
+        sleepRemMin: sleepRemMin > 0 ? sleepRemMin : (todayEntry?.sleepRemMin ?? 0),
+        sleepAwakeMin: todayEntry?.sleepAwakeMin ?? 0,
+        activeCalories: activeCalories > 0 ? activeCalories : (todayEntry?.activeCalories ?? 0),
+        totalCalories: totalCalories > 0 ? totalCalories : (todayEntry?.totalCalories ?? 0),
+        distanceM: distanceM > 0 ? distanceM : (todayEntry?.distanceM ?? 0),
+        stressLevel: todayEntry?.stressLevel ?? 0, // Health Connect'ten stres verisi gelmez, manuel girilir
         source: 'health_connect',
       );
 
@@ -164,53 +246,113 @@ class HealthService {
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 }
 
-// ── Veri Modeli ───────────────────────────────────────────────────
+// ── Veri Modeli — Redmi Watch 4 tüm sensör alanları ───────────────
 
 class HealthEntry {
   final DateTime date;
-  final double weight;       // kg
-  final double systolic;     // mmHg
-  final double diastolic;    // mmHg
-  final double sleepHours;   // saat
-  final double steps;        // adım
-  final double heartRate;    // bpm (isteğe bağlı)
-  final double spo2;         // % (isteğe bağlı)
-  final String source;       // "manual" | "health_connect"
+
+  // Aktivite
+  final double steps;           // Günlük adım
+  final double activeCalories;  // Aktif yakılan kalori (kcal)
+  final double totalCalories;   // Toplam yakılan kalori (kcal)
+  final double distanceM;       // Yürüme/koşma mesafesi (metre)
+
+  // Kardiyovasküler
+  final double heartRate;       // Ortalama nabız (bpm)
+  final double restingHeartRate;// Dinlenik nabız (bpm)
+  final double spo2;            // Kan oksijeni (%)
+
+  // Tansiyon
+  final double systolic;        // Sistolik (mmHg)
+  final double diastolic;       // Diastolik (mmHg)
+
+  // Uyku (detaylı)
+  final double sleepHours;      // Toplam uyku (saat)
+  final double sleepDeepMin;    // Derin uyku (dk)
+  final double sleepLightMin;   // Hafif uyku (dk)
+  final double sleepRemMin;     // REM uyku (dk)
+  final double sleepAwakeMin;   // Uyanıklık (dk)
+
+  // Stres & Vücut
+  final double stressLevel;     // Stres seviyesi (0-100)
+  final double weight;          // Kilo (kg)
+
+  // Meta
+  final String source;          // "manual" | "health_connect"
 
   const HealthEntry({
     required this.date,
-    this.weight = 0,
+    this.steps = 0,
+    this.activeCalories = 0,
+    this.totalCalories = 0,
+    this.distanceM = 0,
+    this.heartRate = 0,
+    this.restingHeartRate = 0,
+    this.spo2 = 0,
     this.systolic = 0,
     this.diastolic = 0,
     this.sleepHours = 0,
-    this.steps = 0,
-    this.heartRate = 0,
-    this.spo2 = 0,
+    this.sleepDeepMin = 0,
+    this.sleepLightMin = 0,
+    this.sleepRemMin = 0,
+    this.sleepAwakeMin = 0,
+    this.stressLevel = 0,
+    this.weight = 0,
     this.source = 'manual',
   });
 
   Map<String, dynamic> toJson() => {
         'date': date.toIso8601String(),
-        'weight': weight,
+        // Aktivite
+        'steps': steps,
+        'active_calories': activeCalories,
+        'total_calories': totalCalories,
+        'distance_m': distanceM,
+        // Kardiyovasküler
+        'heart_rate': heartRate,
+        'resting_heart_rate': restingHeartRate,
+        'spo2': spo2,
+        // Tansiyon
         'systolic': systolic,
         'diastolic': diastolic,
+        // Uyku
         'sleep_hours': sleepHours,
-        'steps': steps,
-        'heart_rate': heartRate,
-        'spo2': spo2,
+        'sleep_deep_min': sleepDeepMin,
+        'sleep_light_min': sleepLightMin,
+        'sleep_rem_min': sleepRemMin,
+        'sleep_awake_min': sleepAwakeMin,
+        // Stres & Vücut
+        'stress_level': stressLevel,
+        'weight': weight,
+        // Meta
         'source': source,
         'updated_at': FieldValue.serverTimestamp(),
       };
 
   factory HealthEntry.fromJson(Map<String, dynamic> json) => HealthEntry(
         date: DateTime.tryParse(json['date'] ?? '') ?? DateTime.now(),
-        weight: (json['weight'] ?? 0).toDouble(),
+        // Aktivite
+        steps: (json['steps'] ?? 0).toDouble(),
+        activeCalories: (json['active_calories'] ?? 0).toDouble(),
+        totalCalories: (json['total_calories'] ?? 0).toDouble(),
+        distanceM: (json['distance_m'] ?? 0).toDouble(),
+        // Kardiyovasküler
+        heartRate: (json['heart_rate'] ?? 0).toDouble(),
+        restingHeartRate: (json['resting_heart_rate'] ?? 0).toDouble(),
+        spo2: (json['spo2'] ?? 0).toDouble(),
+        // Tansiyon
         systolic: (json['systolic'] ?? 0).toDouble(),
         diastolic: (json['diastolic'] ?? 0).toDouble(),
+        // Uyku
         sleepHours: (json['sleep_hours'] ?? 0).toDouble(),
-        steps: (json['steps'] ?? 0).toDouble(),
-        heartRate: (json['heart_rate'] ?? 0).toDouble(),
-        spo2: (json['spo2'] ?? 0).toDouble(),
+        sleepDeepMin: (json['sleep_deep_min'] ?? 0).toDouble(),
+        sleepLightMin: (json['sleep_light_min'] ?? 0).toDouble(),
+        sleepRemMin: (json['sleep_rem_min'] ?? 0).toDouble(),
+        sleepAwakeMin: (json['sleep_awake_min'] ?? 0).toDouble(),
+        // Stres & Vücut
+        stressLevel: (json['stress_level'] ?? 0).toDouble(),
+        weight: (json['weight'] ?? 0).toDouble(),
+        // Meta
         source: json['source'] ?? 'manual',
       );
 }

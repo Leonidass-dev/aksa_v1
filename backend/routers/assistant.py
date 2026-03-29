@@ -1,9 +1,14 @@
 import os
 import httpx
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import get_db
+from auth import get_current_user
+import crud
 
 load_dotenv()
 
@@ -24,6 +29,13 @@ class ChatResponse(BaseModel):
     reply: str
     is_safe: bool = True
 
+class ChatHistoryItem(BaseModel):
+    id: int
+    role: str
+    content: str
+    is_safe: bool
+    created_at: str
+
 PROMPT = """
 Sen "AKSA" isimli, bilgili ve şefkatli bir yapay zeka sağlık asistanısın.
 Kullanıcılar sana yaşadıkları günlük, hafif sağlık sorunlarını veya semptomlarını yazacaklar.
@@ -40,12 +52,21 @@ Kullanıcının Mesajı:
 """
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat_with_assistant(req: ChatRequest):
+async def chat_with_assistant(
+    req: ChatRequest,
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Semptom kontrolcüsü ve sağlık yaşam tarzı asistanı.
+    Mesajları ve yanıtları PostgreSQL'e kaydeder.
     """
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY eksik")
+
+    # Kullanıcı mesajını DB'ye kaydet
+    user = await crud.get_or_create_user(db, uid)
+    await crud.save_chat_message(db, user, role="user", content=req.message)
 
     payload = {
         "contents": [
@@ -75,11 +96,36 @@ async def chat_with_assistant(req: ChatRequest):
             )
 
         text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        
-        return ChatResponse(
-            reply=text.strip()
-        )
+        reply = text.strip()
 
+        # Asistan yanıtını DB'ye kaydet
+        await crud.save_chat_message(db, user, role="assistant", content=reply)
+
+        return ChatResponse(reply=reply)
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Assistant Chat Error: {e}")
         raise HTTPException(status_code=500, detail="Bir hata oluştu, lütfen tekrar deneyin.")
+
+
+@router.get("/history", response_model=list[ChatHistoryItem])
+async def chat_history(
+    limit: int = Query(default=50, ge=1, le=200),
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kullanıcının chat geçmişini getirir (eskiden yeniye)."""
+    user = await crud.get_or_create_user(db, uid)
+    messages = await crud.get_chat_history(db, user, limit)
+    return [
+        ChatHistoryItem(
+            id=m.id,
+            role=m.role,
+            content=m.content,
+            is_safe=m.is_safe,
+            created_at=m.created_at.isoformat(),
+        )
+        for m in messages
+    ]
