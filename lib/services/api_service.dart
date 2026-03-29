@@ -7,11 +7,11 @@ import 'health_service.dart';
 /// FastAPI backend'e HTTP istekleri gönderen servis.
 /// Tüm istekler Firebase token ile korunur.
 class ApiService {
-  // Production build: flutter build apk --dart-define=API_BASE_URL=https://your-production-url.com/api
-  // Dev build: varsayılan olarak localhost kullanır
+  // Production build: flutter build apk --dart-define=API_BASE_URL=https://aksa-backend-as8a.onrender.com/api
+  // Dev build: Eğer argüman verilmezse doğrudan bulut (Render) sunucusuna bağlanır
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api', // Android emülatör localhost
+    defaultValue: 'https://aksa-backend-as8a.onrender.com/api', // Render Production API
   );
 
   // ── Firebase Token Helper ─────────────────────────────────────
