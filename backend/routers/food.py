@@ -23,6 +23,16 @@ GEMINI_URL = (
     "gemini-2.5-flash:generateContent"
 )
 
+# ── RAG BİLGİ TABANI (KNOWLEDGE BASE) ──
+NUTRITION_KNOWLEDGE_BASE = {
+    "Tansiyon": "Hipertansiyon riskiniz varsa sodyum tüketimini günlük 1500mg ile sınırlandırın. Sebze ve meyvelerdeki potasyum kan basıncını dengelemeye yardımcı olur.",
+    "Nabız": "Taşikardi veya yüksek nabız eğilimi olan durumlarda kafein ve eklenti şeker tüketimi kısıtlanmalıdır. Bol su içmek kalp sağlığı için elzemdir.",
+    "Hareketsizlik": "Hareketsiz yaşam (düşük adım) dönemlerinde porsiyon kontrolü sağlamak ve kompleks karbonhidrat (lifli) ağırlıklı beslenmek kilo alımını önler.",
+    "Uyku": "Yetersiz uyku leptin hormonunu baskılayıp kalori iştahını artırabilir. Gece geç saatte sindirimi zor (yağlı, baharatlı) yiyeceklerden kaçının.",
+    "Oksijen": "Solunum/SpO2 desteklemek için antioksidan (C vitamini) açısından zengin narenciye, biber, ve ıspanak tüketimi faydalı olabilir.",
+    "Stres": "Stres (yüksek kortizol) dönemlerinde B vitamini açısından zengin tam tahıllar, magnezyumlu badem ve muz sinir sistemini yatıştırmaya destek olur."
+}
+
 
 class FoodAnalysisRequest(BaseModel):
     image_base64: str   # base64 encoded JPEG/PNG
@@ -106,11 +116,38 @@ async def analyze_food(
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY eksik")
 
+    user = await crud.get_or_create_user(db, uid)
+    
+    # ── RAG: İstirdat (Retrieval) Mekanizması ──
+    # Kullanıcının en güncel sağlık risk geçmişi çekilir.
+    risk_history = await crud.get_risk_history(db, user, limit=1)
+    
+    rag_context_texts = []
+    if risk_history and len(risk_history) > 0:
+        latest_risk = risk_history[0]
+        rag_context_texts.append(f"Kullanıcının Genel Sağlık Risk Seviyesi: {latest_risk.level_label}")
+        
+        # Risk faktörlerini (Tansiyon, Uyku vb) çıkarıp ilgili rehber (Knowledge Base) metnini geri getir.
+        factors = latest_risk.top_factors or []
+        for f in factors:
+            factor_name = f.get("name", "") if isinstance(f, dict) else getattr(f, "name", "")
+            
+            for kb_key, kb_text in NUTRITION_KNOWLEDGE_BASE.items():
+                if kb_key.lower() in factor_name.lower():
+                    rag_context_texts.append(f"- TÜBER REHBER NOTU ({kb_key}): {kb_text}")
+    
+    if not rag_context_texts:
+        rag_context = "RAG Bağlamı Yok: Kullanıcı hakkında spesifik bir risk verisi bulunamadı. Standart yetişkin sağlıklı beslenme ilkelerini uygula."
+    else:
+        rag_context = "RAG (Kullanıcının Sağlık Durumu ve Getirilen Beslenme Rehberi):\\n" + "\\n".join(rag_context_texts)
+
+    augmented_prompt = f"{PROMPT}\\n\\n[SİSTEM ÖZEL BİLGİSİ / RAG BAĞLAMI]\\nAşağıdaki tıbbi/bağlamsal bilgiye dayanarak 'recommendation' (öneri) kısmını bu kullanıcıya göre hiper-kişiselleştir:\\n{rag_context}"
+
     payload = {
         "contents": [
             {
                 "parts": [
-                    {"text": PROMPT},
+                    {"text": augmented_prompt},
                     {
                         "inline_data": {
                             "mime_type": "image/jpeg",
@@ -186,7 +223,6 @@ async def analyze_food(
         tags = data.get("tags", [])
 
         # DB'ye kaydet
-        user = await crud.get_or_create_user(db, uid)
         await crud.save_meal_record(
             db, user,
             food_name=food_name,

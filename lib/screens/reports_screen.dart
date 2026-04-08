@@ -4,6 +4,8 @@ import '../services/health_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/app_line_chart.dart';
 import '../widgets/theme_aware_state.dart';
+import 'package:fl_chart/fl_chart.dart';
+import '../services/user_profile_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -13,14 +15,15 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
-  String _activeTab = 'weight';
+  String _activeTab = 'genel';
   String _timeframe = 'week';
 
   final _tabs = const [
+    _Tab('genel', 'Genel'),
     _Tab('weight', 'Kilo'),
     _Tab('bp', 'Tansiyon'),
     _Tab('sleep', 'Uyku'),
-    _Tab('risk', 'Risk Skoru'),
+    _Tab('risk', 'Risk'),
   ];
 
   Map<String, List<double>> _chartData = const {
@@ -29,6 +32,7 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
     'risk': [],
     'bp_sys': [],
     'bp_dia': [],
+    'genel': [0.5, 0.5, 0.5, 0.5, 0.5], // Adım, Uyku, Su, Kalp, Risk (Normalize 0-1)
   };
 
   List<String> _labels = [];
@@ -73,7 +77,44 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
         'bp_sys': sorted.map((e) => e.systolic).toList(),
         'bp_dia': sorted.map((e) => e.diastolic).toList(),
       };
+      
+      // Radar Chart İçin Normalize Veriler (Son 7 gün ortalaması)
+      _calculateRadarData(sorted);
+      
       _loadingData = false;
+    });
+  }
+
+  void _calculateRadarData(List<HealthEntry> entries) async {
+    final profile = await UserProfileService.getProfile();
+    final weight = profile?.weight ?? 70.0;
+    final waterTarget = HealthService.calculateWaterTarget(weight);
+    
+    double avgSteps = 0, avgSleep = 0, avgWater = 0, avgRh = 0, avgRisk = 0;
+    int count = entries.length;
+    
+    for (var e in entries) {
+      avgSteps += e.steps;
+      avgSleep += e.sleepHours;
+      avgWater += e.waterMl;
+      avgRh += e.restingHeartRate > 0 ? e.restingHeartRate : 70;
+      avgRisk += (e.systolic > 0 ? (e.systolic - 90) * 0.5 : 20.0);
+    }
+    
+    avgSteps /= count;
+    avgSleep /= count;
+    avgWater /= count;
+    avgRh /= count;
+    avgRisk /= count;
+    
+    setState(() {
+      _chartData['genel'] = [
+        (avgSteps / 10000).clamp(0.0, 1.0), // Adım (Hedef 10k)
+        (avgSleep / 8).clamp(0.0, 1.0),     // Uyku (Hedef 8s)
+        (avgWater / waterTarget).clamp(0.0, 1.0), // Su (Hedef Dinamik)
+        (1 - ((avgRh - 50) / 40)).clamp(0.1, 1.0), // Kalp (Daha düşük/sabit daha iyi)
+        (1 - (avgRisk / 100)).clamp(0.1, 1.0),    // Risk (Daha düşük puan daha iyi)
+      ];
     });
   }
 
@@ -246,6 +287,10 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
 
   Widget _buildChart(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    if (_activeTab == 'genel') {
+      return _buildRadarChart(context);
+    }
+
     final data = _activeTab == 'bp'
         ? _chartData['bp_sys']!
         : _chartData[_activeTab]!;
@@ -308,6 +353,62 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                 data: data,
                 data2: data2,
                 color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRadarChart(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final radarData = _chartData['genel']!;
+
+    return AppCard(
+      child: Column(
+        children: [
+          const Text(
+            'Sağlık Dengesi Özeti',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Haftalık ortalama verilerinizin dağılımı',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 240,
+            child: RadarChart(
+              RadarChartData(
+                radarShape: RadarShape.polygon,
+                dataSets: [
+                  RadarDataSet(
+                    fillColor: AppColors.primary.withValues(alpha: 0.2),
+                    borderColor: AppColors.primary,
+                    entryRadius: 3,
+                    dataEntries: radarData.map((e) => RadarEntry(value: e)).toList(),
+                  ),
+                ],
+                radarBackgroundColor: Colors.transparent,
+                borderData: FlBorderData(show: false),
+                radarBorderData: const BorderSide(color: Colors.transparent),
+                titlePositionPercentageOffset: 0.15,
+                titleTextStyle: TextStyle(color: cs.onSurface, fontSize: 11),
+                getTitle: (index, angle) {
+                  switch (index) {
+                    case 0: return const RadarChartTitle(text: 'Adım');
+                    case 1: return const RadarChartTitle(text: 'Uyku');
+                    case 2: return const RadarChartTitle(text: 'Su');
+                    case 3: return const RadarChartTitle(text: 'Kalp');
+                    case 4: return const RadarChartTitle(text: 'Risk');
+                    default: return const RadarChartTitle(text: '');
+                  }
+                },
+                tickCount: 4,
+                ticksTextStyle: const TextStyle(color: Colors.transparent),
+                gridBorderData: BorderSide(color: cs.outlineVariant, width: 1),
               ),
             ),
           ),
@@ -457,6 +558,12 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
         _Insight(
           AppColors.primary,
           'Sağlıklı alışkanlıklarınızı sürdürerek genel risk skorunuzu düşürebilirsiniz.',
+        ),
+      ],
+      'genel': [
+        _Insight(
+          AppColors.secondary,
+          'Sağlık dengeniz stabil görünüyor. Radar grafiğinde daralan alanlar iyileştirme yapmanız gereken noktaları gösterir.',
         ),
       ],
     }[_activeTab]!;

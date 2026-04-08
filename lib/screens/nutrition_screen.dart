@@ -46,14 +46,39 @@ class _NutritionScreenState extends State<NutritionScreen>
     }
 
     // Geçmiş öğünleri backend'den yükle
-    await ApiService.fetchMealHistory(limit: 10);
-    // TODO: Geçmiş öğünlerin kalori toplamını göstermek için _MealEntry'ye dönüştür
+    final history = await ApiService.fetchMealHistory(limit: 10);
+    if (mounted && history.isNotEmpty) {
+      setState(() {
+        _meals.addAll(history.map((h) => _MealEntry(
+              image: null, // Geriye dönük fotoğrafları DB'de saklamıyoruz
+              result: FoodAnalysisResult(
+                foodName: h.foodName,
+                portion: h.portion ?? '-',
+                calories: h.calories,
+                proteinG: h.proteinG,
+                carbsG: h.carbsG,
+                fatG: h.fatG,
+                fiberG: h.fiberG,
+                healthScore: h.healthScore,
+                recommendation: h.recommendation ?? '',
+                tags: List<String>.from(h.tags ?? []),
+              ),
+              time: TimeOfDay.fromDateTime(DateTime.parse(h.analyzedAt).toLocal()),
+            )));
+      });
+    }
   }
 
   int get _totalCalories => _meals.fold(0, (s, m) => s + m.calories);
 
   Future<void> _pickAndAnalyze(ImageSource source) async {
-    final xfile = await _picker.pickImage(source: source, imageQuality: 80);
+    // Fotoğrafların hafızayı şişirmemesi ve UI'ın kasmasını engellemek için piksel sınırı eklendi. (Eski cihaz optimizasyonu)
+    final xfile = await _picker.pickImage(
+      source: source,
+      imageQuality: 70,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
     if (xfile == null) return;
 
     setState(() {
@@ -460,12 +485,25 @@ class _NutritionScreenState extends State<NutritionScreen>
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             child: Stack(
               children: [
-                Image.file(
-                  meal.image,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
+                meal.image != null
+                    ? Image.file(
+                        meal.image!,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        // RAM Şişmesini Önleme: Büyük fotoğrafları küçük önbellekleyerek (Downsampling) yükle
+                        cacheHeight: 360, 
+                      )
+                    : Container(
+                        height: 180,
+                        width: double.infinity,
+                        color: AppColors.secondary.withValues(alpha: 0.1),
+                        child: const Icon(
+                          Icons.fastfood_outlined,
+                          size: 64,
+                          color: AppColors.secondary,
+                        ),
+                      ),
                 // Sağlık skoru badge
                 Positioned(
                   top: 12,
@@ -738,11 +776,11 @@ class _SourceButton extends StatelessWidget {
 }
 
 class _MealEntry {
-  final File image;
+  final File? image;
   final FoodAnalysisResult result;
   final TimeOfDay time;
   const _MealEntry({
-    required this.image,
+    this.image,
     required this.result,
     required this.time,
   });

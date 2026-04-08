@@ -1,89 +1,69 @@
-# AKSA - Akıllı Kişisel Sağlık Asistanı
+# AKSA - Akıllı Kişisel Sağlık Asistanı 🩺
 
-AKSA, kullanıcılarının sağlık verilerini takip ederek kişiselleştirilmiş analizler ve yapay zeka destekli öneriler sunan akıllı bir sağlık asistanı projesidir. Proje genel hatlarıyla iki ana kısımdan oluşmaktadır:
-1. **Frontend (Mobil Uygulama):** Kullanıcı etkileşimi için geliştirilen, Firebase (Kimlik doğrulama, veritabanı) ve Health API (Apple Health / Google Fit) entegrasyonuna sahip Flutter tabanlı mobil uygulama.
-2. **Backend (Yapay Zeka ve Veri İşleme):** Kullanıcının verilerine (Egzersiz, Beslenme vb.) dayanarak Risk Skoru, Anomali tespiti, kişiselleştirilmiş Asistan yanıtları (Google Gemini) sunan FastAPI tabanlı Python mikroservisi.
+AKSA, kullanıcıların sağlık verilerini (adım, nabız, uyku, su tüketimi, mood vb.) takip ederek kişiselleştirilmiş analizler ve yapay zeka destekli öneriler sunan, tam kapsamlı bir "Premium" sağlık asistanıdır.
 
 ---
 
-## 🚀 Başlangıç ve Nasıl Çalıştırılır?
+## ✨ Öne Çıkan Özellikler
 
-Projeyi kendi ortamınızda test etmek veya geliştirmek için iki farklı yöntem bulunmaktadır.
-
-### Yöntem 1: Tek Tıkla (Otomatik) Başlatma ⚡️
-
-Proje kök dizininde bulunan `run_app.py` scripti sayesinde hem arka uç (FastAPI) hem de mobil uygulamayı (Flutter) aynı anda tek bir komutla başlatabilirsiniz. *(Not: Bu komutun sorunsuz çalışması için aşağıda **Yöntem 2**'de bahsedilen Python sanal ortamının - venv - önceden kurulmuş olması gerekmektedir).*
-
-1. Proje kök dizininde terminali açın.
-2. Aşağıdaki komutu çalıştırarak her iki servisi de başlatın:
-   ```bash
-   python run_app.py
-   ```
-Bu komut, otomatik olarak FastAPI sunucusunu başlatır, bir süre bekler ve ardından uygulamayı derlemek için `flutter run` komutunu çağırır. Sistemi tamamen kapatmak istediğinizde terminalden `Ctrl+C` yapmanız yeterlidir; böylece hem arka uç hem ön uç kapanacaktır.
+- **AI Sağlık Asistanı:** Google Gemini entegrasyonu ile gerçek zamanlı sağlık ve yaşam tarzı danışmanlığı.
+- **Dinamik Su Takibi:** Kişisel özelliklere (kilo vb.) göre hesaplanan günlük hedef ve interaktif dalga animasyonlu takip.
+- **Ruh Hali (Mood) Analizi:** Günlük mental durum takibi ve fiziksel verilerle korelasyon.
+- **Gelişmiş Raporlama:** Haftalık "Sağlık Dengesi" (Radar/Spider Chart) ile 5 ana boyutta derinlemesine analiz.
+- **Akıllı Hatırlatıcılar:** Su tüketimi ve hareket için proaktif yerel bildirimler (Nudges).
+- **Yemek Analizi:** Fotoğraf üzerinden kalori ve besin değeri tespiti.
+- **Risk & Anomali Tespiti:** XGBoost ve ML modelleri ile sağlık verilerindeki sapmaların saptanması.
 
 ---
 
-### Yöntem 2: Servisleri Ayrı Ayrı (Manuel) Başlatma
+## 🛠 Başka Bir Bilgisayara Kurulum (Setup)
 
-#### 1- Backend (Python / FastAPI) Kurulumu
+Projeyi yeni bir cihaza indirdiğinizde çalıştırabilmek için aşağıdaki gizli yapılandırma adımlarını tamamlamanız gerekmektedir:
 
-Arka uç servisi `backend` klasörü altında yer almaktadır ve uygulamanın veri işleme ile yapay zeka destekli analiz görevlerini yürütür.
+### 1. Backend Güvenlik Yapılandırması 🔑
+Güvenlik nedeniyle API anahtarlarımız GitHub'a yüklenmez.
+1. `backend/env.example` dosyasını `backend/.env` adıyla kopyalayın.
+2. İçindeki `GEMINI_API_KEY` alanına kendi Google AI Studio anahtarınızı girin.
 
-**Gereksinimler:** Python 3.9+ (Önerilen)
+### 2. Firebase Yapılandırması 🔥
+Firebase ayarları platforma özeldir ve gizlidir.
+1. [Firebase Console](https://console.firebase.google.com/)'dan projenizi oluşturun.
+2. `google-services.json` dosyasını indirip `android/app/` dizinine yerleştirin.
+3. Flutter projesi içinde `flutterfire configure` komutunu kullanarak `lib/firebase_options.dart` dosyasını oluşturun.
 
-1. Terminali açın ve projenin içerisindeki backend klasörüne geçiş yapın:
-   ```bash
-   cd backend
-   ```
-2. İzole bir geliştirme ortamı için sanal ortam (virtual environment) oluşturun:
-   ```bash
-   python -m venv venv
-   ```
-3. Sanal ortamı aktifleştirin:
-   - **Windows:** `venv\Scripts\activate`
-   - **macOS/Linux:** `source venv/bin/activate`
-4. Gerekli kütüphaneleri (FastAPI, uvicorn, scikit-learn, google-generativeai vb.) yükleyin:
-   ```bash
-   pip install -r requirements.txt
-   ```
-5. `.env` Dosyası: Ortam değişkenleri için backend klasörü içerisindeki `.env` dosyasının gerekli apikey'ler ile (Örn. `GEMINI_API_KEY`) doldurulduğundan emin olun.
-6. Sunucuyu başlatın:
-   ```bash
-   uvicorn main:app --reload
-   ```
-   **Not:** API varsayılan olarak `http://localhost:8000` adresinde çalışacaktır. Etkileşimli dokümantasyon (Swagger UI) ortamına `http://localhost:8000/docs` adresinden ulaşabilirsiniz.
+### 3. Hızlı Başlatma ⚡️
+Tüm servisleri tek komutla başlatmak için kök dizinde:
+```bash
+# Geliştirme modu
+python run_app.py
 
-#### 2- Frontend (Flutter) Kurulumu
-
-Mobil arayüz projenin kök dizininde yer almaktadır.
-
-**Gereksinimler:** Flutter SDK, Android Studio veya Xcode.
-
-1. Ana dizinde (Projenin kökünde) terminali açın.
-2. Flutter paketlerini ve bağımlılıklarını indirin:
-   ```bash
-   flutter pub get
-   ```
-3. **Firebase Bağlantısı:** Uygulamanız Firebase ile yapılandırılmıştır (`google_sign_in`, `firebase_auth`, `cloud_firestore`). Geliştirmeye başlamadan önce Firebase konsolu üzerinden projenizi bağlayın ve yapılandırma dosyalarını (`google-services.json` vb.) ilgili platform klasörlerine yerleştirdiğinizden emin olun.
-4. Cihazınızı veya emülatörü (simülatör) seçin ve uygulamayı çalıştırın:
-   ```bash
-   flutter run
-   ```
+# Yüksek Performans (Release) modu - Eski cihazlar için önerilir
+python run_app.py --release
+```
 
 ---
 
-## 🛠 Kullanılan Teknolojiler
+## 🏗 Proje Mimarisi
 
-- **Mobil Uygulama:** Flutter, Dart, GoRouter (routing)
-- **Arka Uç (Backend):** Python, FastAPI, Uvicorn
-- **Veritabanı & Kimlik Doğrulama:** Firebase (Cloud Firestore, Firebase Auth, Google/Apple Sign-In)
-- **Sağlık Verisi Takibi:** Health paketleri ile Apple Health ve Google Fit entegrasyonu
-- **Yapay Zeka ve Makine Öğrenimi:** Google Generative AI (Gemini), Scikit-Learn, NumPy
+- **Mobilde (Frontend):** Flutter & Dart (GoRouter, fl_chart, flutter_local_notifications)
+- **Sunucuda (Backend):** Python & FastAPI (SQLAlchemy, SQLite)
+- **Zeka (AI/ML):** Google Gemini Pro & Vision, ML modelleri (XGBoost, GRU)
+- **Veri Kaynağı:** Mi Fitness / Health Connect → AKSA Veri Hattı
 
-## 📂 Proje Yapısı
+---
 
-- `lib/`: Flutter mobil uygulamasının bileşenleri (UI screens, widgets, state yönetimi vb.).
-- `backend/`: Risk analizi, beslenme takibi, anomali algılama ve sohbet botu (API) kodları.
-- `android/`, `ios/`: Platformlara özgü yapılandırmalar.
-- `assets/`: Görseller (Logo vb.) ve ikon kaynakları.
-- `pubspec.yaml`: Flutter projesinin temel bağımlılıklarının kontrol dosyası.
+## 📂 Dosya Yapısı
+
+- `lib/`: Mobil uygulama ekranları, widget'lar ve servisler.
+- `backend/`: API route'ları, ML modelleri ve veritabanı şeması.
+- `android/`: Android build ayarları (Desugaring, Permissions).
+- `assets/`: Tasarım varlıkları ve logolar.
+
+---
+
+## ⚠️ Önemli Notlar
+- **Health Connect:** Uygulamanın sağlık verilerini çekebilmesi için cihazda "Health Connect" uygulamasının kurulu ve yetkilendirilmiş olması gerekir.
+- **Release Modu:** Eski Android cihazlarda takılma (jank) yaşamamak için mutlaka `--release` modunda derleme yapınız.
+
+> [!NOTE] 
+> Bu proje bir akademik tez kapsamında geliştirilmiştir. Tüm hakları saklıdır.

@@ -23,10 +23,16 @@ import 'screens/risk_score_screen.dart';
 import 'screens/data_entry_screen.dart';
 import 'screens/assistant_screen.dart';
 import 'widgets/bottom_nav.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Bildirim Servisini Başlat
+  await NotificationService.init();
+  await NotificationService.scheduleNudges();
+
   runApp(const AksaApp());
 }
 

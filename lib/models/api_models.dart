@@ -349,15 +349,29 @@ class RiskHistoryItem {
 class MealHistoryItem {
   final int id;
   final String foodName;
+  final String? portion;
   final int calories;
+  final double proteinG;
+  final double carbsG;
+  final double fatG;
+  final double fiberG;
   final int healthScore;
+  final String? recommendation;
+  final List<String>? tags;
   final String analyzedAt;
 
   const MealHistoryItem({
     required this.id,
     required this.foodName,
+    this.portion,
     required this.calories,
+    this.proteinG = 0,
+    this.carbsG = 0,
+    this.fatG = 0,
+    this.fiberG = 0,
     required this.healthScore,
+    this.recommendation,
+    this.tags,
     required this.analyzedAt,
   });
 
@@ -365,8 +379,15 @@ class MealHistoryItem {
       MealHistoryItem(
         id: json['id'] as int,
         foodName: json['food_name'] as String,
+        portion: json['portion'] as String?,
         calories: (json['calories'] ?? 0) as int,
+        proteinG: (json['protein_g'] ?? 0).toDouble(),
+        carbsG: (json['carbs_g'] ?? 0).toDouble(),
+        fatG: (json['fat_g'] ?? 0).toDouble(),
+        fiberG: (json['fiber_g'] ?? 0).toDouble(),
         healthScore: (json['health_score'] ?? 0) as int,
+        recommendation: json['recommendation'] as String?,
+        tags: (json['tags'] as List?)?.map((e) => e.toString()).toList(),
         analyzedAt: json['analyzed_at'] as String,
       );
 }

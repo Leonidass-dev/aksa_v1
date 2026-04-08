@@ -10,6 +10,7 @@ import '../services/user_profile_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/app_line_chart.dart';
 import '../widgets/theme_aware_state.dart';
+import '../widgets/water_wave_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,7 +20,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen>
-    with ThemeAwareMixin {
+    with ThemeAwareMixin, WidgetsBindingObserver {
   static const List<String> _days = [
     'Pzt',
     'Sal',
@@ -34,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<double> _weeklyData = List.filled(7, 0.0);
   bool _loadingRisk = true;
   String _userName = '';
+  double _waterTarget = 2000;
 
 
   // Bugünün Firestore'dan gelen verileri
@@ -49,8 +51,31 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserName();
-    _loadTodayData();
+    _silentSyncAndLoad();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _silentSyncAndLoad();
+    }
+  }
+
+  Future<void> _silentSyncAndLoad() async {
+    // Uygulama açıldığında veya arkaplandan döndüğünde sessizce verileri eşitle
+    await HealthService.syncFromDevice();
+    // Ardından arayüzü güncelle
+    if (mounted) {
+      _loadTodayData();
+    }
   }
 
   void _loadUserName() {
@@ -72,6 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final pAge = profile?.age ?? 30;
     final pHeight = profile?.height ?? 170.0;
     final pGender = profile?.gender ?? 'M';
+    final pWeight = profile?.weight ?? 70.0;
 
     final entry = await HealthService.getTodayEntry();
     final todayData = entry ?? HealthEntry(date: DateTime.now());
@@ -94,6 +120,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           spo2: todayData.spo2,
         ),
       );
+
+      if (mounted) {
+        setState(() {
+          _waterTarget = HealthService.calculateWaterTarget(pWeight);
+        });
+      }
 
       if (result != null) {
         setState(() {
@@ -167,6 +199,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const SizedBox(height: 8),
                   _buildQuickActions(context),
                   const SizedBox(height: 20),
+                  _buildWaterTracker(context),
+                  const SizedBox(height: 20),
+                  _buildMoodTracker(context),
+                  const SizedBox(height: 20),
                   _buildWeeklyTrend(context),
                   const SizedBox(height: 20),
                   _buildTodayActivity(context),
@@ -177,16 +213,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/app/assistant'),
-        backgroundColor: AppColors.secondary,
-        icon: const Icon(Icons.support_agent_outlined, color: Colors.white),
-        label: const Text('Asistan', style: TextStyle(color: Colors.white)),
-      ),
     );
   }
 
   Widget _buildHeader(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -228,36 +259,56 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ],
                   ),
-                  GestureDetector(
-                    onTap: () => context.go('/app/alerts'),
-                    child: Stack(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => context.go('/app/data-entry'),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(16),
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(
-                            Icons.notifications_outlined,
+                            Icons.add_rounded,
                             color: Colors.white,
                             size: 24,
                           ),
                         ),
-                        Positioned(
-                          top: 10,
-                          right: 10,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppColors.accent,
-                              shape: BoxShape.circle,
+                      ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () => context.go('/app/alerts'),
+                        child: Stack(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: const Icon(
+                                Icons.notifications_none_rounded,
+                                color: Colors.white,
+                                size: 24,
+                              ),
                             ),
-                          ),
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.accent,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -661,6 +712,146 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaterTracker(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final double currentMl = _todayEntry?.waterMl ?? 0;
+
+    return AppCard(
+      child: Row(
+        children: [
+          WaterWaveWidget(currentMl: currentMl, targetMl: _waterTarget),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Su Takibi',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: cs.onSurface,
+                  ),
+                ),
+                Text(
+                  'Hedef: ${_waterTarget.toInt()} ml',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildWaterAddBtn(context, 200),
+                    _buildWaterAddBtn(context, 500),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaterAddBtn(BuildContext context, int amount) {
+    return InkWell(
+      onTap: () async {
+        await HealthService.updateWater(amount.toDouble());
+        _loadTodayData();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add, size: 14, color: AppColors.primary),
+            const SizedBox(width: 4),
+            Text(
+              '$amount ml',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoodTracker(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final currentMood = _todayEntry?.mood ?? 'neutral';
+
+    final moods = [
+      {'val': 'happy', 'emoji': '🤩', 'label': 'Harika'},
+      {'val': 'good', 'emoji': '😊', 'label': 'İyi'},
+      {'val': 'neutral', 'emoji': '😐', 'label': 'Normal'},
+      {'val': 'tired', 'emoji': '😫', 'label': 'Yorgun'},
+      {'val': 'stressed', 'emoji': '😵‍💫', 'label': 'Stresli'},
+    ];
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Modun Nasıl?',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: moods.map((m) {
+              final isSelected = currentMood == m['val'];
+              return GestureDetector(
+                onTap: () async {
+                  await HealthService.updateMood(m['val']!);
+                  _loadTodayData();
+                },
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primary.withValues(alpha: 0.1)
+                            : Colors.transparent,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected ? AppColors.primary : Colors.transparent,
+                        ),
+                      ),
+                      child: Text(m['emoji']!, style: const TextStyle(fontSize: 24)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      m['label']!,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? AppColors.primary : cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),

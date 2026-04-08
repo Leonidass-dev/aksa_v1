@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color primary = Color(0xFF1E3A8A);
-  static const Color primaryLight = Color(0xFF2563EB);
-  static const Color secondary = Color(0xFF10B981);
+  static const Color primary = Color(0xFF0F172A);      // Deep Slate/Navy
+  static const Color primaryLight = Color(0xFF1E293B); // Muted Navy
+  static const Color secondary = Color(0xFF10B981);    // Emerald
   static const Color secondaryDark = Color(0xFF059669);
-  static const Color accent = Color(0xFFF97316);
+  static const Color accent = Color(0xFFF97316);       // Orange
   static const Color destructive = Color(0xFFEF4444);
-  static const Color background = Color(0xFFF8FAFC);
+  static const Color background = Color(0xFFF8FAFC);   // Light Grayish Blue
   static const Color card = Color(0xFFFFFFFF);
-  static const Color foreground = Color(0xFF1E293B);
+  static const Color foreground = Color(0xFF0F172A);
   static const Color mutedForeground = Color(0xFF64748B);
   static const Color muted = Color(0xFFF1F5F9);
   static const Color border = Color(0xFFE2E8F0);
-  static const Color chart4 = Color(0xFF8B5CF6);
+  static const Color chart4 = Color(0xFF6366F1);       // Indigo
   static const Color accentDark = Color(0xFFEA580C);
 }
 

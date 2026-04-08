@@ -9,6 +9,7 @@ import numpy as np
 import sys
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from datetime import date, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +135,8 @@ def _pick_plan_rules(req: ExerciseRequest) -> int:
             return 3  # Bisiklet
 
 
-def _pick_plan_rnn(req: ExerciseRequest) -> int:
-    """RNN ile plan seçimi."""
+def _pick_plan_rnn(req: ExerciseRequest, records: list = None) -> int:
+    """RNN ile plan seçimi (Kullanıcının gerçek verileriyle)."""
     _load_rnn()
     if _rnn_model is None:
         return _pick_plan_rules(req)
@@ -145,10 +146,42 @@ def _pick_plan_rnn(req: ExerciseRequest) -> int:
 
     seq_len = 14
     history = np.zeros((1, seq_len, 4))
+    
+    if records is None:
+        records = []
+        
+    today = date.today()
+    record_dict = {r.record_date: r for r in records}
+
     for i in range(seq_len):
-        history[0, i, 0] = 5000 + np.random.normal(0, 500)
-        history[0, i, 1] = 30 + np.random.normal(0, 10)
-        history[0, i, 2] = 7 + np.random.normal(0, 1)
+        # Time index: 0 = en eski (13 gün önce), 13 = bugün
+        target_date = today - timedelta(days=(seq_len - 1 - i))
+        r = record_dict.get(target_date)
+        
+        if r:
+            steps = float(r.steps or 0)
+            # Aktif Süreyi aktif kaloriden veya adımdan tahmin et
+            active_cals = getattr(r, 'active_calories', 0)
+            if active_cals and active_cals > 0:
+                active_mins = float(active_cals / 5)
+            else:
+                active_mins = float(steps / 100)
+                
+            sleep = float(r.sleep_hours or 0)
+            
+            # Eğer veri 0 olarak geldiyse modeli şaşırtmamak için taban değerlere çek
+            if steps == 0: steps = 1000.0
+            if active_mins == 0: active_mins = 10.0
+            if sleep == 0: sleep = 5.0
+        else:
+            # Padding (Kullanıcının eksik gününü sahte uç noktalara çekmek yerine düşük aktif bir profille doldur)
+            steps = 2000.0
+            active_mins = 15.0
+            sleep = 6.0
+            
+        history[0, i, 0] = steps
+        history[0, i, 1] = active_mins
+        history[0, i, 2] = sleep
         history[0, i, 3] = risk_val
 
     h_flat = history.reshape(-1, 4)
@@ -167,11 +200,11 @@ def _pick_plan_rnn(req: ExerciseRequest) -> int:
     return int(np.argmax(probs))
 
 
-async def generate_exercise_plan(req: ExerciseRequest) -> ExercisePlanResponse:
+async def generate_exercise_plan(req: ExerciseRequest, records: list = None) -> ExercisePlanResponse:
     """Ana fonksiyon — RNN varsa kullan, yoksa kural tabanlı."""
     try:
         if _HAS_ML:
-            best_class = _pick_plan_rnn(req)
+            best_class = _pick_plan_rnn(req, records)
         else:
             best_class = _pick_plan_rules(req)
         return _CATALOG[best_class]

@@ -34,6 +34,10 @@ class HealthEntry {
   final double stressLevel;
   final double weight;
 
+  // Yeni Özellikler
+  final double waterMl;
+  final String mood;
+
   // Meta
   final String source; // "manual" | "health_connect"
 
@@ -55,6 +59,8 @@ class HealthEntry {
     this.sleepAwakeMin = 0,
     this.stressLevel = 0,
     this.weight = 0,
+    this.waterMl = 0,
+    this.mood = 'neutral',
     this.source = 'manual',
   });
 
@@ -81,6 +87,9 @@ class HealthEntry {
     // Stres & Vücut
     'stress_level': stressLevel,
     'weight': weight,
+    // Yeni Özellikler
+    'water_ml': waterMl,
+    'mood': mood,
     // Meta
     'source': source,
     'updated_at': FieldValue.serverTimestamp(),
@@ -104,6 +113,8 @@ class HealthEntry {
     sleepAwakeMin: (json['sleep_awake_min'] ?? 0).toDouble(),
     stressLevel: (json['stress_level'] ?? 0).toDouble(),
     weight: (json['weight'] ?? 0).toDouble(),
+    waterMl: (json['water_ml'] ?? 0).toDouble(),
+    mood: json['mood'] ?? 'neutral',
     source: json['source'] ?? 'manual',
   );
 }

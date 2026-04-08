@@ -234,4 +234,68 @@ class HealthService {
 
   static String _dateKey(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+
+  // ── Su Verisini Güncelle ─────────────────────────────────────
+  static Future<void> updateWater(double additionalMl) async {
+    final today = await getTodayEntry();
+    final entry = today ?? HealthEntry(date: DateTime.now());
+    final updated = HealthEntry(
+      date: entry.date,
+      steps: entry.steps,
+      activeCalories: entry.activeCalories,
+      totalCalories: entry.totalCalories,
+      distanceM: entry.distanceM,
+      heartRate: entry.heartRate,
+      restingHeartRate: entry.restingHeartRate,
+      spo2: entry.spo2,
+      systolic: entry.systolic,
+      diastolic: entry.diastolic,
+      sleepHours: entry.sleepHours,
+      sleepDeepMin: entry.sleepDeepMin,
+      sleepLightMin: entry.sleepLightMin,
+      sleepRemMin: entry.sleepRemMin,
+      sleepAwakeMin: entry.sleepAwakeMin,
+      stressLevel: entry.stressLevel,
+      weight: entry.weight,
+      waterMl: entry.waterMl + additionalMl,
+      mood: entry.mood,
+      source: entry.source,
+    );
+    await saveHealthEntry(updated);
+  }
+
+  // ── Mod Verisini Güncelle ───────────────────────────────────
+  static Future<void> updateMood(String mood) async {
+    final today = await getTodayEntry();
+    final entry = today ?? HealthEntry(date: DateTime.now());
+    final updated = HealthEntry(
+      date: entry.date,
+      steps: entry.steps,
+      activeCalories: entry.activeCalories,
+      totalCalories: entry.totalCalories,
+      distanceM: entry.distanceM,
+      heartRate: entry.heartRate,
+      restingHeartRate: entry.restingHeartRate,
+      spo2: entry.spo2,
+      systolic: entry.systolic,
+      diastolic: entry.diastolic,
+      sleepHours: entry.sleepHours,
+      sleepDeepMin: entry.sleepDeepMin,
+      sleepLightMin: entry.sleepLightMin,
+      sleepRemMin: entry.sleepRemMin,
+      sleepAwakeMin: entry.sleepAwakeMin,
+      stressLevel: entry.stressLevel,
+      weight: entry.weight,
+      waterMl: entry.waterMl,
+      mood: mood,
+      source: entry.source,
+    );
+    await saveHealthEntry(updated);
+  }
+
+  // ── Su Hedefi Hesapla (Kilo * 35ml) ──────────────────────────
+  static double calculateWaterTarget(double weight) {
+    if (weight <= 0) return 2000; // Varsayılan hedef
+    return (weight * 35).roundToDouble();
+  }
 }

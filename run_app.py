@@ -76,10 +76,19 @@ def main():
 
     # ── 2. Flutter başlat ────────────────────────────────────
     print("[2/2] Flutter baslatiliyor...")
+    
+    # Kullanıcı python run_app.py --release derse release moduna geç
+    is_release = "--release" in sys.argv
+    mode_text = "RELEASE (Yuksek Performans)" if is_release else "DEBUG (Gelistirici)"
+    print(f"[*] Flutter {mode_text} modunda derleniyor...")
+    
     flutter_cmd = [
         "flutter", "run",
         f"--dart-define=API_BASE_URL=http://{local_ip}:8000/api",
     ]
+    if is_release:
+        flutter_cmd.append("--release")
+        
     flutter_process = subprocess.Popen(flutter_cmd, cwd=base_dir, shell=True)
 
     # ── Temiz kapatma ────────────────────────────────────────

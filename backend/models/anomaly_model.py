@@ -24,6 +24,14 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️  LSTM-AE yüklenemedi ({e}) — Z-Skor fallback aktif")
 
+_HAS_SHAP = False
+try:
+    import shap
+    _HAS_SHAP = True
+    logger.info("✅ SHAP kütüphanesi hazır (Açıklanabilir XAI aktif)")
+except ImportError:
+    logger.warning("⚠️  SHAP kütüphanesi yok. pip install shap kurarak aktif edebilirsiniz.")
+
 _ae_model = None
 _ae_scaler = None
 _ae_threshold = 0.5
@@ -160,8 +168,52 @@ def _describe(metric: str, z: float, today: float, avg: float, label: str, unit:
     return desc, rec
 
 
-def _check_ae_anomaly(today: DailySnapshot) -> tuple[bool, float]:
-    """LSTM-AE ile anomali kontrolü. ML yoksa (False, 0) döner."""
+def _get_shap_contributions(x_t: torch.Tensor) -> list[tuple[str, float]]:
+    """SHAP GradientExplainer kullanarak Anomaliye yol açan özellikleri ağırlıklandırır."""
+    if not _HAS_SHAP or not _HAS_ML or _ae_model is None:
+        return []
+
+    try:
+        class MSEWrapper(torch.nn.Module):
+            def __init__(self, ae):
+                super().__init__()
+                self.ae = ae
+            def forward(self, x):
+                recon = self.ae(x)
+                # Batch başına ortalama MSE
+                return torch.mean((recon - x)**2, dim=2) 
+        
+        wrapper = MSEWrapper(_ae_model).eval()
+        
+        # Referans arkaplan verisi (modeli şaşırtmayacak 0 etrafında ölçeklenmiş boş bir tensör)
+        bg_data = torch.zeros((5, 1, 9), dtype=torch.float32)
+        explainer = shap.GradientExplainer(wrapper, bg_data)
+        
+        shap_values = explainer.shap_values(x_t)
+        
+        if isinstance(shap_values, list):
+            sv = shap_values[0]
+        else:
+            sv = shap_values
+            
+        sv_abs = np.abs(sv.reshape(-1))
+        total = np.sum(sv_abs) + 1e-9
+        sv_pct = (sv_abs / total) * 100
+        
+        feature_names = [
+            "Ortalama Nabız", "Medyan Nabız", "Min Nabız", "Maks Nabız", "Nabız Std",
+            "Günlük Adım", "Aktif Süre", "Maks Adım Yoğunluğu", "Eksik Veri Oranı"
+        ]
+        
+        importance = list(zip(feature_names, sv_pct))
+        importance.sort(key=lambda x: x[1], reverse=True)
+        return importance[:3]  # En çok etki eden 3 özelliği dön
+    except Exception as e:
+        logger.warning(f"SHAP explainer hesaplanırken hata: {e}")
+        return []
+
+def _check_ae_anomaly(today: DailySnapshot) -> tuple[bool, float, list[tuple[str, float]]]:
+    """LSTM-AE ile anomali kontrolü. ML yoksa (False, 0, []) döner."""
     if not _HAS_ML:
         return False, 0.0
     try:
@@ -181,16 +233,21 @@ def _check_ae_anomaly(today: DailySnapshot) -> tuple[bool, float]:
         with torch.no_grad():
             reconstructed = _ae_model(x_t)
             mse = torch.mean((reconstructed - x_t) ** 2).item()
-        return bool(mse > _ae_threshold), mse
+        is_anomaly = bool(mse > _ae_threshold)
+        shap_factors = []
+        if is_anomaly:
+            shap_factors = _get_shap_contributions(x_t)
+            
+        return is_anomaly, mse, shap_factors
     except Exception as e:
         logger.warning(f"LSTM-AE hatası: {e}")
-        return False, 0.0
+        return False, 0.0, []
 
 
 def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot) -> AnomalyResult:
     """Ana fonksiyon — LSTM-AE + Z-skor veya sadece Z-skor."""
 
-    has_anomaly_ml, mse = _check_ae_anomaly(today)
+    has_anomaly_ml, mse, shap_factors = _check_ae_anomaly(today)
 
     # Z-Skor tabanlı kontrol (her zaman çalışır)
     anomalies: list[AnomalyItem] = []
@@ -225,14 +282,19 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot) -> Anom
 
         anomalies.sort(key=lambda a: a.z_score, reverse=True)
 
-    # ML anomali bulmuş ama kurallar bulamadıysa
-    if has_anomaly_ml and len(anomalies) == 0:
-        anomalies.append(AnomalyItem(
-            metric="general_health", metric_label="Genel Sağlık Örüntüsü",
-            z_score=2.0, today_value=0, avg_value=0, unit="",
-            severity="medium",
-            description=f"AI modelimiz günlük verilerinizde bir düzensizlik fark etti. (Hata: {mse:.2f})",
-            recommendation="Gün içinde kendinizi nasıl hissettiğinizi dinleyin.",
+    # ML anomali bulmuş ama kurallar bulamadıysa veya SHAP açıklaması varsa onu ana anomali olarak ekle
+    if has_anomaly_ml:
+        shap_desc = f"LSTM Autoencoder yapısı (Hata Oranı: {mse:.2f}) analiz ederek beklenmeyen bir sapma tespit etti."
+        if shap_factors:
+            factors_text = ", ".join([f"%{f[1]:.0f} {f[0]}" for f in shap_factors])
+            shap_desc = f"Algoritmamız normal rutininizden sapan bir durum tespit etti. En çok etkileyen faktörler: {factors_text}"
+            
+        anomalies.insert(0, AnomalyItem(
+            metric="lstm_ae_fusion", metric_label="Yapay Zeka Anomali Tespiti",
+            z_score=round(mse * 10, 2), today_value=0, avg_value=0, unit="",
+            severity="high" if mse > _ae_threshold * 1.5 else "medium",
+            description=shap_desc,
+            recommendation="Farklı seyreden vücut verileriniz yorgunluk belirtisi olabilir. Bugün vücudunuzu dinlemeye özen gösterin.",
         ))
 
     model_ver = f"lstm-ae-v1 (mse:{mse:.2f})" if _HAS_ML and mse > 0 else "zscore-v1"

@@ -18,60 +18,56 @@ class BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
+    final cs = Theme.of(context).colorScheme;
 
     final items = [
       _NavItem(
-        icon: Icons.home_outlined,
-        activeIcon: Icons.home,
+        icon: Icons.grid_view_outlined,
+        activeIcon: Icons.grid_view_rounded,
         label: 'Ana Ekran',
         path: '/app/dashboard',
       ),
       _NavItem(
-        icon: Icons.bar_chart_outlined,
-        activeIcon: Icons.bar_chart,
-        label: 'Raporlar',
-        path: '/app/reports',
-      ),
-      _NavItem(
-        icon: Icons.add_circle_outline,
-        activeIcon: Icons.add_circle,
-        label: 'Veri Ekle',
-        path: '/app/data-entry',
-      ),
-      _NavItem(
-        icon: Icons.favorite_outline,
-        activeIcon: Icons.favorite,
-        label: 'Sağlık',
-        path: '/app/nutrition',
+        icon: Icons.auto_awesome_outlined,
+        activeIcon: Icons.auto_awesome,
+        label: 'Asistan',
+        path: '/app/assistant',
+        isSpecial: true,
       ),
       _NavItem(
         icon: Icons.person_outline,
-        activeIcon: Icons.person,
+        activeIcon: Icons.person_rounded,
         label: 'Profil',
         path: '/app/profile',
       ),
     ];
 
-    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         color: cs.surface,
-        border: Border(top: BorderSide(color: cs.outlineVariant, width: 1)),
+        border: Border(top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5), width: 1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16,
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
             offset: const Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 64,
+        child: Container(
+          height: 80,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: items.map((item) {
-              final isActive = location == item.path;
+              final isActive = location.startsWith(item.path);
+              
+              if (item.isSpecial) {
+                return _buildSpecialItem(context, item, isActive);
+              }
+
               return Expanded(
                 child: GestureDetector(
                   onTap: () => context.go(item.path),
@@ -81,22 +77,20 @@ class BottomNav extends StatelessWidget {
                     children: [
                       Icon(
                         isActive ? item.activeIcon : item.icon,
-                        size: 24,
+                        size: 26,
                         color: isActive
                             ? AppColors.primary
-                            : AppColors.mutedForeground,
+                            : AppColors.mutedForeground.withValues(alpha: 0.7),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         item.label,
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: isActive
-                              ? FontWeight.w600
-                              : FontWeight.normal,
+                          fontSize: 12,
+                          fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                           color: isActive
                               ? AppColors.primary
-                              : AppColors.mutedForeground,
+                              : AppColors.mutedForeground.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -109,6 +103,51 @@ class BottomNav extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildSpecialItem(BuildContext context, _NavItem item, bool isActive) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => context.go(item.path),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.secondary, AppColors.secondaryDark],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.secondary.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                item.activeIcon,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              item.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isActive ? AppColors.secondaryDark : AppColors.mutedForeground,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _NavItem {
@@ -116,10 +155,12 @@ class _NavItem {
   final IconData activeIcon;
   final String label;
   final String path;
+  final bool isSpecial;
   const _NavItem({
     required this.icon,
     required this.activeIcon,
     required this.label,
     required this.path,
+    this.isSpecial = false,
   });
 }

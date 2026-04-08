@@ -28,11 +28,15 @@ async def get_exercise_plan(
     egzersiz planı çeker ve PostgreSQL'e kaydeder.
     """
     try:
-        plan = await generate_exercise_plan(req)
+        user = await crud.get_or_create_user(db, uid)
+        
+        # Son 14 günlük sağlık verilerini DB'den çek
+        records = await crud.get_health_records(db, user, days=14)
+        
+        plan = await generate_exercise_plan(req, records)
 
         # DB'ye kaydet
         if plan:
-            user = await crud.get_or_create_user(db, uid)
             exercises_data = []
             if plan.exercises:
                 exercises_data = [

@@ -73,6 +73,10 @@ class HealthRecord(Base):
     stress_level = Column(Float, default=0)              # Stres seviyesi (0-100, PPG→HRV)
     weight = Column(Float, default=0)                    # Kilo (kg)
 
+    # ── Yeni Özellikler ──────────────────────────────────────
+    water_ml = Column(Float, default=0)                  # Su içme (ml)
+    mood = Column(String(50), default="neutral")         # Ruh hali (happy, sad, etc.)
+
     # ── Meta ──────────────────────────────────────────────────
     source = Column(String(50), default="manual")        # "health_connect" | "manual"
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -44,6 +44,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   health: ^13.3.1
   flutter_markdown: ^0.7.7+1
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
+  fl_chart: ^0.70.1
 
 dev_dependencies:
   flutter_test:
