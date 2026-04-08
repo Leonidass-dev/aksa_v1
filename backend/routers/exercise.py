@@ -58,4 +58,20 @@ async def get_exercise_plan(
         return plan
     except Exception as e:
         logger.error(f"Egzersiz planı router hatası: {e}")
-        pass
+        # Fallback: Basit yürüyüş planı döndür
+        from models.exercise_model import ExercisePlanResponse, ExerciseItem
+        return ExercisePlanResponse(
+            total_duration_minutes=30,
+            total_calories=120,
+            ai_advice="Şu an kişisel plan oluşturulamadı. Temel bir yürüyüş planı öneriyoruz.",
+            exercises=[
+                ExerciseItem(
+                    title="Tempolu Yürüyüş",
+                    duration_minutes=30,
+                    intensity="Düşük",
+                    calories=120,
+                    type="Kardiyo",
+                    description="Açık havada veya bantta düz yürüyüş.",
+                )
+            ],
+        )

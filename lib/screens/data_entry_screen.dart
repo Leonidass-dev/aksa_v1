@@ -66,12 +66,18 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Akıllı cihaz verileri başarıyla senkronize edildi ✓'), backgroundColor: AppColors.secondary),
+          const SnackBar(
+            content: Text(
+              'Akıllı cihaz verileri başarıyla senkronize edildi ✓',
+            ),
+            backgroundColor: AppColors.secondary,
+          ),
         );
         _loadTodayData(); // senkronize edilenleri slider'a yansıt
       } else {
         setState(() {
-          _errorMessage = 'Cihaz verilerine ulaşılamadı. İzinleri kontrol edin.';
+          _errorMessage =
+              'Cihaz verilerine ulaşılamadı. İzinleri kontrol edin.';
         });
       }
     }
@@ -104,16 +110,18 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
       await HealthService.saveHealthEntry(entry);
 
       // 3 — FastAPI'den risk skoru al
-      await ApiService.fetchRiskScore(RiskApiRequest(
-        age: pAge,
-        gender: pGender,
-        height: pHeight,
-        weight: pWeight,
-        steps: _steps,
-        sleepHours: _sleep,
-        systolic: _systolic,
-        diastolic: _diastolic,
-      ));
+      await ApiService.fetchRiskScore(
+        RiskApiRequest(
+          age: pAge,
+          gender: pGender,
+          height: pHeight,
+          weight: pWeight,
+          steps: _steps,
+          sleepHours: _sleep,
+          systolic: _systolic,
+          diastolic: _diastolic,
+        ),
+      );
 
       if (mounted) {
         setState(() {
@@ -157,14 +165,27 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
                       decoration: BoxDecoration(
                         color: AppColors.destructive.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.destructive.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: AppColors.destructive.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.error_outline, color: AppColors.destructive, size: 18),
+                          const Icon(
+                            Icons.error_outline,
+                            color: AppColors.destructive,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
-                          Expanded(child: Text(_errorMessage!,
-                              style: const TextStyle(color: AppColors.destructive, fontSize: 13))),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: AppColors.destructive,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -177,8 +198,9 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
                   Text(
                     'Son güncelleme: Bugün ${TimeOfDay.now().format(context)}',
                     style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 80),
                 ],
@@ -217,18 +239,29 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                  child: const Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Sağlık Veri Girişi',
-                      style: TextStyle(
-                          color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                  Text('Günlük ölçümlerinizi güncelleyin',
-                      style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  Text(
+                    'Sağlık Veri Girişi',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Günlük ölçümlerinizi güncelleyin',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
                 ],
               ),
             ],
@@ -252,24 +285,45 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Sistolik', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                Text(
+                  'Sistolik',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12)),
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(_systolic.toInt().toString(),
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: cs.onSurface)),
-                      Text('mmHg', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                      Text(
+                        _systolic.toInt().toString(),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      Text(
+                        'mmHg',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Slider(
-                  value: _systolic, min: 80, max: 180,
+                  value: _systolic,
+                  min: 80,
+                  max: 180,
                   activeColor: AppColors.primary,
                   inactiveColor: cs.surfaceContainerHighest,
                   onChanged: (v) => setState(() => _systolic = v),
@@ -282,24 +336,45 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Diastolik', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                Text(
+                  'Diastolik',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12)),
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(_diastolic.toInt().toString(),
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: cs.onSurface)),
-                      Text('mmHg', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                      Text(
+                        _diastolic.toInt().toString(),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      Text(
+                        'mmHg',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Slider(
-                  value: _diastolic, min: 40, max: 120,
+                  value: _diastolic,
+                  min: 40,
+                  max: 120,
                   activeColor: AppColors.primary,
                   inactiveColor: cs.surfaceContainerHighest,
                   onChanged: (v) => setState(() => _diastolic = v),
@@ -323,7 +398,10 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
       child: Column(
         children: [
           Slider(
-            value: _sleep, min: 0, max: 12, divisions: 24,
+            value: _sleep,
+            min: 0,
+            max: 12,
+            divisions: 24,
             activeColor: AppColors.accent,
             inactiveColor: cs.surfaceContainerHighest,
             onChanged: (v) => setState(() => _sleep = v),
@@ -333,8 +411,14 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(_sleep.toStringAsFixed(1),
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: cs.onSurface)),
+              Text(
+                _sleep.toStringAsFixed(1),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
+              ),
               const SizedBox(width: 4),
               Text('saat', style: TextStyle(color: cs.onSurfaceVariant)),
             ],
@@ -356,7 +440,10 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
       child: Column(
         children: [
           Slider(
-            value: _steps, min: 0, max: 20000, divisions: 400,
+            value: _steps,
+            min: 0,
+            max: 20000,
+            divisions: 400,
             activeColor: AppColors.primary,
             inactiveColor: cs.surfaceContainerHighest,
             onChanged: (v) => setState(() => _steps = v),
@@ -366,8 +453,14 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(_steps.toInt().toString(),
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: cs.onSurface)),
+              Text(
+                _steps.toInt().toString(),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
+              ),
               const SizedBox(width: 4),
               Text('adım', style: TextStyle(color: cs.onSurfaceVariant)),
             ],
@@ -384,10 +477,21 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Hedef İlerlemesi',
-                        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                    Text('%${(progress * 100).toInt()}',
-                        style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface, fontSize: 12)),
+                    Text(
+                      'Hedef İlerlemesi',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      '%${(progress * 100).toInt()}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -397,7 +501,9 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
                     value: progress,
                     minHeight: 6,
                     backgroundColor: cs.surfaceContainerHighest,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
+                    ),
                   ),
                 ),
               ],
@@ -417,18 +523,25 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: AppColors.primaryLight, width: 2),
           foregroundColor: AppColors.primaryLight,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         child: _isSyncing
             ? const SizedBox(
-                height: 20, width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2))
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
                   Icon(Icons.watch_outlined),
                   SizedBox(width: 8),
-                  Text('Akıllı Cihazdan Çek (Health Connect)', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    'Akıllı Cihazdan Çek (Health Connect)',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
       ),
@@ -441,22 +554,29 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
       child: ElevatedButton.icon(
         onPressed: (_saving || _saved) ? null : _handleSave,
         style: ElevatedButton.styleFrom(
-          backgroundColor: _saved
-              ? AppColors.secondary
-              : AppColors.primary,
+          backgroundColor: _saved ? AppColors.secondary : AppColors.primary,
           minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         icon: _saving
             ? const SizedBox(
-                width: 20, height: 20,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : Icon(_saved ? Icons.check : Icons.save_outlined),
-        label: Text(_saving
-            ? 'Kaydediliyor...'
-            : _saved
-                ? 'Veriler Başarıyla Kaydedildi!'
-                : 'Sağlık Verilerini Kaydet'),
+        label: Text(
+          _saving
+              ? 'Kaydediliyor...'
+              : _saved
+              ? 'Veriler Başarıyla Kaydedildi!'
+              : 'Sağlık Verilerini Kaydet',
+        ),
       ),
     );
   }
@@ -476,9 +596,13 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         color: cs.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: cs.outlineVariant),
-        boxShadow: [BoxShadow(
+        boxShadow: [
+          BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8, offset: const Offset(0, 2))],
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -496,8 +620,17 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  ),
                 ],
               ),
             ],

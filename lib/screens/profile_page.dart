@@ -1,11 +1,11 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/user_profile_service.dart';
 import '../services/image_upload_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/image_utils.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -94,7 +94,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
       // Eğer yeni fotoğraf seçilmişse Base64'e çeviriyoruz
       if (_pickedImage != null) {
-        final uploadService = Base64ImageUploadService(); // İleride buraya FirebaseStorageUploadService() verebilirsiniz.
+        final uploadService =
+            Base64ImageUploadService(); // İleride buraya FirebaseStorageUploadService() verebilirsiniz.
         final url = await uploadService.uploadImage(_pickedImage!, _user!.uid);
         if (url != null) {
           photoUrlToSave = url;
@@ -122,13 +123,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profil başarıyla güncellendi ✓'), backgroundColor: AppColors.secondary),
+          const SnackBar(
+            content: Text('Profil başarıyla güncellendi ✓'),
+            backgroundColor: AppColors.secondary,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: $e'), backgroundColor: AppColors.destructive),
+          SnackBar(
+            content: Text('Hata: $e'),
+            backgroundColor: AppColors.destructive,
+          ),
         );
       }
     } finally {
@@ -136,29 +143,27 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Base64 URI veya Normal URL'yi ImageProvider'a çevirir
-  ImageProvider? _getPhotoProvider(String? url) {
-    if (url == null || url.isEmpty) return null;
-    if (url.startsWith('data:image')) {
-      final base64Str = url.split(',').last;
-      return MemoryImage(base64Decode(base64Str));
-    }
-    return NetworkImage(url);
-  }
-
   @override
   Widget build(BuildContext ctx) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     final photoWidget = _pickedImage != null
         ? FileImage(_pickedImage!)
-        : _getPhotoProvider(_user!.photoUrl);
+        : ImageUtils.getPhotoProvider(_user!.photoUrl);
 
     final inputDecoration = InputDecoration(
       filled: true,
       fillColor: Theme.of(context).colorScheme.surface,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: AppColors.border)),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppColors.border),
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
 
@@ -178,57 +183,90 @@ class _ProfilePageState extends State<ProfilePage> {
                     CircleAvatar(
                       radius: 56,
                       backgroundImage: photoWidget,
-                      child: photoWidget == null ? const Icon(Icons.person, size: 56) : null,
+                      child: photoWidget == null
+                          ? const Icon(Icons.person, size: 56)
+                          : null,
                     ),
                     Positioned(
-                      bottom: 0, right: 0,
+                      bottom: 0,
+                      right: 0,
                       child: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
-                        child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primaryLight,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          size: 18,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              Text(_user!.email, style: const TextStyle(color: AppColors.mutedForeground, fontSize: 14)),
+              Text(
+                _user!.email,
+                style: const TextStyle(
+                  color: AppColors.mutedForeground,
+                  fontSize: 14,
+                ),
+              ),
               const SizedBox(height: 32),
 
               TextFormField(
                 controller: _nameCtrl,
-                decoration: inputDecoration.copyWith(labelText: 'Ad Soyad', prefixIcon: const Icon(Icons.person_outline)),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Ad Soyad boş olamaz' : null,
-                onTapOutside: (event) => FocusManager.instance.primaryFocus?.unfocus(),
+                decoration: inputDecoration.copyWith(
+                  labelText: 'Ad Soyad',
+                  prefixIcon: const Icon(Icons.person_outline),
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Ad Soyad boş olamaz'
+                    : null,
+                onTapOutside: (event) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
               ),
               const SizedBox(height: 16),
-              
+
               Row(
                 children: [
                   Expanded(
                     child: TextFormField(
                       controller: _ageCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: inputDecoration.copyWith(labelText: 'Yaş', prefixIcon: const Icon(Icons.cake_outlined)),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Yaş',
+                        prefixIcon: const Icon(Icons.cake_outlined),
+                      ),
                       validator: (v) {
                         final n = int.tryParse(v ?? '');
-                        if (n == null || n < 1 || n > 120) return 'Geçerli bir yaş girin';
+                        if (n == null || n < 1 || n > 120) {
+                          return 'Geçerli bir yaş girin';
+                        }
                         return null;
                       },
-                      onTapOutside: (event) => FocusManager.instance.primaryFocus?.unfocus(),
+                      onTapOutside: (event) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       initialValue: _gender,
-                      decoration: inputDecoration.copyWith(labelText: 'Cinsiyet', prefixIcon: const Icon(Icons.transgender)),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Cinsiyet',
+                        prefixIcon: const Icon(Icons.transgender),
+                      ),
                       items: const [
                         DropdownMenuItem(value: 'M', child: Text('Erkek')),
                         DropdownMenuItem(value: 'F', child: Text('Kadın')),
                         DropdownMenuItem(value: 'O', child: Text('Diğer')),
                       ],
-                      onChanged: (v) { if (v != null) setState(() => _gender = v); },
+                      onChanged: (v) {
+                        if (v != null) setState(() => _gender = v);
+                      },
                     ),
                   ),
                 ],
@@ -240,18 +278,30 @@ class _ProfilePageState extends State<ProfilePage> {
                   Expanded(
                     child: TextFormField(
                       controller: _heightCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: inputDecoration.copyWith(labelText: 'Boy (cm)', prefixIcon: const Icon(Icons.height)),
-                      onTapOutside: (event) => FocusManager.instance.primaryFocus?.unfocus(),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Boy (cm)',
+                        prefixIcon: const Icon(Icons.height),
+                      ),
+                      onTapOutside: (event) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: TextFormField(
                       controller: _weightCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: inputDecoration.copyWith(labelText: 'Kilo (kg)', prefixIcon: const Icon(Icons.monitor_weight_outlined)),
-                      onTapOutside: (event) => FocusManager.instance.primaryFocus?.unfocus(),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'Kilo (kg)',
+                        prefixIcon: const Icon(Icons.monitor_weight_outlined),
+                      ),
+                      onTapOutside: (event) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
                     ),
                   ),
                 ],
@@ -261,8 +311,13 @@ class _ProfilePageState extends State<ProfilePage> {
               TextFormField(
                 controller: _bioCtrl,
                 maxLines: 3,
-                decoration: inputDecoration.copyWith(labelText: 'Hakkımda', prefixIcon: const Icon(Icons.edit_note), alignLabelWithHint: true),
-                onTapOutside: (event) => FocusManager.instance.primaryFocus?.unfocus(),
+                decoration: inputDecoration.copyWith(
+                  labelText: 'Hakkımda',
+                  prefixIcon: const Icon(Icons.edit_note),
+                  alignLabelWithHint: true,
+                ),
+                onTapOutside: (event) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
               ),
               const SizedBox(height: 32),
 
@@ -271,7 +326,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: ElevatedButton(
                   onPressed: _saving ? null : _save,
                   child: _saving
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
                       : const Text('Değişiklikleri Kaydet'),
                 ),
               ),

@@ -20,7 +20,7 @@ router = APIRouter()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-3-flash-preview:generateContent"
+    "gemini-2.5-flash:generateContent"
 )
 
 
@@ -62,26 +62,33 @@ class MealHistoryItem(BaseModel):
 
 PROMPT = """
 Sen bir beslenme uzmanı yapay zeka asistanısın.
-Bu yemek fotoğrafını analiz et ve aşağıdaki JSON formatında yanıt ver.
-Yanıtta SADECE JSON olsun, başka hiçbir metin olmasın.Eğer yemek tanınamıyorsa food_name = "Tanımlanamadı" yaz ve tüm sayısal değerleri 0 olarak döndür.
+Bu yemek fotoğrafını analiz et.
+
+ÖNEMLİ KURALLAR:
+1. Fotoğraftaki GERÇEK porsiyon boyutunu dikkatlice tahmin et (tabak boyutu, kaşık referansı vb. kullan).
+2. Kalori ve makro değerlerini SADECE görünen porsiyon miktarına göre hesapla. Abartma yapma.
+3. Porsiyon tahmini yaparken Türk mutfağı standart porsiyon boyutlarını referans al.
+4. Örnek: Bir kase çorba ~250ml = ~80-120 kcal, bir dilim ekmek = ~70-80 kcal, bir porsiyon pilav (150g) = ~180 kcal
+5. Eğer yemek tanınamıyorsa food_name = "Tanımlanamadı" yaz ve tüm sayısal değerleri 0 döndür.
+
+Yanıtta SADECE aşağıdaki JSON formatı olsun, başka hiçbir metin ekleme:
 
 {
   "food_name": "yemeğin Türkçe adı",
-  "portion": "tahmini porsiyon (örn: 1 kase ~250g)",
+  "portion": "tahmini porsiyon miktarı (örn: 1 kase ~250ml, 1 tabak ~200g)",
   "nutrients": {
-    "calories": 350,
-    "protein_g": 25.0,
+    "calories": 280,
+    "protein_g": 15.0,
     "carbs_g": 30.0,
-    "fat_g": 12.0,
-    "fiber_g": 4.0
+    "fat_g": 8.0,
+    "fiber_g": 3.0
   },
   "health_score": 75,
   "recommendation": "kısa, kişiselleştirilmiş öneri (1-2 cümle)",
-  "tags": ["yüksek protein", "düşük karbonhidrat"]
+  "tags": ["dengeli", "ev yapımı"]
 }
 
 health_score: 0 (çok sağlıksız) - 100 (çok sağlıklı)
-Eğer yemek tanınamıyorsa food_name = "Tanımlanamadı" yaz.
 """
 
 
@@ -118,17 +125,47 @@ async def analyze_food(
         },
     }
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-            json=payload,
-        )
-
+    import asyncio
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                json=payload,
+            )
+        
+        if resp.status_code == 200:
+            break
+            
+        if resp.status_code == 503 and attempt < max_retries - 1:
+            await asyncio.sleep(2)  # 2 saniye bekle ve tekrar dene
+            continue
+            
     if resp.status_code != 200:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Gemini API hatası: {resp.text[:200]}",
-        )
+        error_msg = "Bilinmeyen API hatası"
+        try:
+            data = resp.json()
+            error_msg = data.get("error", {}).get("message", resp.text[:200])
+        except Exception:
+            error_msg = resp.text[:200]
+            
+        logger.error(f"Gemini API Error [{resp.status_code}]: {error_msg}")
+        
+        if resp.status_code == 503:
+            detail = "Google sunucularında aşırı yoğunluk var. Lütfen biraz bekleyip tekrar deneyin."
+        elif resp.status_code == 429:
+            detail = "API kullanım limitinize ulaştınız. (Kota aşıldı veya çok sık istek atıldı)."
+        elif resp.status_code in [401, 403]:
+            detail = "Gemini API Anahtarı (API_KEY) yetkisiz veya hatalı."
+        elif resp.status_code == 404:
+            detail = "Kullanılan yapay zeka modeli bulunamadı."
+        elif resp.status_code == 400:
+            detail = f"Geçersiz istek gönderildi. Detay: {error_msg}"
+        else:
+            detail = f"Gemini API Sunucu Hatası ({resp.status_code}): {error_msg}"
+            
+        raise HTTPException(status_code=502, detail=detail)
 
     try:
         text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]

@@ -10,97 +10,121 @@ class Onboarding2Screen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            children: [
-              const Spacer(),
-              // Illustration
-              Container(
-                padding: const EdgeInsets.all(48),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.primary, AppColors.primaryLight],
-                  ),
-                  borderRadius: BorderRadius.circular(32),
-                ),
-                child: Stack(
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
                   children: [
-                    const Icon(Icons.psychology_outlined,
-                        size: 120, color: Colors.white),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Icon(Icons.trending_up,
-                          size: 40, color: AppColors.secondary),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'AI-Powered Health Tracking',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.foreground,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Advanced machine learning algorithms analyze your health data to provide personalized insights and predictions',
-                style: TextStyle(fontSize: 16, color: AppColors.mutedForeground),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ...[
-                'Real-time health monitoring',
-                'Personalized recommendations',
-                'Predictive health analytics',
-              ].map((text) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
+                    const Spacer(),
+                    // Illustration
                     Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: AppColors.secondary,
-                        shape: BoxShape.circle,
+                      padding: const EdgeInsets.all(48),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [AppColors.primary, AppColors.primaryLight],
+                        ),
+                        borderRadius: BorderRadius.circular(32),
+                      ),
+                      child: Stack(
+                        children: [
+                          const Icon(
+                            Icons.psychology_outlined,
+                            size: 120,
+                            color: Colors.white,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Icon(
+                              Icons.trending_up,
+                              size: 40,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Text(text,
-                        style: const TextStyle(
-                            color: AppColors.foreground, fontSize: 15)),
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Akıllı Kişisel Sağlık Asistanı',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.foreground,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Gelişmiş yapay zeka algoritmaları, sağlık verilerinizi analiz ederek size kişiselleştirilmiş içgörüler ve tahminler sunar',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.mutedForeground,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ...[
+                      'Gerçek zamanlı sağlık takibi',
+                      'Kişiselleştirilmiş öneriler',
+                      'Tahmine dayalı sağlık analitiği',
+                    ].map(
+                      (text) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.secondary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              text,
+                              style: const TextStyle(
+                                color: AppColors.foreground,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [_dot(), _dot(active: true), _dot(), _dot()],
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => context.go('/onboarding-3'),
+                        child: const Text('Devam Et'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => context.go('/login'),
+                      child: const Text(
+                        'Atla',
+                        style: TextStyle(color: AppColors.mutedForeground),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
-              )),
-              const Spacer(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [_dot(), _dot(active: true), _dot(), _dot()],
               ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => context.go('/onboarding-3'),
-                  child: const Text('Continue'),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => context.go('/login'),
-                child: const Text('Skip',
-                    style: TextStyle(color: AppColors.mutedForeground)),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

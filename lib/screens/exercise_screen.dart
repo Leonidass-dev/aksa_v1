@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
-import '../theme/theme_notifier.dart';
 import '../services/api_service.dart';
 import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
+import '../widgets/common_widgets.dart';
+import '../widgets/theme_aware_state.dart';
 
 class ExerciseScreen extends StatefulWidget {
   const ExerciseScreen({super.key});
@@ -13,34 +14,28 @@ class ExerciseScreen extends StatefulWidget {
   State<ExerciseScreen> createState() => _ExerciseScreenState();
 }
 
-class _ExerciseScreenState extends State<ExerciseScreen> {
+class _ExerciseScreenState extends State<ExerciseScreen>
+    with ThemeAwareMixin {
   bool _loading = true;
   ExerciseApiResult? _apiResult;
   String? _errorMsg;
+  int _completedToday = 0;
 
-  static const _schedule = [
-    _Day('Pzt', true, true),
-    _Day('Sal', true, true),
-    _Day('Çar', true, true),
-    _Day('Per', true, false),
-    _Day('Cum', true, false),
-    _Day('Cmt', false, false),
-    _Day('Paz', true, false),
-  ];
+  List<_Day> get _schedule {
+    final now = DateTime.now();
+    final todayIndex = (now.weekday - 1) % 7; // 0=Pzt, 6=Paz
+    const dayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    return List.generate(7, (i) {
+      final isPast = i < todayIndex;
+      final isToday = i == todayIndex;
+      return _Day(dayNames[i], isPast || isToday, isPast);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    themeNotifier.addListener(_onThemeChange);
     _loadExercisePlan();
-  }
-
-  void _onThemeChange() => setState(() {});
-
-  @override
-  void dispose() {
-    themeNotifier.removeListener(_onThemeChange);
-    super.dispose();
   }
 
   Future<void> _loadExercisePlan() async {
@@ -61,9 +56,9 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
       final today = await HealthService.getTodayEntry();
       final todayData = today ?? HealthEntry(date: DateTime.now());
-      
+
       String riskLevelStr = 'low';
-      
+
       // Her durumda profile verisini katarak bir risk hesapla
       final riskReq = RiskApiRequest(
         age: profile.age,
@@ -75,7 +70,7 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         systolic: todayData.systolic,
         diastolic: todayData.diastolic,
       );
-      
+
       final riskResult = await ApiService.fetchRiskScore(riskReq);
       if (riskResult != null) {
         riskLevelStr = riskResult.level; // 'low', 'medium', 'high'
@@ -139,8 +134,11 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
           children: [
             CircularProgressIndicator(color: AppColors.primary),
             SizedBox(height: 16),
-            Text('Yapay zeka size özel egzersiz planı hazırlıyor...',
-                style: TextStyle(fontSize: 13), textAlign: TextAlign.center),
+            Text(
+              'Yapay zeka size özel egzersiz planı hazırlıyor...',
+              style: TextStyle(fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       );
@@ -154,15 +152,20 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             decoration: BoxDecoration(
               color: AppColors.destructive.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.destructive.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: AppColors.destructive.withValues(alpha: 0.3),
+              ),
             ),
-            child: Text(_errorMsg!, style: const TextStyle(color: AppColors.destructive)),
+            child: Text(
+              _errorMsg!,
+              style: const TextStyle(color: AppColors.destructive),
+            ),
           ),
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () => context.go('/profile-setup'),
             child: const Text('Profilimi Tamamla'),
-          )
+          ),
         ],
       );
     }
@@ -188,74 +191,31 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     final duration = _apiResult?.totalDurationMinutes ?? 0;
     final calories = _apiResult?.totalCalories ?? 0;
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryLight],
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
-        ),
+    return AppHeader(
+      title: 'Egzersiz Planı',
+      subtitle: 'Yapay Zeka Destekli',
+      trailing: AppRefreshButton(
+        onTap: _loading ? null : _loadExercisePlan,
+        isLoading: _loading,
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => context.go('/app/dashboard'),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Egzersiz Planı',
-                            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                        Text('Yapay Zeka Destekli',
-                            style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: _loading ? null : _loadExercisePlan,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(Icons.refresh,
-                          color: Colors.white.withValues(alpha: _loading ? 0.4 : 1.0), size: 20),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: _summaryCard(Icons.access_time_outlined, 'Süre', '$duration dak')),
-                  const SizedBox(width: 12),
-                  Expanded(child: _summaryCard(Icons.bolt_outlined, 'Hedef Kalori', '$calories')),
-                ],
-              ),
-            ],
+      bottomContent: Row(
+        children: [
+          Expanded(
+            child: _summaryCard(
+              Icons.access_time_outlined,
+              'Süre',
+              '$duration dak',
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _summaryCard(
+              Icons.bolt_outlined,
+              'Hedef Kalori',
+              '$calories',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -275,11 +235,21 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
             children: [
               Icon(icon, color: Colors.white70, size: 18),
               const SizedBox(width: 6),
-              Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -287,18 +257,25 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
 
   Widget _buildSchedule(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(context),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.calendar_today_outlined, color: AppColors.primary, size: 18),
+              const Icon(
+                Icons.calendar_today_outlined,
+                color: AppColors.primary,
+                size: 18,
+              ),
               const SizedBox(width: 8),
-              Text('Haftalık Program',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+              Text(
+                'Haftalık Program',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -308,24 +285,40 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
               Color bgColor;
               Color textColor;
               if (item.completed) {
-                bgColor = AppColors.secondary; textColor = Colors.white;
+                bgColor = AppColors.secondary;
+                textColor = Colors.white;
               } else if (item.active) {
-                bgColor = AppColors.primary; textColor = Colors.white;
+                bgColor = AppColors.primary;
+                textColor = Colors.white;
               } else {
-                bgColor = cs.surfaceContainerHighest; textColor = cs.onSurfaceVariant;
+                bgColor = cs.surfaceContainerHighest;
+                textColor = cs.onSurfaceVariant;
               }
               return Column(
                 children: [
                   Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(12)),
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Center(
-                      child: Text(item.day[0],
-                          style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 14)),
+                      child: Text(
+                        item.day[0],
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(item.day, style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+                  Text(
+                    item.day,
+                    style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                  ),
                 ],
               );
             }).toList(),
@@ -335,90 +328,157 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     );
   }
 
-  Widget _buildExerciseList(BuildContext context, List<ExerciseApiItem> exercises) {
+  Widget _buildExerciseList(
+    BuildContext context,
+    List<ExerciseApiItem> exercises,
+  ) {
     final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Bugünkü Antrenman',
-                style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+            Text(
+              'Bugünkü Antrenman',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
             TextButton(
               onPressed: _loadExercisePlan,
-              child: const Text('Yeni Plan Üret',
-                  style: TextStyle(color: AppColors.primary, fontSize: 13)),
+              child: const Text(
+                'Yeni Plan Üret',
+                style: TextStyle(color: AppColors.primary, fontSize: 13),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        ...exercises.map((ex) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: _cardDecoration(context),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 52, height: 52,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppColors.primary.withValues(alpha: 0.2), AppColors.secondary.withValues(alpha: 0.2)],
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(Icons.fitness_center, color: AppColors.primary, size: 26),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(ex.title, style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
-                          Text(ex.type, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.access_time, size: 14, color: cs.onSurfaceVariant),
-                              const SizedBox(width: 4),
-                              Text('${ex.durationMinutes} dak', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                              const SizedBox(width: 12),
-                              Icon(Icons.bolt, size: 14, color: cs.onSurfaceVariant),
-                              const SizedBox(width: 4),
-                              Text('${ex.calories} kal', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+        ...exercises.map(
+          (ex) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: AppCard(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primary.withValues(alpha: 0.2),
+                              AppColors.secondary.withValues(alpha: 0.2),
                             ],
                           ),
-                        ],
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.fitness_center,
+                          color: AppColors.primary,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ex.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            Text(
+                              ex.type,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  size: 14,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${ex.durationMinutes} dak',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Icon(
+                                  Icons.bolt,
+                                  size: 14,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${ex.calories} kal',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      _difficultyBadge(ex.intensity),
+                    ],
+                  ),
+                  if (ex.description.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      ex.description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: cs.onSurface,
+                        height: 1.4,
                       ),
                     ),
-                    _difficultyBadge(ex.intensity),
                   ],
-                ),
-                if (ex.description.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  Text(ex.description, style: TextStyle(fontSize: 13, color: cs.onSurface, height: 1.4)),
-                ],
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () {},
-                    style: TextButton.styleFrom(
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.06),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => _showExerciseTimer(context, ex),
+                      style: TextButton.styleFrom(
+                        backgroundColor: AppColors.primary.withValues(
+                          alpha: 0.06,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: const Text(
+                        'Egzersizi Başlat',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
-                    child: const Text('Egzersizi Başlat',
-                        style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w500)),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        )),
+        ),
       ],
     );
   }
@@ -426,52 +486,112 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
   Widget _difficultyBadge(String difficulty) {
     Color color;
     switch (difficulty.toLowerCase()) {
-      case 'düşük': color = AppColors.secondary; break;
-      case 'orta': color = AppColors.accent; break;
-      case 'yüksek': color = AppColors.destructive; break;
-      default: color = AppColors.secondary;
+      case 'düşük':
+        color = AppColors.secondary;
+        break;
+      case 'orta':
+        color = AppColors.accent;
+        break;
+      case 'yüksek':
+        color = AppColors.destructive;
+        break;
+      default:
+        color = AppColors.secondary;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-      child: Text(difficulty, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        difficulty,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  void _showExerciseTimer(BuildContext context, ExerciseApiItem exercise) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _ExerciseTimerDialog(
+        exercise: exercise,
+        onComplete: () {
+          setState(() => _completedToday++);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${exercise.title} tamamlandı! 🎉'),
+                backgroundColor: AppColors.secondary,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+        },
+      ),
     );
   }
 
   Widget _buildStats(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(context),
+    // Not: _cardDecoration AppCard ile değiştirildi
+    final totalDur = _apiResult?.totalDurationMinutes ?? 0;
+    final totalCal = _apiResult?.totalCalories ?? 0;
+    final exerciseCount = _apiResult?.exercises.length ?? 0;
+    final completedPct = exerciseCount > 0
+        ? (_completedToday / exerciseCount).clamp(0.0, 1.0)
+        : 0.0;
+
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Bu Haftaki İlerleme',
-              style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+          Text(
+            'Bugünkü İlerleme',
+            style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
-              _statItem(context, '3', 'Antrenman'),
-              _statItem(context, '120', 'Dakika'),
-              _statItem(context, '850', 'Kalori'),
+              _statItem(context, '$_completedToday/$exerciseCount', 'Egzersiz'),
+              _statItem(context, '$totalDur', 'Dakika'),
+              _statItem(context, '$totalCal', 'Kalori'),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Haftalık Hedef', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-              Text('%60', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+              Text(
+                'Bugünkü İlerleme',
+                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+              ),
+              Text(
+                '%${(completedPct * 100).toInt()}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
-              value: 0.60,
+              value: completedPct,
               minHeight: 10,
               backgroundColor: cs.surfaceContainerHighest,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                AppColors.primary,
+              ),
             ),
           ),
         ],
@@ -484,8 +604,18 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     return Expanded(
       child: Column(
         children: [
-          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: cs.onSurface)),
-          Text(label, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: cs.onSurface,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -506,15 +636,26 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+              const Icon(
+                Icons.auto_awesome,
+                color: AppColors.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
-              Text('Yapay Zeka Tavsiyesi',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+              Text(
+                'Yapay Zeka Tavsiyesi',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            aiAdvice.isNotEmpty ? aiAdvice : 'Sağlıklı bir yaşam için düzenli egzersiz yapmaya devam edin.',
+            aiAdvice.isNotEmpty
+                ? aiAdvice
+                : 'Sağlıklı bir yaşam için düzenli egzersiz yapmaya devam edin.',
             style: TextStyle(fontSize: 14, color: cs.onSurface, height: 1.5),
           ),
         ],
@@ -522,19 +663,201 @@ class _ExerciseScreenState extends State<ExerciseScreen> {
     );
   }
 
-  BoxDecoration _cardDecoration(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return BoxDecoration(
-      color: cs.surface,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: cs.outlineVariant),
-      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
-    );
-  }
 }
 
 class _Day {
   final String day;
   final bool active, completed;
   const _Day(this.day, this.active, this.completed);
+}
+
+// ── Egzersiz Zamanlayıcı Dialog ──────────────────────────────────
+class _ExerciseTimerDialog extends StatefulWidget {
+  final ExerciseApiItem exercise;
+  final VoidCallback onComplete;
+  const _ExerciseTimerDialog({
+    required this.exercise,
+    required this.onComplete,
+  });
+
+  @override
+  State<_ExerciseTimerDialog> createState() => _ExerciseTimerDialogState();
+}
+
+class _ExerciseTimerDialogState extends State<_ExerciseTimerDialog> {
+  late int _remainingSeconds;
+  late int _totalSeconds;
+  bool _isRunning = false;
+  bool _isComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _totalSeconds = widget.exercise.durationMinutes * 60;
+    _remainingSeconds = _totalSeconds;
+  }
+
+  void _startTimer() {
+    setState(() => _isRunning = true);
+    _tick();
+  }
+
+  void _tick() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted || !_isRunning) return;
+      setState(() {
+        _remainingSeconds--;
+        if (_remainingSeconds <= 0) {
+          _isRunning = false;
+          _isComplete = true;
+          widget.onComplete();
+        }
+      });
+      if (_isRunning) _tick();
+    });
+  }
+
+  void _togglePause() {
+    setState(() => _isRunning = !_isRunning);
+    if (_isRunning) _tick();
+  }
+
+  String get _timeText {
+    final min = _remainingSeconds ~/ 60;
+    final sec = _remainingSeconds % 60;
+    return '${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
+  }
+
+  double get _progress =>
+      _totalSeconds > 0 ? 1.0 - (_remainingSeconds / _totalSeconds) : 0.0;
+
+  @override
+  void dispose() {
+    _isRunning = false;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.exercise.title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: cs.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.exercise.type,
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: 160,
+              height: 160,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 160,
+                    height: 160,
+                    child: CircularProgressIndicator(
+                      value: _progress,
+                      strokeWidth: 10,
+                      backgroundColor: cs.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _isComplete ? AppColors.secondary : AppColors.primary,
+                      ),
+                      strokeCap: StrokeCap.round,
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isComplete)
+                        const Icon(
+                          Icons.check_circle,
+                          color: AppColors.secondary,
+                          size: 40,
+                        )
+                      else
+                        Text(
+                          _timeText,
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      if (_isComplete)
+                        Text(
+                          'Tamamlandı!',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.secondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      else
+                        Text(
+                          'Kalan süre',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            if (_isComplete)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.secondary,
+                  ),
+                  child: const Text('Harika! 🎉'),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        _isRunning = false;
+                        Navigator.pop(context);
+                      },
+                      child: const Text('İptal'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isRunning
+                          ? _togglePause
+                          : (_remainingSeconds > 0 ? _startTimer : null),
+                      child: Text(_isRunning ? 'Duraklat' : 'Başlat'),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

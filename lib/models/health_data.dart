@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
+
 class HealthSnapshot {
   final String userId;
   final DateTime windowEnd;
@@ -31,8 +34,8 @@ class HealthSnapshot {
 }
 
 class RiskResult {
-  final double score;        // 0–100
-  final RiskLevel level;     // düşük/orta/yüksek
+  final double score; // 0–100
+  final RiskLevel level; // düşük/orta/yüksek
   final List<RiskFactor> topFactors; // SHAP benzeri katkılar
   final DateTime windowEnd;
   final String modelVersion;
@@ -49,19 +52,62 @@ class RiskResult {
 enum RiskLevel { low, medium, high }
 
 extension RiskLevelExtension on RiskLevel {
+  /// API'den gelen string'i RiskLevel'a çevirir.
+  /// Daha önce dashboard ve risk_score ekranlarında duplike edilmişti.
+  static RiskLevel fromString(String level) {
+    switch (level) {
+      case 'high':
+        return RiskLevel.high;
+      case 'medium':
+        return RiskLevel.medium;
+      default:
+        return RiskLevel.low;
+    }
+  }
+
   String get label {
     switch (this) {
-      case RiskLevel.low:    return 'Düşük Risk';
-      case RiskLevel.medium: return 'Orta Risk';
-      case RiskLevel.high:   return 'Yüksek Risk';
+      case RiskLevel.low:
+        return 'Düşük Risk';
+      case RiskLevel.medium:
+        return 'Orta Risk';
+      case RiskLevel.high:
+        return 'Yüksek Risk';
     }
   }
 
   String get labelEn {
     switch (this) {
-      case RiskLevel.low:    return 'Low Risk';
-      case RiskLevel.medium: return 'Medium Risk';
-      case RiskLevel.high:   return 'High Risk';
+      case RiskLevel.low:
+        return 'Low Risk';
+      case RiskLevel.medium:
+        return 'Medium Risk';
+      case RiskLevel.high:
+        return 'High Risk';
+    }
+  }
+
+  /// Risk seviyesine karşılık gelen renk.
+  Color get color {
+    switch (this) {
+      case RiskLevel.low:
+        return AppColors.secondary;
+      case RiskLevel.medium:
+        return AppColors.accent;
+      case RiskLevel.high:
+        return AppColors.destructive;
+    }
+  }
+
+  /// Risk seviyesine karşılık gelen ikon.
+  IconData get icon {
+    switch (this) {
+      case RiskLevel.low:
+        return Icons.check_circle_outline;
+      case RiskLevel.medium:
+        return Icons.warning_amber_outlined;
+      case RiskLevel.high:
+        return Icons.error_outline;
     }
   }
 }

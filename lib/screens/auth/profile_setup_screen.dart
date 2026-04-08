@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../theme/app_theme.dart';
 import '../../services/user_profile_service.dart';
+import '../../widgets/common_widgets.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -81,7 +82,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 padding: const EdgeInsets.all(28),
                 child: Form(
                   key: _formKey,
-                  child: _step == 0 ? _buildStep0(context) : _buildStep1(context),
+                  child: _step == 0
+                      ? _buildStep0(context)
+                      : _buildStep1(context),
                 ),
               ),
             ),
@@ -110,21 +113,34 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             children: [
               Icon(Icons.monitor_heart_outlined, color: Colors.white, size: 24),
               SizedBox(width: 8),
-              Text('AKSA',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+              Text(
+                'AKSA',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           Text(
             _step == 0 ? 'Kişisel Bilgiler' : 'Vücut Ölçüleri',
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             _step == 0
                 ? 'Adım 1/2 — Kimliğinizi tanımlayalım'
                 : 'Adım 2/2 — Risk motoruna parametre girilecek',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 14),
           // Progress bar
@@ -148,22 +164,43 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
-        Text('Cinsiyet', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+        Text(
+          'Cinsiyet',
+          style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
-            _GenderButton(label: 'Erkek', value: 'M', icon: Icons.male,
-                selected: _gender == 'M', onTap: () => setState(() => _gender = 'M')),
+            _GenderButton(
+              label: 'Erkek',
+              value: 'M',
+              icon: Icons.male,
+              selected: _gender == 'M',
+              onTap: () => setState(() => _gender = 'M'),
+            ),
             const SizedBox(width: 12),
-            _GenderButton(label: 'Kadın', value: 'F', icon: Icons.female,
-                selected: _gender == 'F', onTap: () => setState(() => _gender = 'F')),
+            _GenderButton(
+              label: 'Kadın',
+              value: 'F',
+              icon: Icons.female,
+              selected: _gender == 'F',
+              onTap: () => setState(() => _gender = 'F'),
+            ),
             const SizedBox(width: 12),
-            _GenderButton(label: 'Diğer', value: 'O', icon: Icons.person_outline,
-                selected: _gender == 'O', onTap: () => setState(() => _gender = 'O')),
+            _GenderButton(
+              label: 'Diğer',
+              value: 'O',
+              icon: Icons.person_outline,
+              selected: _gender == 'O',
+              onTap: () => setState(() => _gender = 'O'),
+            ),
           ],
         ),
         const SizedBox(height: 28),
-        Text('Yaş', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+        Text(
+          'Yaş',
+          style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+        ),
         const SizedBox(height: 8),
         TextFormField(
           controller: _ageCtrl,
@@ -190,7 +227,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
-        Text('Boy', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+        Text(
+          'Boy',
+          style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+        ),
         const SizedBox(height: 8),
         TextFormField(
           controller: _heightCtrl,
@@ -202,19 +242,27 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           ),
           validator: (v) {
             final n = double.tryParse(v ?? '');
-            if (n == null || n < 100 || n > 250) return '100–250 cm arası girin';
+            if (n == null || n < 100 || n > 250) {
+              return '100–250 cm arası girin';
+            }
             return null;
           },
           onChanged: (v) => _height = double.tryParse(v) ?? _height,
         ),
         const SizedBox(height: 24),
-        Text('Kilo', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+        Text(
+          'Kilo',
+          style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+        ),
         const SizedBox(height: 8),
         TextFormField(
           controller: _weightCtrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.monitor_weight_outlined, color: AppColors.primary),
+            prefixIcon: Icon(
+              Icons.monitor_weight_outlined,
+              color: AppColors.primary,
+            ),
             hintText: 'Kilonuzu girin',
             suffixText: 'kg',
           ),
@@ -261,17 +309,28 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
             child: Icon(Icons.calculate_outlined, color: color, size: 20),
           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Tahmini VKİ (BMI)',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-              Text('${bmi.toStringAsFixed(1)} — $category',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 15)),
+              Text(
+                'Tahmini VKİ (BMI)',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+              Text(
+                '${bmi.toStringAsFixed(1)} — $category',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  fontSize: 15,
+                ),
+              ),
             ],
           ),
         ],
@@ -287,34 +346,19 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           if (_step > 0)
             Expanded(
               flex: 1,
-              child: OutlinedButton(
+              child: AppButton(
+                text: 'Geri',
+                isOutlined: true,
                 onPressed: () => setState(() => _step = 0),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                child: const Text('Geri'),
               ),
             ),
           if (_step > 0) const SizedBox(width: 12),
           Expanded(
             flex: 2,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _next,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 52),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                backgroundColor: AppColors.primary,
-              ),
-              child: _loading
-                  ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text(
-                      _step == 0 ? 'Devam Et →' : 'Kaydet & Başla 🚀',
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
-                    ),
+            child: AppButton(
+              text: _step == 0 ? 'Devam Et →' : 'Kaydet & Başla 🚀',
+              isLoading: _loading,
+              onPressed: _next,
             ),
           ),
         ],
@@ -330,13 +374,18 @@ class _GenderButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   const _GenderButton({
-    required this.label, required this.value, required this.icon,
-    required this.selected, required this.onTap,
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.primary : Theme.of(context).colorScheme.outlineVariant;
+    final color = selected
+        ? AppColors.primary
+        : Theme.of(context).colorScheme.outlineVariant;
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -344,19 +393,32 @@ class _GenderButton extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: selected ? AppColors.primary.withValues(alpha: 0.08) : Colors.transparent,
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.08)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: color, width: selected ? 2 : 1),
           ),
           child: Column(
             children: [
-              Icon(icon, color: selected ? AppColors.primary : Theme.of(context).colorScheme.onSurfaceVariant, size: 28),
+              Icon(
+                icon,
+                color: selected
+                    ? AppColors.primary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 28,
+              ),
               const SizedBox(height: 6),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                      color: selected ? AppColors.primary : Theme.of(context).colorScheme.onSurfaceVariant)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                  color: selected
+                      ? AppColors.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
         ),

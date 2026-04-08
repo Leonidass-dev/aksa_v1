@@ -3,6 +3,20 @@ import sys
 import os
 import signal
 import time
+import socket
+
+
+def get_local_ip():
+    """Bilgisayarın Wi-Fi/LAN IP adresini bul."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
 
 def check_backend_ready(url="http://localhost:8000/", timeout=15):
     """Backend'in hazır olmasını bekle."""
@@ -16,10 +30,13 @@ def check_backend_ready(url="http://localhost:8000/", timeout=15):
             time.sleep(1)
     return False
 
+
 def main():
-    print("=" * 50)
-    print("   AKSA v2.0 — Akıllı Kişisel Sağlık Asistanı")
-    print("=" * 50)
+    local_ip = get_local_ip()
+
+    print("=" * 55)
+    print("   AKSA — Akıllı Kişisel Sağlık Asistanı (Lokal)")
+    print("=" * 55)
     print()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,28 +51,35 @@ def main():
 
     backend_cmd = [python_exe, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-    print("[1/2] Backend (FastAPI + PostgreSQL) baslatiliyor...")
+    print("[1/2] Backend baslatiliyor...")
     backend_process = subprocess.Popen(
         backend_cmd,
         cwd=backend_dir,
         creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0,
     )
 
-    # Backend'in hazır olmasını bekle
     if check_backend_ready():
-        print("[OK]  Backend hazir  →  http://localhost:8000")
-        print("[OK]  API Docs       →  http://localhost:8000/docs")
+        print("[OK]  Backend hazir!")
     else:
-        print("[!!]  Backend baslatma zaman asimina ugradi, yine de devam ediliyor...")
+        print("[!!]  Backend yavash basladi, devam ediliyor...")
 
+    print()
+    print(f"  Backend:   http://localhost:8000")
+    print(f"  API Docs:  http://localhost:8000/docs")
+    print(f"  Lokal IP:  {local_ip}")
+    print()
+    print("=" * 55)
+    print(f"  Flutter baslatirken bu komutu kullanin:")
+    print(f"  flutter run --dart-define=API_BASE_URL=http://{local_ip}:8000/api")
+    print("=" * 55)
     print()
 
     # ── 2. Flutter başlat ────────────────────────────────────
-    print("[2/2] Flutter uygulamasi baslatiliyor...")
-    print("      (Cihaz secimi Flutter CLI tarafindan yapilacak)")
-    print()
-
-    flutter_cmd = ["flutter", "run"]
+    print("[2/2] Flutter baslatiliyor...")
+    flutter_cmd = [
+        "flutter", "run",
+        f"--dart-define=API_BASE_URL=http://{local_ip}:8000/api",
+    ]
     flutter_process = subprocess.Popen(flutter_cmd, cwd=base_dir, shell=True)
 
     # ── Temiz kapatma ────────────────────────────────────────
@@ -78,13 +102,14 @@ def main():
 
     try:
         flutter_process.wait()
-        print("Flutter uygulamasi kapandi. Backend durduruluyor...")
+        print("Flutter kapandi. Backend durduruluyor...")
     except KeyboardInterrupt:
         pass
     finally:
         force_kill(flutter_process.pid)
         force_kill(backend_process.pid)
         print("[*] Gorusmek uzere!")
+
 
 if __name__ == "__main__":
     main()

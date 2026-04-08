@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 class ChatMessage {
   final String text;
   final bool isUser;
-  
+
   ChatMessage({required this.text, required this.isUser});
 }
 
@@ -26,11 +26,35 @@ class _AssistantScreenState extends State<AssistantScreen> {
   @override
   void initState() {
     super.initState();
-    // Karşılama mesajı
-    _messages.add(ChatMessage(
-      text: "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
-      isUser: false,
-    ));
+    _loadChatHistory();
+  }
+
+  Future<void> _loadChatHistory() async {
+    setState(() => _isLoading = true);
+    final history = await ApiService.fetchChatHistory(limit: 50);
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        if (history.isNotEmpty) {
+          // Geçmiş mesajları yükle (eskiden yeniye → ters çevir)
+          for (final item in history.reversed) {
+            _messages.insert(
+              0,
+              ChatMessage(text: item.content, isUser: item.role == 'user'),
+            );
+          }
+        } else {
+          // İlk kez açılıyor — karşılama mesajı
+          _messages.add(
+            ChatMessage(
+              text:
+                  "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
+              isUser: false,
+            ),
+          );
+        }
+      });
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -44,17 +68,20 @@ class _AssistantScreenState extends State<AssistantScreen> {
     });
 
     final res = await ApiService.sendAssistantMessage(text);
-    
+
     if (mounted) {
       setState(() {
         _isLoading = false;
         if (res != null) {
           _messages.insert(0, ChatMessage(text: res.reply, isUser: false));
         } else {
-          _messages.insert(0, ChatMessage(
-            text: "Bağlantı hatası oluştu. Lütfen tekrar deneyin.", 
-            isUser: false
-          ));
+          _messages.insert(
+            0,
+            ChatMessage(
+              text: "Bağlantı hatası oluştu. Lütfen tekrar deneyin.",
+              isUser: false,
+            ),
+          );
         }
       });
     }
@@ -84,17 +111,19 @@ class _AssistantScreenState extends State<AssistantScreen> {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: Center(
-                      child: CircularProgressIndicator(color: AppColors.secondary),
+                      child: CircularProgressIndicator(
+                        color: AppColors.secondary,
+                      ),
                     ),
                   );
                 }
-                
+
                 final msg = _messages[_isLoading ? index - 1 : index];
                 return _buildChatBubble(msg, context);
               },
             ),
           ),
-          
+
           Container(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).padding.bottom + 8,
@@ -106,10 +135,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
               color: Theme.of(context).colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, -2),
-                )
+                ),
               ],
             ),
             child: Row(
@@ -126,8 +155,13 @@ class _AssistantScreenState extends State<AssistantScreen> {
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
-                      fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      fillColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                 ),
@@ -141,7 +175,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -160,8 +194,12 @@ class _AssistantScreenState extends State<AssistantScreen> {
         decoration: BoxDecoration(
           color: msg.isUser ? AppColors.secondary : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(20).copyWith(
-            bottomRight: msg.isUser ? const Radius.circular(4) : const Radius.circular(20),
-            bottomLeft: !msg.isUser ? const Radius.circular(4) : const Radius.circular(20),
+            bottomRight: msg.isUser
+                ? const Radius.circular(4)
+                : const Radius.circular(20),
+            bottomLeft: !msg.isUser
+                ? const Radius.circular(4)
+                : const Radius.circular(20),
           ),
         ),
         child: MarkdownBody(

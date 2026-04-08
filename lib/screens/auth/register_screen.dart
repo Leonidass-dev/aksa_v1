@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_profile_service.dart';
+import '../../widgets/common_widgets.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -113,35 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Logo
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(Icons.monitor_heart_outlined,
-                          color: Colors.white, size: 28),
-                    ),
-                    const SizedBox(width: 12),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('AKSA',
-                            style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.foreground)),
-                        Text('Akıllı Kişisel Sağlık Asistanı',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.mutedForeground)),
-                      ],
-                    ),
-                  ],
-                ),
+                const AppLogo(),
                 const SizedBox(height: 36),
                 const Text('Hesap Oluşturun',
                     style: TextStyle(
@@ -155,81 +128,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 32),
 
                 // Ad Soyad
-                const Text('Ad Soyad',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.foreground)),
-                const SizedBox(height: 8),
-                TextFormField(
+                AppTextField(
+                  label: 'Ad Soyad',
                   controller: _nameController,
+                  hintText: 'Adınızı ve soyadınızı girin',
+                  prefixIcon: Icons.person_outline,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty)
-                      return 'Ad soyad zorunludur';
+                    if (v == null || v.trim().isEmpty) return 'Ad soyad zorunludur';
                     return null;
                   },
-                  decoration: const InputDecoration(
-                    hintText: 'Adınızı ve soyadınızı girin',
-                    prefixIcon: Icon(Icons.person_outline,
-                        color: AppColors.mutedForeground),
-                  ),
                 ),
                 const SizedBox(height: 16),
 
                 // Email
-                const Text('E-posta Adresi',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.foreground)),
-                const SizedBox(height: 8),
-                TextFormField(
+                AppTextField(
+                  label: 'E-posta Adresi',
                   controller: _emailController,
+                  hintText: 'ornek@email.com',
+                  prefixIcon: Icons.mail_outline,
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'E-posta zorunludur';
                     if (!v.contains('@')) return 'Geçerli bir e-posta girin';
                     return null;
                   },
-                  decoration: const InputDecoration(
-                    hintText: 'ornek@email.com',
-                    prefixIcon: Icon(Icons.mail_outline,
-                        color: AppColors.mutedForeground),
-                  ),
                 ),
                 const SizedBox(height: 16),
 
                 // Şifre
-                const Text('Şifre',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.foreground)),
-                const SizedBox(height: 8),
-                TextFormField(
+                AppTextField(
+                  label: 'Şifre',
                   controller: _passwordController,
+                  hintText: 'Şifre oluşturun',
+                  prefixIcon: Icons.lock_outline,
                   obscureText: !_showPassword,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _showPassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: AppColors.mutedForeground,
+                    ),
+                    onPressed: () =>
+                        setState(() => _showPassword = !_showPassword),
+                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Şifre zorunludur';
-                    if (v.length < 6)
-                      return 'Şifre en az 6 karakter olmalı';
+                    if (v.length < 6) return 'Şifre en az 6 karakter olmalı';
                     return null;
                   },
-                  decoration: InputDecoration(
-                    hintText: 'Şifre oluşturun',
-                    prefixIcon: const Icon(Icons.lock_outline,
-                        color: AppColors.mutedForeground),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _showPassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: AppColors.mutedForeground,
-                      ),
-                      onPressed: () =>
-                          setState(() => _showPassword = !_showPassword),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 6),
                 const Text('En az 6 karakter olmalıdır',
@@ -282,103 +229,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 24),
 
                 // Kayıt Butonu
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _register,
-                    child: _loading
-                        ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                        : const Text('Hesap Oluştur'),
-                  ),
+                AppButton(
+                  text: 'Hesap Oluştur',
+                  isLoading: _loading,
+                  onPressed: _register,
                 ),
                 const SizedBox(height: 24),
 
                 // Divider
-                Row(
-                  children: [
-                    const Expanded(child: Divider(color: AppColors.border)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('veya şununla kayıt ol',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              color: AppColors.mutedForeground)),
-                    ),
-                    const Expanded(child: Divider(color: AppColors.border)),
-                  ],
-                ),
+                const AppDivider(text: 'veya şununla kayıt ol'),
                 const SizedBox(height: 24),
 
                 // Google
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _loading ? null : _signInWithGoogle,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 56),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      side: const BorderSide(color: AppColors.border),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Center(
-                            child: Text('G',
-                                style: TextStyle(
-                                    color: Color(0xFF4285F4),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text('Google ile Kayıt Ol',
-                            style: TextStyle(
-                                color: AppColors.foreground,
-                                fontWeight: FontWeight.w500)),
-                      ],
-                    ),
-                  ),
+                AppButton(
+                  text: 'Google ile Kayıt Ol',
+                  isOutlined: true,
+                  icon: googleIcon(),
+                  isLoading: _loading,
+                  onPressed: _signInWithGoogle,
                 ),
                 const SizedBox(height: 12),
 
                 // Apple
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _loading ? null : _signInWithApple,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 56),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      side: const BorderSide(color: AppColors.border),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.apple, color: Colors.black, size: 22),
-                        SizedBox(width: 12),
-                        Text('Apple ile Kayıt Ol',
-                            style: TextStyle(
-                                color: AppColors.foreground,
-                                fontWeight: FontWeight.w500)),
-                      ],
-                    ),
-                  ),
+                AppButton(
+                  text: 'Apple ile Kayıt Ol',
+                  isOutlined: true,
+                  icon: const Icon(Icons.apple, color: Colors.black, size: 22),
+                  isLoading: _loading,
+                  onPressed: _signInWithApple,
                 ),
                 const SizedBox(height: 24),
 
@@ -402,6 +280,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget googleIcon() {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: const Center(
+        child: Text('G',
+            style: TextStyle(
+                color: Color(0xFF4285F4),
+                fontWeight: FontWeight.bold,
+                fontSize: 14)),
       ),
     );
   }

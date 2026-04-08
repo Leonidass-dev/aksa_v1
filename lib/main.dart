@@ -26,9 +26,7 @@ import 'widgets/bottom_nav.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const AksaApp());
 }
 
@@ -39,7 +37,7 @@ class AksaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
-      builder: (_, mode, __) => MaterialApp.router(
+      builder: (_, mode, _) => MaterialApp.router(
         title: 'AKSA',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
@@ -58,8 +56,14 @@ String? _authGuard(BuildContext context, GoRouterState state) {
   final loc = state.uri.toString();
 
   final publicRoutes = [
-    '/', '/onboarding-2', '/onboarding-3', '/onboarding-4',
-    '/login', '/register', '/forgot-password', '/profile-setup',
+    '/',
+    '/onboarding-2',
+    '/onboarding-3',
+    '/onboarding-4',
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/profile-setup',
   ];
 
   if (!isAuth && !publicRoutes.contains(loc)) {
@@ -76,26 +80,65 @@ final _router = GoRouter(
   redirect: _authGuard,
   refreshListenable: _AuthNotifier(),
   routes: [
-    GoRoute(path: '/',          builder: (_, __) => const Onboarding1Screen()),
-    GoRoute(path: '/onboarding-2', builder: (_, __) => const Onboarding2Screen()),
-    GoRoute(path: '/onboarding-3', builder: (_, __) => const Onboarding3Screen()),
-    GoRoute(path: '/onboarding-4', builder: (_, __) => const Onboarding4Screen()),
-    GoRoute(path: '/login',        builder: (_, __) => const LoginScreen()),
-    GoRoute(path: '/register',     builder: (_, __) => const RegisterScreen()),
-    GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
-    GoRoute(path: '/profile-setup', builder: (_, __) => const ProfileSetupScreen()),
+    GoRoute(path: '/', builder: (_, _) => const Onboarding1Screen()),
+    GoRoute(
+      path: '/onboarding-2',
+      builder: (_, _) => const Onboarding2Screen(),
+    ),
+    GoRoute(
+      path: '/onboarding-3',
+      builder: (_, _) => const Onboarding3Screen(),
+    ),
+    GoRoute(
+      path: '/onboarding-4',
+      builder: (_, _) => const Onboarding4Screen(),
+    ),
+    GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+    GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (_, _) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/profile-setup',
+      builder: (_, _) => const ProfileSetupScreen(),
+    ),
     ShellRoute(
-      builder: (_, __, child) => MainLayout(child: child),
+      builder: (_, _, child) => MainLayout(child: child),
       routes: [
-        GoRoute(path: '/app/dashboard',  builder: (_, __) => const DashboardScreen()),
-        GoRoute(path: '/app/nutrition',  builder: (_, __) => const NutritionScreen()),
-        GoRoute(path: '/app/exercise',   builder: (_, __) => const ExerciseScreen()),
-        GoRoute(path: '/app/alerts',     builder: (_, __) => const AlertsScreen()),
-        GoRoute(path: '/app/reports',    builder: (_, __) => const ReportsScreen()),
-        GoRoute(path: '/app/profile',    builder: (_, __) => const ProfileScreen()),
-        GoRoute(path: '/app/risk-score', builder: (_, __) => const RiskScoreScreen()),
-        GoRoute(path: '/app/data-entry', builder: (_, __) => const DataEntryScreen()),
-        GoRoute(path: '/app/assistant',  builder: (_, __) => const AssistantScreen()),
+        GoRoute(
+          path: '/app/dashboard',
+          builder: (_, _) => const DashboardScreen(),
+        ),
+        GoRoute(
+          path: '/app/nutrition',
+          builder: (_, _) => const NutritionScreen(),
+        ),
+        GoRoute(
+          path: '/app/exercise',
+          builder: (_, _) => const ExerciseScreen(),
+        ),
+        GoRoute(path: '/app/alerts', builder: (_, _) => const AlertsScreen()),
+        GoRoute(
+          path: '/app/reports',
+          builder: (_, _) => const ReportsScreen(),
+        ),
+        GoRoute(
+          path: '/app/profile',
+          builder: (_, _) => const ProfileScreen(),
+        ),
+        GoRoute(
+          path: '/app/risk-score',
+          builder: (_, _) => const RiskScoreScreen(),
+        ),
+        GoRoute(
+          path: '/app/data-entry',
+          builder: (_, _) => const DataEntryScreen(),
+        ),
+        GoRoute(
+          path: '/app/assistant',
+          builder: (_, _) => const AssistantScreen(),
+        ),
       ],
     ),
   ],

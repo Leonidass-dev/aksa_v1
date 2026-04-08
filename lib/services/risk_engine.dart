@@ -20,37 +20,48 @@ class RiskEngine {
 
     if (snap.hrMean < 50 || snap.hrMean > 100) {
       hrContrib += 0.18;
-      factors.add(RiskFactor(
-        name: 'Kalp Atış Hızı',
-        contribution: 18.0,
-        description: 'Ortalama nabız normal aralık dışında '
-            '(${snap.hrMean.toInt()} bpm)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Kalp Atış Hızı',
+          contribution: 18.0,
+          description:
+              'Ortalama nabız normal aralık dışında '
+              '(${snap.hrMean.toInt()} bpm)',
+        ),
+      );
     } else if (snap.hrMean > 85) {
       hrContrib += 0.08;
-      factors.add(RiskFactor(
-        name: 'Kalp Atış Hızı',
-        contribution: 8.0,
-        description: 'Ortalama nabız yüksek normale yakın '
-            '(${snap.hrMean.toInt()} bpm)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Kalp Atış Hızı',
+          contribution: 8.0,
+          description:
+              'Ortalama nabız yüksek normale yakın '
+              '(${snap.hrMean.toInt()} bpm)',
+        ),
+      );
     } else {
-      factors.add(RiskFactor(
-        name: 'Kalp Atış Hızı',
-        contribution: -5.0,
-        description: 'Nabız optimal aralıkta (${snap.hrMean.toInt()} bpm)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Kalp Atış Hızı',
+          contribution: -5.0,
+          description: 'Nabız optimal aralıkta (${snap.hrMean.toInt()} bpm)',
+        ),
+      );
     }
 
     // HR değişkenliği — yüksek std anomali işareti
     if (snap.hrStd > 20) {
       hrContrib += 0.10;
-      factors.add(RiskFactor(
-        name: 'Nabız Değişkenliği',
-        contribution: 10.0,
-        description: 'Yüksek nabız değişkenliği (std: '
-            '${snap.hrStd.toStringAsFixed(1)})',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Nabız Değişkenliği',
+          contribution: 10.0,
+          description:
+              'Yüksek nabız değişkenliği (std: '
+              '${snap.hrStd.toStringAsFixed(1)})',
+        ),
+      );
     }
     rawProbability += hrContrib;
 
@@ -59,40 +70,50 @@ class RiskEngine {
 
     if (snap.stepSum < 3000) {
       actContrib += 0.15;
-      factors.add(RiskFactor(
-        name: 'Günlük Adım',
-        contribution: 15.0,
-        description: 'Adım sayısı çok düşük (${snap.stepSum} adım)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Günlük Adım',
+          contribution: 15.0,
+          description: 'Adım sayısı çok düşük (${snap.stepSum} adım)',
+        ),
+      );
     } else if (snap.stepSum < 6000) {
       actContrib += 0.07;
-      factors.add(RiskFactor(
-        name: 'Günlük Adım',
-        contribution: 7.0,
-        description: 'Adım sayısı hedefin altında (${snap.stepSum} adım)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Günlük Adım',
+          contribution: 7.0,
+          description: 'Adım sayısı hedefin altında (${snap.stepSum} adım)',
+        ),
+      );
     } else if (snap.stepSum >= 10000) {
       actContrib -= 0.08;
-      factors.add(RiskFactor(
-        name: 'Günlük Adım',
-        contribution: -8.0,
-        description: 'Günlük hedef aşıldı (${snap.stepSum} adım) 🎯',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Günlük Adım',
+          contribution: -8.0,
+          description: 'Günlük hedef aşıldı (${snap.stepSum} adım) 🎯',
+        ),
+      );
     } else {
-      factors.add(RiskFactor(
-        name: 'Günlük Adım',
-        contribution: -3.0,
-        description: 'Adım sayısı iyi düzeyde (${snap.stepSum} adım)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Günlük Adım',
+          contribution: -3.0,
+          description: 'Adım sayısı iyi düzeyde (${snap.stepSum} adım)',
+        ),
+      );
     }
 
     if (snap.activeMinutes < 20) {
       actContrib += 0.08;
-      factors.add(RiskFactor(
-        name: 'Aktif Süre',
-        contribution: 8.0,
-        description: 'Aktif süre yetersiz (${snap.activeMinutes} dk)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Aktif Süre',
+          contribution: 8.0,
+          description: 'Aktif süre yetersiz (${snap.activeMinutes} dk)',
+        ),
+      );
     }
     rawProbability += actContrib;
 
@@ -101,45 +122,60 @@ class RiskEngine {
 
     if (snap.sleepHours < 5.0) {
       sleepContrib += 0.20;
-      factors.add(RiskFactor(
-        name: 'Uyku Süresi',
-        contribution: 20.0,
-        description: 'Ciddi uyku eksikliği '
-            '(${snap.sleepHours.toStringAsFixed(1)} saat)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Uyku Süresi',
+          contribution: 20.0,
+          description:
+              'Ciddi uyku eksikliği '
+              '(${snap.sleepHours.toStringAsFixed(1)} saat)',
+        ),
+      );
     } else if (snap.sleepHours < 6.5) {
       sleepContrib += 0.12;
-      factors.add(RiskFactor(
-        name: 'Uyku Süresi',
-        contribution: 12.0,
-        description: 'Uyku süresi yetersiz '
-            '(${snap.sleepHours.toStringAsFixed(1)} saat)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Uyku Süresi',
+          contribution: 12.0,
+          description:
+              'Uyku süresi yetersiz '
+              '(${snap.sleepHours.toStringAsFixed(1)} saat)',
+        ),
+      );
     } else if (snap.sleepHours >= 7.0 && snap.sleepHours <= 9.0) {
       sleepContrib -= 0.08;
-      factors.add(RiskFactor(
-        name: 'Uyku Süresi',
-        contribution: -8.0,
-        description: 'Uyku süresi optimal '
-            '(${snap.sleepHours.toStringAsFixed(1)} saat)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Uyku Süresi',
+          contribution: -8.0,
+          description:
+              'Uyku süresi optimal '
+              '(${snap.sleepHours.toStringAsFixed(1)} saat)',
+        ),
+      );
     } else {
-      factors.add(RiskFactor(
-        name: 'Uyku Süresi',
-        contribution: 3.0,
-        description: 'Uyku süresi biraz uzun '
-            '(${snap.sleepHours.toStringAsFixed(1)} saat)',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Uyku Süresi',
+          contribution: 3.0,
+          description:
+              'Uyku süresi biraz uzun '
+              '(${snap.sleepHours.toStringAsFixed(1)} saat)',
+        ),
+      );
     }
 
     if (snap.sleepEfficiency < 0.75) {
       sleepContrib += 0.10;
-      factors.add(RiskFactor(
-        name: 'Uyku Kalitesi',
-        contribution: 10.0,
-        description: 'Uyku verimliliği düşük '
-            '(%${(snap.sleepEfficiency * 100).toInt()})',
-      ));
+      factors.add(
+        RiskFactor(
+          name: 'Uyku Kalitesi',
+          contribution: 10.0,
+          description:
+              'Uyku verimliliği düşük '
+              '(%${(snap.sleepEfficiency * 100).toInt()})',
+        ),
+      );
     }
     rawProbability += sleepContrib;
 
@@ -147,27 +183,35 @@ class RiskEngine {
     if (snap.spo2Mean != null) {
       if (snap.spo2Mean! < 92) {
         rawProbability += 0.25;
-        factors.add(RiskFactor(
-          name: 'Oksijen Saturasyonu',
-          contribution: 25.0,
-          description: 'SpO2 kritik düşük '
-              '(%${snap.spo2Mean!.toInt()})',
-        ));
+        factors.add(
+          RiskFactor(
+            name: 'Oksijen Saturasyonu',
+            contribution: 25.0,
+            description:
+                'SpO2 kritik düşük '
+                '(%${snap.spo2Mean!.toInt()})',
+          ),
+        );
       } else if (snap.spo2Mean! < 95) {
         rawProbability += 0.12;
-        factors.add(RiskFactor(
-          name: 'Oksijen Saturasyonu',
-          contribution: 12.0,
-          description: 'SpO2 normale yakın alt sınırda '
-              '(%${snap.spo2Mean!.toInt()})',
-        ));
+        factors.add(
+          RiskFactor(
+            name: 'Oksijen Saturasyonu',
+            contribution: 12.0,
+            description:
+                'SpO2 normale yakın alt sınırda '
+                '(%${snap.spo2Mean!.toInt()})',
+          ),
+        );
       } else {
         rawProbability -= 0.05;
-        factors.add(RiskFactor(
-          name: 'Oksijen Saturasyonu',
-          contribution: -5.0,
-          description: 'SpO2 normal (%${snap.spo2Mean!.toInt()})',
-        ));
+        factors.add(
+          RiskFactor(
+            name: 'Oksijen Saturasyonu',
+            contribution: -5.0,
+            description: 'SpO2 normal (%${snap.spo2Mean!.toInt()})',
+          ),
+        );
       }
     }
 
@@ -175,20 +219,26 @@ class RiskEngine {
     if (snap.stressScore != null) {
       if (snap.stressScore! > 70) {
         rawProbability += 0.12;
-        factors.add(RiskFactor(
-          name: 'Stres Seviyesi',
-          contribution: 12.0,
-          description: 'Yüksek stres skoru '
-              '(${snap.stressScore!.toInt()}/100)',
-        ));
+        factors.add(
+          RiskFactor(
+            name: 'Stres Seviyesi',
+            contribution: 12.0,
+            description:
+                'Yüksek stres skoru '
+                '(${snap.stressScore!.toInt()}/100)',
+          ),
+        );
       } else if (snap.stressScore! > 50) {
         rawProbability += 0.05;
-        factors.add(RiskFactor(
-          name: 'Stres Seviyesi',
-          contribution: 5.0,
-          description: 'Orta düzey stres '
-              '(${snap.stressScore!.toInt()}/100)',
-        ));
+        factors.add(
+          RiskFactor(
+            name: 'Stres Seviyesi',
+            contribution: 5.0,
+            description:
+                'Orta düzey stres '
+                '(${snap.stressScore!.toInt()}/100)',
+          ),
+        );
       }
     }
 

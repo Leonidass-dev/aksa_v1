@@ -7,9 +7,9 @@ class UserProfile {
   final String fullName;
   final String email;
   final int age;
-  final double height;  // cm
-  final double weight;  // kg
-  final String gender;  // 'M' | 'F' | 'O'
+  final double height; // cm
+  final double weight; // kg
+  final String gender; // 'M' | 'F' | 'O'
   final String? photoUrl;
   final String? bio;
 
@@ -26,17 +26,17 @@ class UserProfile {
   });
 
   Map<String, dynamic> toMap() => {
-        'uid': uid,
-        'fullName': fullName,
-        'email': email,
-        'age': age,
-        'height': height,
-        'weight': weight,
-        'gender': gender,
-        'photoUrl': photoUrl ?? '',
-        'bio': bio ?? '',
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
+    'uid': uid,
+    'fullName': fullName,
+    'email': email,
+    'age': age,
+    'height': height,
+    'weight': weight,
+    'gender': gender,
+    'photoUrl': photoUrl ?? '',
+    'bio': bio ?? '',
+    'updatedAt': FieldValue.serverTimestamp(),
+  };
 
   factory UserProfile.fromMap(String uid, Map<String, dynamic> m) =>
       UserProfile(
@@ -70,10 +70,10 @@ class UserProfileService {
 
   /// Profili kaydet / güncelle
   static Future<void> saveProfile(UserProfile profile) async {
-    await _db.collection('users').doc(profile.uid).set(
-          profile.toMap(),
-          SetOptions(merge: true),
-        );
+    await _db
+        .collection('users')
+        .doc(profile.uid)
+        .set(profile.toMap(), SetOptions(merge: true));
   }
 
   /// Profili oku

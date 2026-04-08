@@ -64,7 +64,7 @@ class AuthService {
       }
 
       final GoogleSignInAuthentication googleAuth =
-      await googleUser.authentication;
+          await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -95,13 +95,11 @@ class AuthService {
         nonce: nonce,
       );
 
-      final oauthCredential = OAuthProvider('apple.com').credential(
-        idToken: appleCredential.identityToken,
-        rawNonce: rawNonce,
-      );
+      final oauthCredential = OAuthProvider(
+        'apple.com',
+      ).credential(idToken: appleCredential.identityToken, rawNonce: rawNonce);
 
-      final userCredential =
-      await _auth.signInWithCredential(oauthCredential);
+      final userCredential = await _auth.signInWithCredential(oauthCredential);
 
       // Apple sadece ilk girişte isim verir — güncelle
       final fullName = [
@@ -133,7 +131,8 @@ class AuthService {
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
       return AuthResult.successMessage(
-          '$email adresine sıfırlama bağlantısı gönderildi.');
+        '$email adresine sıfırlama bağlantısı gönderildi.',
+      );
     } on FirebaseAuthException catch (e) {
       return AuthResult.error(_firebaseErrorMessage(e.code));
     } catch (e) {
@@ -153,7 +152,9 @@ class AuthService {
         '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
     final random = Random.secure();
     return List.generate(
-        length, (_) => charset[random.nextInt(charset.length)]).join();
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
   }
 
   static String _sha256ofString(String input) {

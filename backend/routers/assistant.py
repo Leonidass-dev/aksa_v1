@@ -19,7 +19,7 @@ router = APIRouter()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-3-flash-preview:generateContent"
+    "gemini-2.5-flash:generateContent"
 )
 
 class ChatRequest(BaseModel):
@@ -82,18 +82,47 @@ async def chat_with_assistant(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-                json=payload,
-            )
+        import asyncio
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                    json=payload,
+                )
+                
+            if resp.status_code == 200:
+                break
+                
+            if resp.status_code == 503 and attempt < max_retries - 1:
+                await asyncio.sleep(2)
+                continue
 
         if resp.status_code != 200:
-            logger.error(f"Gemini API hatası: {resp.text[:200]}")
-            raise HTTPException(
-                status_code=502,
-                detail="Asistana şu an ulaşılamıyor. Lütfen daha sonra tekrar deneyin.",
-            )
+            error_msg = "Bilinmeyen API hatası"
+            try:
+                data = resp.json()
+                error_msg = data.get("error", {}).get("message", resp.text[:200])
+            except Exception:
+                error_msg = resp.text[:200]
+                
+            logger.error(f"Gemini API Error [{resp.status_code}]: {error_msg}")
+            
+            if resp.status_code == 503:
+                detail = "Google sunucularında aşırı yoğunluk var. Lütfen biraz bekleyip tekrar deneyin."
+            elif resp.status_code == 429:
+                detail = "API kullanım limitinize ulaştınız. (Kota aşıldı veya çok sık istek atıldı)."
+            elif resp.status_code in [401, 403]:
+                detail = "Gemini API Anahtarı (API_KEY) yetkisiz veya hatalı."
+            elif resp.status_code == 404:
+                detail = "Kullanılan yapay zeka modeli bulunamadı."
+            elif resp.status_code == 400:
+                detail = f"Geçersiz istek gönderildi. Detay: {error_msg}"
+            else:
+                detail = f"Gemini API Sunucu Hatası ({resp.status_code}): {error_msg}"
+                
+            raise HTTPException(status_code=502, detail=detail)
 
         text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
         reply = text.strip()

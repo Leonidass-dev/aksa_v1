@@ -26,16 +26,10 @@ try:
         _firebase_initialized = True
         logger.info("✅ Firebase Admin SDK başlatıldı")
     else:
-        # Credential yoksa default credentials dene (Cloud Run vb.)
-        try:
-            firebase_admin.initialize_app()
-            _firebase_initialized = True
-            logger.info("✅ Firebase Admin SDK (default credentials) başlatıldı")
-        except Exception:
-            logger.warning(
-                "⚠️  Firebase credentials bulunamadı — DEV MODE: Auth devre dışı. "
-                "Canlıda FIREBASE_CREDENTIALS_PATH ayarlanmalı."
-            )
+        logger.warning(
+            "⚠️  Firebase credentials bulunamadı — DEV MODE: Auth devre dışı. "
+            "Canlıda FIREBASE_CREDENTIALS_PATH ayarlanmalı."
+        )
 except ImportError:
     logger.warning("⚠️  firebase-admin yüklü değil — DEV MODE: Auth devre dışı.")
 

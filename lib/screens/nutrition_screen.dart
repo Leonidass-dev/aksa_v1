@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
-import '../theme/theme_notifier.dart';
 import '../services/api_service.dart';
+import '../services/user_profile_service.dart';
+import '../widgets/theme_aware_state.dart';
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -13,27 +14,40 @@ class NutritionScreen extends StatefulWidget {
   State<NutritionScreen> createState() => _NutritionScreenState();
 }
 
-class _NutritionScreenState extends State<NutritionScreen> {
+class _NutritionScreenState extends State<NutritionScreen>
+    with ThemeAwareMixin {
   final _picker = ImagePicker();
 
   // Analiz sonuçları listesi (öğün bazlı)
   final List<_MealEntry> _meals = [];
   bool _analyzing = false;
 
-  static const int _calorieGoal = 2000;
+  int _calorieGoal = 2000;
 
   @override
   void initState() {
     super.initState();
-    themeNotifier.addListener(_onThemeChange);
+    _loadProfileAndHistory();
   }
 
-  void _onThemeChange() => setState(() {});
+  Future<void> _loadProfileAndHistory() async {
+    // Kalori hedefini profilden hesapla (Mifflin-St Jeor)
+    final profile = await UserProfileService.getProfile();
+    if (profile != null) {
+      double bmr;
+      if (profile.gender == 'M') {
+        bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
+      } else {
+        bmr =
+            10 * profile.weight + 6.25 * profile.height - 5 * profile.age - 161;
+      }
+      // Hafif aktivite çarpanı (1.375)
+      if (mounted) setState(() => _calorieGoal = (bmr * 1.375).round());
+    }
 
-  @override
-  void dispose() {
-    themeNotifier.removeListener(_onThemeChange);
-    super.dispose();
+    // Geçmiş öğünleri backend'den yükle
+    await ApiService.fetchMealHistory(limit: 10);
+    // TODO: Geçmiş öğünlerin kalori toplamını göstermek için _MealEntry'ye dönüştür
   }
 
   int get _totalCalories => _meals.fold(0, (s, m) => s + m.calories);
@@ -77,30 +91,38 @@ class _NutritionScreenState extends State<NutritionScreen> {
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            Text('Yemek Fotoğrafı Ekle',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Theme.of(context).colorScheme.onSurface)),
+            Text(
+              'Yemek Fotoğrafı Ekle',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text('Gemini AI ile besin değerlerini analiz et',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text(
+              'Gemini AI ile besin değerlerini analiz et',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 24),
             Row(
               children: [
@@ -145,13 +167,20 @@ class _NutritionScreenState extends State<NutritionScreen> {
         backgroundColor: AppColors.secondary,
         icon: _analyzing
             ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : const Icon(Icons.add_a_photo_outlined, color: Colors.white),
         label: Text(
           _analyzing ? 'Analiz ediliyor...' : 'Öğün Ekle',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -165,10 +194,12 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   _buildCalorieSummary(context),
                   const SizedBox(height: 20),
                   if (_meals.isEmpty) _buildEmptyState(context),
-                  ..._meals.map((m) => Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _buildMealCard(context, m),
-                  )),
+                  ..._meals.map(
+                    (m) => Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _buildMealCard(context, m),
+                    ),
+                  ),
                   const SizedBox(height: 80),
                 ],
               ),
@@ -208,7 +239,11 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -216,13 +251,18 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Beslenme Analizi',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold)),
-                        Text('Yapay Zeka ile besin analizi',
-                            style: TextStyle(color: Colors.white70, fontSize: 13)),
+                        Text(
+                          'Beslenme Analizi',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Yapay Zeka ile besin analizi',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
                       ],
                     ),
                   ),
@@ -235,7 +275,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -250,16 +292,31 @@ class _NutritionScreenState extends State<NutritionScreen> {
                                 color: Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(Icons.local_fire_department, color: Colors.white, size: 22),
+                              child: const Icon(
+                                Icons.local_fire_department,
+                                color: Colors.white,
+                                size: 22,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Günlük Hedef',
-                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
-                                Text('$_calorieGoal kal',
-                                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                                Text(
+                                  'Günlük Hedef',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                Text(
+                                  '$_calorieGoal kal',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ],
                             ),
                           ],
@@ -267,9 +324,21 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text('Alınan', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
-                            Text('$_totalCalories',
-                                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                            Text(
+                              'Alınan',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '$_totalCalories',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -281,12 +350,19 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         value: (_totalCalories / _calorieGoal).clamp(0.0, 1.0),
                         minHeight: 10,
                         backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Colors.white,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text('${(_calorieGoal - _totalCalories).abs()} kalori ${_totalCalories > _calorieGoal ? "aşıldı" : "kaldı"}',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
+                    Text(
+                      '${(_calorieGoal - _totalCalories).abs()} kalori ${_totalCalories > _calorieGoal ? "aşıldı" : "kaldı"}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -309,8 +385,10 @@ class _NutritionScreenState extends State<NutritionScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Bugünkü Makrolar',
-              style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+          Text(
+            'Bugünkü Makrolar',
+            style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -338,16 +416,27 @@ class _NutritionScreenState extends State<NutritionScreen> {
               color: AppColors.secondary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.add_a_photo_outlined,
-                color: AppColors.secondary, size: 40),
+            child: const Icon(
+              Icons.add_a_photo_outlined,
+              color: AppColors.secondary,
+              size: 40,
+            ),
           ),
           const SizedBox(height: 16),
-          Text('Henüz öğün eklenmedi',
-              style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface, fontSize: 16)),
+          Text(
+            'Henüz öğün eklenmedi',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+              fontSize: 16,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text('Aşağıdaki butona basarak yemek fotoğrafı çek\nGemini AI besin değerlerini analiz etsin',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+          Text(
+            'Aşağıdaki butona basarak yemek fotoğrafı çek\nGemini AI besin değerlerini analiz etsin',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -379,9 +468,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 ),
                 // Sağlık skoru badge
                 Positioned(
-                  top: 12, right: 12,
+                  top: 12,
+                  right: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: scoreColor,
                       borderRadius: BorderRadius.circular(20),
@@ -389,25 +482,45 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.favorite, color: Colors.white, size: 12),
+                        const Icon(
+                          Icons.favorite,
+                          color: Colors.white,
+                          size: 12,
+                        ),
                         const SizedBox(width: 4),
-                        Text('${r.healthScore}',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text(
+                          '${r.healthScore}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
                 // Kalori badge
                 Positioned(
-                  bottom: 12, left: 12,
+                  bottom: 12,
+                  left: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text('${r.calories} kal',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                    child: Text(
+                      '${r.calories} kal',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -422,19 +535,29 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(r.foodName,
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: cs.onSurface)),
+                      child: Text(
+                        r.foodName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: cs.onSurface,
+                        ),
+                      ),
                     ),
-                    Text(meal.time.format(context),
-                        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                    Text(
+                      meal.time.format(context),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(r.portion,
-                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                Text(
+                  r.portion,
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
                 const SizedBox(height: 12),
                 // Makro satırı
                 Row(
@@ -453,15 +576,25 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   Wrap(
                     spacing: 6,
                     children: r.tags
-                        .map((tag) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(tag,
-                          style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-                    ))
+                        .map(
+                          (tag) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: cs.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              tag,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        )
                         .toList(),
                   ),
                 ],
@@ -472,18 +605,28 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.secondary.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.secondary.withValues(alpha: 0.2)),
+                      border: Border.all(
+                        color: AppColors.secondary.withValues(alpha: 0.2),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.psychology_outlined,
-                            color: AppColors.secondary, size: 16),
+                        const Icon(
+                          Icons.psychology_outlined,
+                          color: AppColors.secondary,
+                          size: 16,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(r.recommendation,
-                              style: TextStyle(
-                                  fontSize: 12, color: cs.onSurface, height: 1.4)),
+                          child: Text(
+                            r.recommendation,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurface,
+                              height: 1.4,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -503,9 +646,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
       color: cs.surface,
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: cs.outlineVariant),
-      boxShadow: [BoxShadow(
+      boxShadow: [
+        BoxShadow(
           color: Colors.black.withValues(alpha: 0.04),
-          blurRadius: 8, offset: const Offset(0, 2))],
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
     );
   }
 }
@@ -530,11 +677,21 @@ class _MacroChip extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text('${value.toStringAsFixed(0)}$unit',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 13, color: color)),
-            Text(label,
-                style: TextStyle(fontSize: 10, color: color.withValues(alpha: 0.8))),
+            Text(
+              '${value.toStringAsFixed(0)}$unit',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: color.withValues(alpha: 0.8),
+              ),
+            ),
           ],
         ),
       ),
@@ -547,11 +704,12 @@ class _SourceButton extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _SourceButton(
-      {required this.icon,
-        required this.label,
-        required this.color,
-        required this.onTap});
+  const _SourceButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -568,8 +726,10 @@ class _SourceButton extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 32),
             const SizedBox(height: 8),
-            Text(label,
-                style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: TextStyle(color: color, fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       ),
@@ -581,7 +741,11 @@ class _MealEntry {
   final File image;
   final FoodAnalysisResult result;
   final TimeOfDay time;
-  const _MealEntry({required this.image, required this.result, required this.time});
+  const _MealEntry({
+    required this.image,
+    required this.result,
+    required this.time,
+  });
 
   int get calories => result.calories;
 }
