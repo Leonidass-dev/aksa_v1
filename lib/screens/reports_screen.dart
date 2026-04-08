@@ -20,19 +20,18 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
 
   final _tabs = const [
     _Tab('genel', 'Genel'),
-    _Tab('weight', 'Kilo'),
-    _Tab('bp', 'Tansiyon'),
+    _Tab('steps', 'Adım'),
+    _Tab('heart_rate', 'Nabız'),
     _Tab('sleep', 'Uyku'),
     _Tab('risk', 'Risk'),
   ];
 
   Map<String, List<double>> _chartData = const {
-    'weight': [],
+    'steps': [],
+    'heart_rate': [],
     'sleep': [],
     'risk': [],
-    'bp_sys': [],
-    'bp_dia': [],
-    'genel': [0.5, 0.5, 0.5, 0.5, 0.5], // Adım, Uyku, Su, Kalp, Risk (Normalize 0-1)
+    'genel': [0.5, 0.5, 0.5, 0.5, 0.5],
   };
 
   List<String> _labels = [];
@@ -64,18 +63,14 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
     setState(() {
       _labels = labels;
       _chartData = {
-        'weight': sorted.map((e) => e.weight).toList(),
+        'steps': sorted.map((e) => e.steps).toList(),
+        'heart_rate': sorted.map((e) => e.heartRate).toList(),
         'sleep': sorted.map((e) => e.sleepHours).toList(),
         'risk': sorted
             .map(
-              (e) => (e.systolic > 0 ? (e.systolic - 90) * 0.5 : 0.0).clamp(
-                0.0,
-                100.0,
-              ),
+              (e) => (e.steps > 0 ? (e.steps / 100) : 0.0).clamp(0.0, 100.0),
             )
             .toList(),
-        'bp_sys': sorted.map((e) => e.systolic).toList(),
-        'bp_dia': sorted.map((e) => e.diastolic).toList(),
       };
       
       // Radar Chart İçin Normalize Veriler (Son 7 gün ortalaması)
@@ -112,8 +107,8 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
         (avgSteps / 10000).clamp(0.0, 1.0), // Adım (Hedef 10k)
         (avgSleep / 8).clamp(0.0, 1.0),     // Uyku (Hedef 8s)
         (avgWater / waterTarget).clamp(0.0, 1.0), // Su (Hedef Dinamik)
-        (1 - ((avgRh - 50) / 40)).clamp(0.1, 1.0), // Kalp (Daha düşük/sabit daha iyi)
-        (1 - (avgRisk / 100)).clamp(0.1, 1.0),    // Risk (Daha düşük puan daha iyi)
+        (1 - ((avgRh - 60) / 40)).clamp(0.1, 1.0), // Kalp (Daha düşük/sabit daha iyi)
+        (1 - (avgRisk / 100)).clamp(0.1, 1.0),    // Risk
       ];
     });
   }
@@ -291,14 +286,13 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
       return _buildRadarChart(context);
     }
 
-    final data = _activeTab == 'bp'
-        ? _chartData['bp_sys']!
-        : _chartData[_activeTab]!;
-    final data2 = _activeTab == 'bp' ? _chartData['bp_dia']! : null;
-
+    final data = _chartData[_activeTab] ?? [];
+    
     final color = _activeTab == 'sleep'
         ? AppColors.accent
-        : _activeTab == 'weight'
+        : _activeTab == 'heart_rate'
+        ? AppColors.destructive
+        : _activeTab == 'steps'
         ? AppColors.secondary
         : AppColors.primary;
 
@@ -312,7 +306,7 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${_tabs.firstWhere((t) => t.id == _activeTab).label} Trendi',
+                    '${_tabs.firstWhere((t) => t.id == _activeTab, orElse: () => _tabs.first).label} Trendi',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: cs.onSurface,
@@ -351,7 +345,6 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
               size: const Size(double.infinity, 160),
               painter: AppLineChartPainter(
                 data: data,
-                data2: data2,
                 color: color,
               ),
             ),
@@ -427,10 +420,15 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
       final validData = data.where((d) => d > 0).toList();
       if (validData.isNotEmpty) {
         final average = validData.reduce((a, b) => a + b) / validData.length;
-        if (_activeTab == 'weight') {
-          final minW = validData.reduce((a, b) => a < b ? a : b);
-          avg = '${average.toStringAsFixed(1)} kg';
-          best = '${minW.toStringAsFixed(1)} kg';
+        if (_activeTab == 'steps') {
+          final maxSteps = validData.reduce((a, b) => a > b ? a : b);
+          avg = '${average.toInt()} adım';
+          best = '${maxSteps.toInt()} adım';
+        } else if (_activeTab == 'heart_rate') {
+          final maxHR = validData.reduce((a, b) => a > b ? a : b);
+          final minHR = validData.reduce((a, b) => a < b ? a : b);
+          avg = '${average.toInt()} bpm';
+          best = '${minHR.toInt()} bpm'; // En düşük (dinlenme) nabız daha iyidir
         } else if (_activeTab == 'sleep') {
           final maxS = validData.reduce((a, b) => a > b ? a : b);
           avg = '${average.toStringAsFixed(1)} saat';
@@ -440,17 +438,6 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
           avg = average.toStringAsFixed(1);
           best = maxR.toStringAsFixed(1);
         }
-      }
-    }
-
-    if (_activeTab == 'bp') {
-      final sysData = _chartData['bp_sys']?.where((d) => d > 0).toList() ?? [];
-      final diaData = _chartData['bp_dia']?.where((d) => d > 0).toList() ?? [];
-      if (sysData.isNotEmpty && diaData.isNotEmpty) {
-        final avgSys = sysData.reduce((a, b) => a + b) / sysData.length;
-        final avgDia = diaData.reduce((a, b) => a + b) / diaData.length;
-        avg = '${avgSys.toStringAsFixed(0)}/${avgDia.toStringAsFixed(0)}';
-        best = '-';
       }
     }
 
@@ -536,37 +523,39 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
   Widget _buildInsights(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final insights = {
-      'weight': [
+      'steps': [
         _Insight(
           AppColors.secondary,
-          'Kilonuz takip ediliyor. Daha iyi bir analiz için günlük verilerinizi aksatmadan girmeye devam edin.',
+          'Haftalık hareketliliğiniz incelendiğinde bugünlerde aktif olduğunuz görülüyor. Günlük 10 bin hedefi için istikrarlı kalın.',
         ),
       ],
-      'bp': [
+      'heart_rate': [
         _Insight(
-          AppColors.secondary,
-          'Tansiyon değerlerinin anlamlı olması için düzenli ölçüm ve kayıt şarttır.',
+          AppColors.destructive,
+          'Ortalama kalp atış hızınız stabil. Dinlenme nabzınızın 60-70 arası olması kondisyonunuzun iyi olduğunu gösterir.',
         ),
       ],
       'sleep': [
         _Insight(
           AppColors.accent,
-          'Uyku kalitenizi ve sürenizi sağlık hedeflerinize uygun olacak şekilde tutmaya gayret edin.',
+          'Uyku süreniz genel hedeflerle uyumlu. Derin uyku evresini artırmak için uyku düzeninize dikkat edebilirsiniz.',
         ),
       ],
       'risk': [
         _Insight(
           AppColors.primary,
-          'Sağlıklı alışkanlıklarınızı sürdürerek genel risk skorunuzu düşürebilirsiniz.',
+          'Genel sağlık skorunuz verilerinize göre hesaplanmıştır. Egzersiz sıklığını artırmak skoru iyileştirecektir.',
         ),
       ],
       'genel': [
         _Insight(
           AppColors.secondary,
-          'Sağlık dengeniz stabil görünüyor. Radar grafiğinde daralan alanlar iyileştirme yapmanız gereken noktaları gösterir.',
+          'Radar grafiği tüm verilerinizin dengeli dağıldığını gösteriyor. Adım ve su hedeflerine odaklanın.',
         ),
       ],
-    }[_activeTab]!;
+    }[_activeTab] ?? [
+      const _Insight(AppColors.primary, 'Veri analizi yapılıyor...')
+    ];
 
     return Container(
       padding: const EdgeInsets.all(20),

@@ -29,9 +29,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
-  // Bildirim Servisini Başlat
-  await NotificationService.init();
-  await NotificationService.scheduleNudges();
+  try {
+    // Bildirim Servisini Başlat
+    await NotificationService.init();
+    await NotificationService.scheduleNudges();
+  } catch (e) {
+    debugPrint('Bildirim servisi başlatılamadı (Hata: $e). Uygulama devam ediyor.');
+  }
 
   runApp(const AksaApp());
 }

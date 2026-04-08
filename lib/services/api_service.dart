@@ -247,6 +247,8 @@ class ApiService {
         'distance_m': entry.distanceM,
         'stress_level': entry.stressLevel,
         'weight': entry.weight,
+        'water_ml': entry.waterMl,
+        'mood': entry.mood,
         'source': entry.source,
       };
 

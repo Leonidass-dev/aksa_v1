@@ -7,6 +7,7 @@ import '../models/health_data.dart';
 import '../services/health_service.dart';
 import '../services/api_service.dart';
 import '../services/user_profile_service.dart';
+import '../constants/app_constants.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/app_line_chart.dart';
 import '../widgets/theme_aware_state.dart';
@@ -33,9 +34,16 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   RiskResult? _riskResult;
   List<double> _weeklyData = List.filled(7, 0.0);
+  double _systolic = 120;
+  double _diastolic = 80;
+  double _sleep = AppConstants.defaultSleepGoal;
+  double _steps = 0;
   bool _loadingRisk = true;
-  String _userName = '';
+  String _userName = 'Kullanıcı';
+  double _userHeight = 175.0; 
+  double _userWeight = 70.0;
   double _waterTarget = 2000;
+  bool _isSyncing = false;
 
 
   // Bugünün Firestore'dan gelen verileri
@@ -64,27 +72,35 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && !_isSyncing) {
       _silentSyncAndLoad();
     }
   }
 
   Future<void> _silentSyncAndLoad() async {
-    // Uygulama açıldığında veya arkaplandan döndüğünde sessizce verileri eşitle
-    await HealthService.syncFromDevice();
-    // Ardından arayüzü güncelle
-    if (mounted) {
-      _loadTodayData();
+    if (_isSyncing) return;
+    _isSyncing = true;
+
+    try {
+      // Uygulama açıldığında veya arkaplandan döndüğünde sessizce verileri eşitle
+      await HealthService.syncFromDevice();
+      // Ardından arayüzü güncelle
+      if (mounted) {
+        await _loadTodayData();
+      }
+    } finally {
+      _isSyncing = false;
     }
   }
 
   void _loadUserName() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      final nameParts = user.displayName?.split(' ');
+      final emailParts = user.email?.split('@');
       setState(() {
-        _userName =
-            user.displayName?.split(' ').first ??
-            user.email?.split('@').first ??
+        _userName = (nameParts != null && nameParts.isNotEmpty ? nameParts.first : null) ??
+            (emailParts != null && emailParts.isNotEmpty ? emailParts.first : null) ??
             'Kullanıcı';
       });
     }
@@ -94,16 +110,33 @@ class _DashboardScreenState extends State<DashboardScreen>
     setState(() => _loadingRisk = true);
 
     final profile = await UserProfileService.getProfile();
-    final pAge = profile?.age ?? 30;
-    final pHeight = profile?.height ?? 170.0;
-    final pGender = profile?.gender ?? 'M';
-    final pWeight = profile?.weight ?? 70.0;
+    final pAge = profile?.age ?? AppConstants.defaultAge;
+    final pHeight = profile?.height ?? AppConstants.defaultHeight;
+    final pWeight = profile?.weight ?? AppConstants.defaultWeight;
+    final pGender = profile?.gender ?? AppConstants.defaultGender;
+
+    if (mounted) {
+      setState(() {
+        _userHeight = pHeight;
+        _userWeight = pWeight;
+      });
+    }
 
     final entry = await HealthService.getTodayEntry();
+    final existingEntry = await HealthService.getTodayEntry();
     final todayData = entry ?? HealthEntry(date: DateTime.now());
 
     if (mounted) {
       if (entry != null) setState(() => _todayEntry = entry);
+
+      // Cihaz verileri (steps, heartRate, sleepHours) manuel verilerden (manualSteps vb) üstündür.
+      // KRİTİK: Eğer saat gece yarısı (00:00 - 02:00) ise ve cihazdan 0 veri geliyorsa, 
+      // manuel veriyi SILME (çünkü kullanıcı daha yürümeye başlamamış ama dün manuel veri girmiş olabilir).
+      final isEarlyMorning = DateTime.now().hour < 2;
+      
+      final steps = (todayData.steps > 0 || !isEarlyMorning) ? todayData.steps : (existingEntry?.steps ?? 0);
+      final heartRate = (todayData.heartRate > 0 || !isEarlyMorning) ? todayData.heartRate : (existingEntry?.heartRate ?? 0);
+      final sleepHours = (todayData.sleepHours > 0 || !isEarlyMorning) ? todayData.sleepHours : (existingEntry?.sleepHours ?? 0);
 
       // Firestore'dan veri gelsin ya da gelmesin, mevcut profil bilgisiyle API hesaplamasini yap.
       final result = await ApiService.fetchRiskScore(
@@ -112,11 +145,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           gender: pGender,
           height: pHeight,
           weight: profile?.weight ?? 70.0,
-          steps: todayData.steps,
-          sleepHours: todayData.sleepHours,
+          steps: steps,
+          sleepHours: sleepHours,
           systolic: todayData.systolic,
           diastolic: todayData.diastolic,
-          heartRateResting: todayData.heartRate,
+          heartRateResting: heartRate,
           spo2: todayData.spo2,
         ),
       );
@@ -178,6 +211,58 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  Future<void> _handleManualSync() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Text('Veriler senkronize ediliyor...'),
+          ],
+        ),
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    final success = await HealthService.syncFromDevice();
+    
+    if (success) {
+      await _loadTodayData();
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Sağlık verileri başarıyla güncellendi! ✅'),
+          backgroundColor: AppColors.secondary,
+        ),
+      );
+    } else {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Veri çekilemedi. Health Connect izinlerini kontrol edin. ❌'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+
+  // ── Yardımcılarım ─────────────────────────────────────────────
+  String _calculateBMI(double height, double weight) {
+    if (height <= 0 || weight <= 0) return '-';
+    final bmi = weight / ((height / 100) * (height / 100));
+    String status = '';
+    if (bmi < 18.5) status = '(Zayıf)';
+    else if (bmi < 25) status = '(Normal)';
+    else if (bmi < 30) status = '(Fazla Kilolu)';
+    else status = '(Obez)';
+    
+    return '${bmi.toStringAsFixed(1)} $status';
+  }
 
   Color get _levelColor {
     if (_riskResult == null) return AppColors.primary;
@@ -187,30 +272,39 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeader(context),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  _buildQuickActions(context),
-                  const SizedBox(height: 20),
-                  _buildWaterTracker(context),
-                  const SizedBox(height: 20),
-                  _buildMoodTracker(context),
-                  const SizedBox(height: 20),
-                  _buildWeeklyTrend(context),
-                  const SizedBox(height: 20),
-                  _buildTodayActivity(context),
-                  const SizedBox(height: 80),
-                ],
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.go('/app/data-entry'),
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+      ),
+      body: RefreshIndicator(
+        onRefresh: _silentSyncAndLoad,
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildWaterTracker(context),
+                    const SizedBox(height: 24),
+                    _buildQuickActions(context),
+                    const SizedBox(height: 24),
+                    _buildMoodTracker(context),
+                    const SizedBox(height: 20),
+                    _buildWeeklyTrend(context),
+                    const SizedBox(height: 20),
+                    _buildTodayActivity(context),
+                    const SizedBox(height: 80),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -261,8 +355,18 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   Row(
                     children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          'Senkronize',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
                       GestureDetector(
-                        onTap: () => context.go('/app/data-entry'),
+                        onTap: _handleManualSync,
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
@@ -270,7 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(
-                            Icons.add_rounded,
+                            Icons.sync_rounded,
                             color: Colors.white,
                             size: 24,
                           ),
@@ -431,7 +535,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                               const SizedBox(height: 8),
                               Text(
                                 _todayEntry != null && _riskResult != null
-                                    ? '${_todayEntry!.steps.toInt()} adım • ${_todayEntry!.sleepHours.toStringAsFixed(1)} saat uyku'
+                                    ? '${_todayEntry!.steps.toInt()} adım • ${_todayEntry!.sleepHours.toStringAsFixed(1)} s • VKE: ${_calculateBMI(_userHeight, _todayEntry!.weight > 0 ? _todayEntry!.weight : _userWeight)}'
                                     : (_riskResult != null
                                           ? _topFactorSummary()
                                           : 'Veri bekleniyor...'),
@@ -456,8 +560,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   String _topFactorSummary() {
-    if (_riskResult == null) return 'Veri bekleniyor...';
-    final negative = _riskResult!.topFactors
+    final risk = _riskResult;
+    if (risk == null) return 'Veri bekleniyor...';
+    
+    final negative = risk.topFactors
         .where((f) => f.contribution > 8)
         .map((f) => f.name)
         .take(2)
@@ -637,29 +743,49 @@ class _DashboardScreenState extends State<DashboardScreen>
     final cs = Theme.of(context).colorScheme;
     final int hr = _todayEntry?.heartRate.toInt() ?? 0;
     final int steps = _todayEntry?.steps.toInt() ?? 0;
-    final int kcal = (steps * 0.04).toInt(); // basit kalori hesabi
+    final int kcal = (_todayEntry?.activeCalories ?? 0) > 0 
+        ? _todayEntry!.activeCalories.toInt() 
+        : (steps * 0.04).toInt();
+    final double spo2 = _todayEntry?.spo2 ?? 0;
+    final String bp = (_todayEntry?.systolic ?? 0) > 0 
+        ? '${_todayEntry!.systolic.toInt()}/${_todayEntry!.diastolic.toInt()}' 
+        : '--';
 
     final stats = [
       _Stat(
         icon: Icons.favorite_outline,
         color: AppColors.secondary,
         title: 'Kalp Atışı',
-        subtitle: 'Ortalama',
+        subtitle: 'Cihazdan',
         value: hr > 0 ? '$hr bpm' : '--',
       ),
       _Stat(
         icon: Icons.directions_walk_outlined,
         color: AppColors.primary,
         title: 'Adım',
-        subtitle: 'Bugün',
+        subtitle: 'Cihazdan',
         value: steps > 0 ? '$steps' : '--',
       ),
       _Stat(
-        icon: Icons.local_fire_department_outlined,
+        icon: Icons.local_fire_department,
         color: AppColors.accent,
         title: 'Kalori',
-        subtitle: 'Yakılan (Tahmini)',
+        subtitle: 'Aktif Yakılan',
         value: kcal > 0 ? '$kcal kcal' : '--',
+      ),
+      _Stat(
+        icon: Icons.bloodtype_outlined,
+        color: AppColors.destructive,
+        title: 'Tansiyon',
+        subtitle: 'Manuel Giriş',
+        value: bp,
+      ),
+      _Stat(
+        icon: Icons.opacity_outlined,
+        color: Colors.blueAccent,
+        title: 'Kandaki Oksijen',
+        subtitle: 'SpO2',
+        value: spo2 > 0 ? '%${spo2.toInt()}' : '--',
       ),
     ];
 

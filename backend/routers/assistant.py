@@ -59,25 +59,42 @@ async def chat_with_assistant(
 ):
     """
     Semptom kontrolcüsü ve sağlık yaşam tarzı asistanı.
-    Mesajları ve yanıtları PostgreSQL'e kaydeder.
+    Context-Aware: Kullanıcının son verilerini kullanarak yanıt verir.
     """
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY eksik")
 
-    # Kullanıcı mesajını DB'ye kaydet
+    # Kullanıcıyı ve son verilerini çek
     user = await crud.get_or_create_user(db, uid)
+    latest_record = await crud.get_latest_health_record(db, user)
+    latest_risk = await crud.get_latest_risk_score(db, user)
+
+    # Context (Bağlam) Oluşturma
+    context = "\n--- KULLANICI SAĞLIK BAĞLAMI ---\n"
+    if latest_record:
+        context += f"- Bugünkü Adım: {latest_record.steps}\n"
+        context += f"- Kalp Atışı (Ort): {latest_record.heart_rate} bpm\n"
+        context += f"- Uyku Süresi: {latest_record.sleep_hours} saat\n"
+        context += f"- İçilen Su: {latest_record.water_ml} ml\n"
+        context += f"- Ruh Hali: {latest_record.mood or 'Belirtilmedi'}\n"
+    if latest_risk:
+        context += f"- Hesaplanan Risk Skoru: {latest_risk.score} / 100\n"
+        context += f"- Risk Seviyesi: {latest_risk.level_name}\n"
+    context += "--------------------------------\n"
+
+    # Kullanıcı mesajını DB'ye kaydet
     await crud.save_chat_message(db, user, role="user", content=req.message)
 
     payload = {
         "contents": [
             {
                 "parts": [
-                    {"text": PROMPT + req.message}
+                    {"text": PROMPT + context + "\nKullanıcı Sorusu: " + req.message}
                 ]
             }
         ],
         "generationConfig": {
-            "temperature": 0.4  # Biraz yaratıcılık iyidir ancak çok uçmamalı
+            "temperature": 0.4
         },
     }
 

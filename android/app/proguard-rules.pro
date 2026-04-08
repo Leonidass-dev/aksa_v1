@@ -17,10 +17,16 @@
 -keep class androidx.health.connect.** { *; }
 -dontwarn androidx.health.connect.**
 
-# JSON / Gson (Firebase'in iç kullanımı)
+# JSON / Gson (Firebase ve Notif. iç kullanımı)
 -keepattributes Signature
 -keepattributes *Annotation*
 -keep class com.google.gson.** { *; }
+-keep class com.google.gson.reflect.TypeToken
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep public class * implements java.lang.reflect.Type
+
+# Flutter Local Notifications
+-keep class com.dexterous.flutterlocalnotifications.** { *; }
 
 # Kotlin Coroutines
 -dontwarn kotlinx.coroutines.**

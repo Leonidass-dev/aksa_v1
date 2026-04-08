@@ -57,10 +57,10 @@ class BottomNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Container(
-          height: 80,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: items.map((item) {
               final isActive = location.startsWith(item.path);
               
@@ -73,11 +73,12 @@ class BottomNav extends StatelessWidget {
                   onTap: () => context.go(item.path),
                   behavior: HitTestBehavior.opaque,
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
                         isActive ? item.activeIcon : item.icon,
-                        size: 26,
+                        size: 24,
                         color: isActive
                             ? AppColors.primary
                             : AppColors.mutedForeground.withValues(alpha: 0.7),
@@ -86,7 +87,7 @@ class BottomNav extends StatelessWidget {
                       Text(
                         item.label,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                           color: isActive
                               ? AppColors.primary
@@ -109,10 +110,11 @@ class BottomNav extends StatelessWidget {
       child: GestureDetector(
         onTap: () => context.go(item.path),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [AppColors.secondary, AppColors.secondaryDark],
@@ -123,7 +125,7 @@ class BottomNav extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.secondary.withValues(alpha: 0.3),
-                    blurRadius: 10,
+                    blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
                 ],
@@ -131,14 +133,14 @@ class BottomNav extends StatelessWidget {
               child: Icon(
                 item.activeIcon,
                 color: Colors.white,
-                size: 28,
+                size: 24,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               item.label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: isActive ? AppColors.secondaryDark : AppColors.mutedForeground,
               ),

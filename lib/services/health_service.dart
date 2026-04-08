@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:health/health.dart';
 import '../models/health_entry.dart';
+import '../services/api_service.dart';
 
 // Re-export so existing `import 'health_service.dart'` importers still see HealthEntry.
 export '../models/health_entry.dart';
@@ -13,6 +15,9 @@ class HealthService {
   static final Health _healthFactory = Health();
 
   static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+
+  static String _dateKey(DateTime date) =>
+      "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
 
   // ── Bugünün verisini kaydet ───────────────────────────────────
   static Future<void> saveHealthEntry(HealthEntry entry) async {
@@ -26,6 +31,13 @@ class HealthService {
         .collection('health_entries')
         .doc(dateKey)
         .set(entry.toJson(), SetOptions(merge: true));
+
+    // Backend (PostgreSQL) Senkronizasyonu
+    try {
+      await ApiService.syncHealthToBackend(entry);
+    } catch (e) {
+      debugPrint("Backend sync hatası: $e");
+    }
   }
 
   // ── Sensörlerden (Health Connect) Otomatik Veri Çekme ─────────
@@ -36,35 +48,39 @@ class HealthService {
     final types = [
       HealthDataType.STEPS,
       HealthDataType.ACTIVE_ENERGY_BURNED,
-      HealthDataType.TOTAL_CALORIES_BURNED,
-      HealthDataType.DISTANCE_WALKING_RUNNING,
       HealthDataType.HEART_RATE,
-      HealthDataType.RESTING_HEART_RATE,
-      HealthDataType.BLOOD_OXYGEN,
-      HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
-      HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
       HealthDataType.SLEEP_ASLEEP,
-      HealthDataType.SLEEP_DEEP,
-      HealthDataType.SLEEP_LIGHT,
-      HealthDataType.SLEEP_REM,
     ];
 
     final permissions = types.map((e) => HealthDataAccess.READ).toList();
 
     try {
+      // Health Connect SDK Durum Kontrolü (Android 11-13 için önemli)
+      // Not: sdkAvailable kontrolü ana kontrolümüz.
+      final sdkStatus = await Health().getHealthConnectSdkStatus();
+      if (sdkStatus != HealthConnectSdkStatus.sdkAvailable) {
+        debugPrint("Health Connect SDK uygun değil: $sdkStatus");
+        return false;
+      }
+
       bool authorized = await _healthFactory.requestAuthorization(
         types,
         permissions: permissions,
       );
-      if (!authorized) return false;
+      if (!authorized) {
+        debugPrint("Health Connect izini reddedildi.");
+        return false;
+      }
 
+      // Artık sadece 'Bugün' (00:00'dan bugüne) olan verileri çekiyoruz.
       final now = DateTime.now();
-      final yesterday = now.subtract(const Duration(days: 1));
+      final startTime = DateTime(now.year, now.month, now.day);
+      final endTime = now;
 
       List<HealthDataPoint> healthData = await _healthFactory
           .getHealthDataFromTypes(
-            startTime: yesterday,
-            endTime: now,
+            startTime: startTime,
+            endTime: endTime,
             types: types,
           );
 
@@ -151,50 +167,55 @@ class HealthService {
       if (sysCount > 0) avgSystolic /= sysCount;
       if (diaCount > 0) avgDiastolic /= diaCount;
 
-      double sleepHours = totalSleepMin > 0
+      double sleepHrs = totalSleepMin > 0
           ? totalSleepMin / 60.0
           : (sleepDeepMin + sleepLightMin + sleepRemMin) / 60.0;
+
+      // Cihaz verileri (steps, heartRate, sleepHours) manuel verilerden (manualSteps vb) üstündür.
+      // KRİTİK: Eğer saat gece yarısı (00:00 - 02:00) ise ve cihazdan 0 veri geliyorsa, 
+      // manuel veriyi SILME (çünkü kullanıcı daha yürümeye başlamamış ama bugün manuel veri girmiş olabilir).
+      final isEarlyMorning = DateTime.now().hour < 2;
+      
+      final steps = (totalSteps > 0 || !isEarlyMorning) ? totalSteps : (todayEntry?.steps ?? 0);
+      final heartRate = (avgHeartRate > 0 || !isEarlyMorning) ? avgHeartRate : (todayEntry?.heartRate ?? 0);
+      final finalSleepHours = (sleepHrs > 0 || !isEarlyMorning) ? sleepHrs : (todayEntry?.sleepHours ?? 0);
 
       final newEntry = HealthEntry(
         date: now,
         weight: todayEntry?.weight ?? 0,
-        steps: totalSteps > 0 ? totalSteps : (todayEntry?.steps ?? 0),
-        heartRate: avgHeartRate > 0
-            ? avgHeartRate
-            : (todayEntry?.heartRate ?? 0),
-        restingHeartRate: avgRestingHr > 0
-            ? avgRestingHr
-            : (todayEntry?.restingHeartRate ?? 0),
-        spo2: avgSpo2 > 0 ? avgSpo2 : (todayEntry?.spo2 ?? 0),
-        systolic: avgSystolic > 0 ? avgSystolic : (todayEntry?.systolic ?? 0),
-        diastolic: avgDiastolic > 0
-            ? avgDiastolic
-            : (todayEntry?.diastolic ?? 0),
-        sleepHours: sleepHours > 0 ? sleepHours : (todayEntry?.sleepHours ?? 0),
-        sleepDeepMin: sleepDeepMin > 0
-            ? sleepDeepMin
-            : (todayEntry?.sleepDeepMin ?? 0),
-        sleepLightMin: sleepLightMin > 0
-            ? sleepLightMin
-            : (todayEntry?.sleepLightMin ?? 0),
-        sleepRemMin: sleepRemMin > 0
-            ? sleepRemMin
-            : (todayEntry?.sleepRemMin ?? 0),
+        steps: steps,
+        heartRate: heartRate,
+        restingHeartRate: avgRestingHr,
+        spo2: avgSpo2,
+        systolic: avgSystolic,
+        diastolic: avgDiastolic,
+        sleepHours: finalSleepHours,
+        sleepDeepMin: sleepDeepMin,
+        sleepLightMin: sleepLightMin,
+        sleepRemMin: sleepRemMin,
         sleepAwakeMin: todayEntry?.sleepAwakeMin ?? 0,
-        activeCalories: activeCalories > 0
-            ? activeCalories
-            : (todayEntry?.activeCalories ?? 0),
-        totalCalories: totalCalories > 0
-            ? totalCalories
-            : (todayEntry?.totalCalories ?? 0),
-        distanceM: distanceM > 0 ? distanceM : (todayEntry?.distanceM ?? 0),
+        activeCalories: activeCalories,
+        totalCalories: totalCalories,
+        distanceM: distanceM,
         stressLevel: todayEntry?.stressLevel ?? 0,
+        waterMl: todayEntry?.waterMl ?? 0, // Önceki manuel girişi koru
+        mood: todayEntry?.mood ?? 'neutral', // Önceki manuel girişi koru
         source: 'health_connect',
       );
 
       await saveHealthEntry(newEntry);
+      
+      debugPrint("--- SAĞLIK SENKRONİZASYONU ÖZETİ ---");
+      debugPrint("İşlenen Veri Noktası: ${healthData.length}");
+      debugPrint("Toplam Adım: $totalSteps");
+      debugPrint("Yakılan Kalori: $activeCalories");
+      debugPrint("Ortalama Nabız: $avgHeartRate");
+      debugPrint("Uyku Dakikası: $totalSleepMin");
+      debugPrint("-----------------------------------");
+      
       return true;
     } catch (e) {
+      debugPrint("Sağlık verisi eşitleme hatası: $e");
       return false;
     }
   }
@@ -232,34 +253,12 @@ class HealthService {
     return snapshot.docs.map((d) => HealthEntry.fromJson(d.data())).toList();
   }
 
-  static String _dateKey(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-
   // ── Su Verisini Güncelle ─────────────────────────────────────
-  static Future<void> updateWater(double additionalMl) async {
+  static Future<void> updateWater(double ml) async {
     final today = await getTodayEntry();
     final entry = today ?? HealthEntry(date: DateTime.now());
-    final updated = HealthEntry(
-      date: entry.date,
-      steps: entry.steps,
-      activeCalories: entry.activeCalories,
-      totalCalories: entry.totalCalories,
-      distanceM: entry.distanceM,
-      heartRate: entry.heartRate,
-      restingHeartRate: entry.restingHeartRate,
-      spo2: entry.spo2,
-      systolic: entry.systolic,
-      diastolic: entry.diastolic,
-      sleepHours: entry.sleepHours,
-      sleepDeepMin: entry.sleepDeepMin,
-      sleepLightMin: entry.sleepLightMin,
-      sleepRemMin: entry.sleepRemMin,
-      sleepAwakeMin: entry.sleepAwakeMin,
-      stressLevel: entry.stressLevel,
-      weight: entry.weight,
-      waterMl: entry.waterMl + additionalMl,
-      mood: entry.mood,
-      source: entry.source,
+    final updated = entry.copyWith(
+      waterMl: entry.waterMl + ml,
     );
     await saveHealthEntry(updated);
   }
@@ -268,28 +267,7 @@ class HealthService {
   static Future<void> updateMood(String mood) async {
     final today = await getTodayEntry();
     final entry = today ?? HealthEntry(date: DateTime.now());
-    final updated = HealthEntry(
-      date: entry.date,
-      steps: entry.steps,
-      activeCalories: entry.activeCalories,
-      totalCalories: entry.totalCalories,
-      distanceM: entry.distanceM,
-      heartRate: entry.heartRate,
-      restingHeartRate: entry.restingHeartRate,
-      spo2: entry.spo2,
-      systolic: entry.systolic,
-      diastolic: entry.diastolic,
-      sleepHours: entry.sleepHours,
-      sleepDeepMin: entry.sleepDeepMin,
-      sleepLightMin: entry.sleepLightMin,
-      sleepRemMin: entry.sleepRemMin,
-      sleepAwakeMin: entry.sleepAwakeMin,
-      stressLevel: entry.stressLevel,
-      weight: entry.weight,
-      waterMl: entry.waterMl,
-      mood: mood,
-      source: entry.source,
-    );
+    final updated = entry.copyWith(mood: mood);
     await saveHealthEntry(updated);
   }
 

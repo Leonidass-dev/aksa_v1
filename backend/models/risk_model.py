@@ -146,64 +146,113 @@ def _compute_risk_ml(snap: HealthSnapshot) -> RiskResult:
 
 
 def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
-    """Kural tabanlı fallback — ML yokken çalışır."""
-    score = 25.0  # Başlangıç: düşük risk
+    """
+    Tez M3: Uzman Sistem (Expert System) Fallback.
+    AHA (American Heart Association) ve tıbbi literatür tabanlı kural motoru.
+    """
+    score = 10.0  # Başlangıç: Temel metabolik risk
     factors = []
+    
+    # 1. BMI (Vücut Kitle Endeksi) Hesaplama (Kilo / Boy^2)
+    if snap.weight > 0 and snap.height > 100:
+        height_m = snap.height / 100.0
+        bmi = snap.weight / (height_m * height_m)
+        if bmi > 25:
+            bmi_penalty = min(20, (bmi - 25) * 1.5)
+            score += bmi_penalty
+            label = "Obezite" if bmi >= 30 else "Fazla Kilo"
+            factors.append(RiskFactor("BMI (VKE)", bmi_penalty, f"{label}: {bmi:.1f}"))
 
-    # Adım kontrolü
+    # 2. Yaş Faktörü (Kardiyovasküler yaşlanma)
+    if snap.age > 45:
+        age_penalty = (snap.age - 45) * 0.4
+        score += age_penalty
+        factors.append(RiskFactor("Yaş", age_penalty, f"Yaşa bağlı risk artışı ({snap.age})"))
+
+    # 3. Adım ve Aktivite (Sedanter Yaşam)
     if snap.steps > 0:
+        # 10.000 adım altı için lineer risk
         step_risk = _normalize(10000 - snap.steps, 0, 10000) * 15
         score += step_risk
-        if step_risk > 8:
-            factors.append(RiskFactor("Adım", step_risk, f"Günlük {int(snap.steps)} adım — hedef 10.000"))
+        if step_risk > 7:
+            factors.append(RiskFactor("Hareketsizlik", step_risk, f"Günlük {int(snap.steps)} adım — hedef 10.000"))
+    else:
+        # Veri yoksa veya 0 ise tam ceza (aktivite bazlı risk)
+        score += 15
+        factors.append(RiskFactor("Hareketsizlik", 15.0, "Gün içi veri kaydedilmedi"))
 
-    # Uyku kontrolü
+    # 4. Uyku Hijyeni
     if snap.sleep_hours > 0:
         if snap.sleep_hours < 6:
             sleep_risk = _normalize(6 - snap.sleep_hours, 0, 6) * 15
             score += sleep_risk
-            factors.append(RiskFactor("Uyku", sleep_risk, f"{snap.sleep_hours:.1f} saat — yetersiz uyku"))
+            factors.append(RiskFactor("Yetersiz Uyku", sleep_risk, f"{snap.sleep_hours:.1f} saat — dinlenme yetersiz"))
         elif snap.sleep_hours > 9:
             score += 5
-            factors.append(RiskFactor("Uyku", 5.0, f"{snap.sleep_hours:.1f} saat — fazla uyku"))
+            factors.append(RiskFactor("Aşırı Uyku", 5.0, f"{snap.sleep_hours:.1f} saat — metabolik yavaşlama"))
 
-    # Nabız
+    # 5. Kalp Hızı (Dinlenik Nabız)
     if snap.heart_rate_resting > 0:
         if snap.heart_rate_resting > 90:
-            hr_risk = _normalize(snap.heart_rate_resting, 90, 120) * 12
+            hr_risk = _normalize(snap.heart_rate_resting, 90, 140) * 20
             score += hr_risk
-            factors.append(RiskFactor("Nabız", hr_risk, f"Dinlenik nabız: {snap.heart_rate_resting:.0f} bpm"))
+            factors.append(RiskFactor("Taşikardi Riski", hr_risk, f"Yüksek dinlenik nabız: {snap.heart_rate_resting:.0f} bpm"))
 
-    # Tansiyon
-    if snap.systolic > 0:
-        if snap.systolic > 130 or snap.diastolic > 85:
-            bp_risk = _normalize(snap.systolic, 130, 180) * 15
-            score += bp_risk
-            factors.append(RiskFactor("Tansiyon", bp_risk, f"{snap.systolic:.0f}/{snap.diastolic:.0f} mmHg"))
+    # 6. Kan Basıncı (Tansiyon) — AHA Standartları
+    if snap.systolic > 0 or snap.diastolic > 0:
+        sys = snap.systolic
+        dia = snap.diastolic
+        bp_score = 0
+        bp_label = ""
+        
+        if sys >= 180 or dia >= 120:
+            bp_score = 35
+            bp_label = "Hipertansif Kriz"
+        elif sys >= 140 or dia >= 90:
+            bp_score = 25
+            bp_label = "Evre 2 Hipertansiyon"
+        elif sys >= 130 or dia >= 80:
+            bp_score = 15
+            bp_label = "Evre 1 Hipertansiyon"
+        elif sys >= 120 and dia < 80:
+            bp_score = 8
+            bp_label = "Yüksek Tansiyon"
+        
+        if bp_score > 0:
+            score += bp_score
+            factors.append(RiskFactor("Hipertansiyon", bp_score, f"{bp_label}: {sys:.0f}/{dia:.0f} mmHg"))
 
-    # SpO2
-    if snap.spo2 > 0 and snap.spo2 < 95:
-        spo2_risk = _normalize(95 - snap.spo2, 0, 10) * 10
-        score += spo2_risk
-        factors.append(RiskFactor("Oksijen", spo2_risk, f"SpO₂: %{snap.spo2:.0f}"))
+    # 7. Oksijen Saturasyonu (SpO2)
+    if snap.spo2 > 0:
+        if snap.spo2 < 95:
+            spo2_risk = _normalize(95 - snap.spo2, 0, 10) * 25
+            score += spo2_risk
+            factors.append(RiskFactor("Hipoksi İşareti", spo2_risk, f"Düşük SpO₂: %{snap.spo2:.0f}"))
 
-    # Stres
-    if snap.stress_level > 60:
-        stress_risk = _normalize(snap.stress_level, 60, 100) * 8
+    # 8. Stres (HRV Bazlı)
+    if snap.stress_level > 65:
+        stress_risk = _normalize(snap.stress_level, 65, 100) * 10
         score += stress_risk
-        factors.append(RiskFactor("Stres", stress_risk, f"Stres: {snap.stress_level:.0f}/100"))
+        factors.append(RiskFactor("Otonom Stres", stress_risk, f"Yüksek stres: {snap.stress_level:.0f}/100"))
+
+    # 9. SINERJİ (Birden fazla yüksek riskin çarpan etkisi)
+    high_risks = len([f for f in factors if f.contribution >= 15])
+    if high_risks >= 2:
+        synergy_bonus = score * 0.15
+        score += synergy_bonus
+        factors.append(RiskFactor("Sinerjik Risk", synergy_bonus, f"{high_risks} farklı kritik faktör çakışması"))
 
     score = max(0, min(100, score))
 
-    if score < 34:
+    if score < 35:
         level = "low"
-    elif score < 67:
+    elif score < 70:
         level = "medium"
     else:
         level = "high"
 
     if not factors:
-        factors.append(RiskFactor("Genel", 0.0, "Tüm göstergeler normal"))
+        factors.append(RiskFactor("Genel", 0.0, "Tüm vital bulgular normal sınırda"))
 
     factors.sort(key=lambda f: f.contribution, reverse=True)
 
@@ -211,37 +260,76 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         score=round(score, 1), level=level,
         top_factors=factors[:5],
         recommendations=_generate_recommendations(factors, level),
-        model_version="rule-v1",
+        model_version="expert-v1.2",
     )
 
 
+def _clean_data(snap: HealthSnapshot) -> HealthSnapshot:
+    """
+    Tez M2: Canlı Veri Ön İşleme (Preprocessing).
+    Gelen verileri analiz öncesi temizler, aykırı değerleri (outliers) kırpar.
+    """
+    # 1. Kalp Hızı Temizleme [40, 220]
+    if snap.heart_rate_avg > 0:
+        snap.heart_rate_avg = max(40.0, min(220.0, snap.heart_rate_avg))
+    if snap.heart_rate_resting > 0:
+        snap.heart_rate_resting = max(35.0, min(150.0, snap.heart_rate_resting))
+        
+    # 2. SpO2 Temizleme [%70, %100]
+    if snap.spo2 > 0:
+        snap.spo2 = max(70.0, min(100.0, snap.spo2))
+        
+    # 3. Adım Sayısı (Günde 50k adımı geçen veri muhtemelen hatalıdır)
+    if snap.steps > 0:
+        snap.steps = min(50000.0, snap.steps)
+        
+    # 4. Kilo ve Boy Mantık Kontrolü
+    if snap.weight > 0:
+        snap.weight = max(30.0, min(250.0, snap.weight))
+        
+    # 5. Tansiyon Kırpma
+    if snap.systolic > 0:
+        snap.systolic = max(70.0, min(220.0, snap.systolic))
+    if snap.diastolic > 0:
+        snap.diastolic = max(40.0, min(130.0, snap.diastolic))
+        
+    return snap
+
+
 def compute_risk(snap: HealthSnapshot) -> RiskResult:
-    """Ana fonksiyon — ML varsa kullan, yoksa kural tabanlı."""
+    """Ana fonksiyon — Önce veriyi temizler (M2), sonra analiz eder (M3)."""
+    # M2: Preprocessing adımı
+    clean_snap = _clean_data(snap)
+    
     if _HAS_ML:
         try:
-            return _compute_risk_ml(snap)
+            return _compute_risk_ml(clean_snap)
         except Exception as e:
             logger.warning(f"ML çıkarım hatası, fallback'e geçiliyor: {e}")
-    return _compute_risk_rules(snap)
+    return _compute_risk_rules(clean_snap)
 
 
 def _generate_recommendations(factors: list[RiskFactor], level: str) -> list[str]:
     recs = []
+    # Kritikliğe göre öneriler
     for f in factors:
-        if f.contribution <= 0:
+        if f.contribution < 5:
             continue
-        if "Adım" in f.name:
-            recs.append("Günlük 10.000 adım hedefine ulaşmak için kısa yürüyüşler planlayın.")
-        elif "Uyku" in f.name:
-            recs.append("Her gece 7-8 saat uyumayı hedefleyin. Düzenli uyku saatleri belirleyin.")
-        elif "Nabız" in f.name:
-            recs.append("Nabız değerlerinizi izlemeye devam edin. Yüksekse doktora danışın.")
-        elif "Tansiyon" in f.name:
-            recs.append("Tuz tüketiminizi azaltın ve düzenli ölçüm yapın.")
-        elif "Oksijen" in f.name:
-            recs.append("SpO₂ değeriniz düşük. Derin nefes egzersizleri deneyin.")
-        elif "Stres" in f.name:
-            recs.append("Stres yönetimi için meditasyon veya nefes egzersizleri deneyin.")
+            
+        if "Hipertansiyon" in f.name:
+            recs.append("Tansiyonunuz yüksek seyrediyor. Tuz kullanımını azaltın ve doktorunuza danışın.")
+        if "Hipoksi" in f.name:
+            recs.append("Oksijen seviyeniz düşük. Eğer semptomunuz varsa (nefes darlığı) acil yardım isteyin.")
+        if "BMI" in f.name:
+            recs.append("Dengeli beslenme ve düzenli kalori kontrolü ile kilonuzu ideal sınıra çekmeye çalışın.")
+        if "Taşikardi" in f.name:
+            recs.append("Dinlenik nabzınız yüksek. Kahve tüketimini azaltın ve stres yönetimi yapın.")
+        if "Adım" in f.name or "Hareketsizlik" in f.name:
+            recs.append("Günde en az 30 dakika orta tempolu yürüyüş yapmayı alışkanlık edinin.")
+        if "Uyku" in f.name:
+            recs.append("Uyku kalitesini artırmak için yatmadan 2 saat önce ekran kullanımını bırakın.")
+            
     if not recs:
-        recs.append("Tüm göstergeleriniz iyi durumda. Mevcut rutininizi sürdürün.")
-    return recs[:4]
+        recs.append("Tüm göstergeler harika! Mevcut yaşam tarzınızı korumaya devam edin.")
+        
+    return list(dict.fromkeys(recs))[:4] # Duplicate'leri temizle

@@ -200,14 +200,17 @@ def _pick_plan_rnn(req: ExerciseRequest, records: list = None) -> int:
     return int(np.argmax(probs))
 
 
-async def generate_exercise_plan(req: ExerciseRequest, records: list = None) -> ExercisePlanResponse:
-    """Ana fonksiyon — RNN varsa kullan, yoksa kural tabanlı."""
+async def get_exercise_class(req: ExerciseRequest, records: list = None) -> int:
+    """Yoğunluk seviyesini (0-4) belirleyen ana sınıflandırıcı."""
     try:
         if _HAS_ML:
-            best_class = _pick_plan_rnn(req, records)
+            return _pick_plan_rnn(req, records)
         else:
-            best_class = _pick_plan_rules(req)
-        return _CATALOG[best_class]
+            return _pick_plan_rules(req)
     except Exception as e:
-        logger.error(f"Egzersiz planı hatası: {e}")
-        return _CATALOG[0]  # Fallback: yürüyüş
+        logger.error(f"Egzersiz sınıflandırma hatası: {e}")
+        return 0  # Fallback: Yürüyüş sınıfı
+
+def get_fallback_plan(class_id: int) -> ExercisePlanResponse:
+    """Gemini başarısız olursa kullanılacak statik plan."""
+    return _CATALOG.get(class_id, _CATALOG[0])

@@ -72,11 +72,15 @@ async def save_health_record(
         "systolic", "diastolic", "sleep_hours", "sleep_deep_min",
         "sleep_light_min", "sleep_rem_min", "sleep_awake_min",
         "active_calories", "total_calories", "distance_m",
-        "stress_level", "weight",
+        "stress_level", "weight", "water_ml", "mood",
     ]:
         new_val = data.get(field)
-        if new_val is not None and new_val > 0:
-            setattr(record, field, new_val)
+        if new_val is not None:
+            # Sayısal alanlar için 0'dan büyük kontrolü, mood gibi stringler içinse sadece varlık kontrolü
+            if isinstance(new_val, (int, float)) and new_val > 0:
+                setattr(record, field, new_val)
+            elif isinstance(new_val, str) and new_val:
+                setattr(record, field, new_val)
 
     if "source" in data:
         record.source = data["source"]
@@ -111,6 +115,18 @@ async def get_today_health(db: AsyncSession, user: User) -> HealthRecord | None:
     stmt = select(HealthRecord).where(
         HealthRecord.user_id == user.id,
         HealthRecord.record_date == date.today(),
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def get_latest_health_record(db: AsyncSession, user: User) -> HealthRecord | None:
+    """Kullanıcının en son (tarih olarak) sağlık kaydını getir."""
+    stmt = (
+        select(HealthRecord)
+        .where(HealthRecord.user_id == user.id)
+        .order_by(desc(HealthRecord.record_date))
+        .limit(1)
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -160,6 +176,18 @@ async def get_risk_history(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def get_latest_risk_score(db: AsyncSession, user: User) -> RiskScore | None:
+    """Kullanıcının en son hesaplanan risk skorunu getir."""
+    stmt = (
+        select(RiskScore)
+        .where(RiskScore.user_id == user.id)
+        .order_by(desc(RiskScore.calculated_at))
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
 
 
 # ═══════════════════════════════════════════════════════════════════

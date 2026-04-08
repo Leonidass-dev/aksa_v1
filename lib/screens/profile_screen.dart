@@ -22,6 +22,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _email = '';
   String _photoUrl = '';
   String _bio = '';
+  int _age = 30;
+  String _gender = 'M';
+  double _height = 170.0;
   bool _loading = true;
 
   double _targetWeight = 68;
@@ -59,6 +62,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           _fullName = data['fullName'] ?? _fullName;
           _bio = data['bio'] ?? '';
           _photoUrl = data['photoUrl'] ?? _photoUrl;
+          _age = (data['age'] as num?)?.toInt() ?? 30;
+          _gender = data['gender'] ?? 'M';
+          _height = (data['height'] as num?)?.toDouble() ?? 170.0;
         });
       } else {
         await FirebaseFirestore.instance.collection('users').doc(u.uid).set({
@@ -141,17 +147,26 @@ class _ProfileScreenState extends State<ProfileScreen>
       builder: (_) => _EditProfileSheet(
         nameCtrl: nameCtrl,
         bioCtrl: bioCtrl,
-        onSave: (name, bio) async {
+        age: _age,
+        gender: _gender,
+        height: _height,
+        onSave: (name, bio, age, gender, height) async {
           final u = FirebaseAuth.instance.currentUser;
           if (u == null) return;
           await u.updateDisplayName(name);
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(u.uid)
-              .update({'fullName': name, 'bio': bio});
+          await FirebaseFirestore.instance.collection('users').doc(u.uid).update({
+            'fullName': name,
+            'bio': bio,
+            'age': age,
+            'gender': gender,
+            'height': height,
+          });
           setState(() {
             _fullName = name;
             _bio = bio;
+            _age = age;
+            _gender = gender;
+            _height = height;
           });
         },
       ),
@@ -577,6 +592,12 @@ class _ProfileScreenState extends State<ProfileScreen>
         _bio.isNotEmpty ? _bio : 'Eklemek için dokunun',
         _showEditBioDialog,
       ),
+      _InfoItem(
+        Icons.cake_outlined,
+        'Fiziksel Veriler',
+        'Yaş: $_age, Boy: $_height cm, Cinsiyet: ${_gender == 'M' ? 'Erkek' : 'Kadın'}',
+        _showEditProfileSheet,
+      ),
     ];
     return _sectionCard(
       context: context,
@@ -996,7 +1017,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   color: cs.onSurface,
                 ),
               ),
-              ?trailing,
+              if (trailing != null) trailing,
             ],
           ),
           const SizedBox(height: 16),
@@ -1011,94 +1032,166 @@ class _ProfileScreenState extends State<ProfileScreen>
 class _EditProfileSheet extends StatelessWidget {
   final TextEditingController nameCtrl;
   final TextEditingController bioCtrl;
-  final Future<void> Function(String name, String bio) onSave;
+  final int age;
+  final String gender;
+  final double height;
+  final Future<void> Function(String name, String bio, int age, String gender, double height) onSave;
 
   const _EditProfileSheet({
     required this.nameCtrl,
     required this.bioCtrl,
+    required this.age,
+    required this.gender,
+    required this.height,
     required this.onSave,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: EdgeInsets.fromLTRB(
-        24,
-        16,
-        24,
-        MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Profili Düzenle',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: nameCtrl,
-            decoration: InputDecoration(
-              labelText: 'Ad Soyad',
-              prefixIcon: const Icon(Icons.person_outline),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: bioCtrl,
-            maxLines: 3,
-            maxLength: 200,
-            decoration: InputDecoration(
-              labelText: 'Hakkımda',
-              prefixIcon: const Icon(Icons.info_outline),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () async {
-                await onSave(nameCtrl.text.trim(), bioCtrl.text.trim());
-                if (context.mounted) Navigator.pop(context);
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+    final ageCtrl = TextEditingController(text: age.toString());
+    final heightCtrl = TextEditingController(text: height.toString());
+    String selectedGender = gender;
+
+    return StatefulBuilder(
+      builder: (context, setInternalState) => Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          16,
+          24,
+          MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: cs.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-              child: const Text('Kaydet', style: TextStyle(fontSize: 15)),
-            ),
+              const SizedBox(height: 20),
+              Text(
+                'Profili Düzenle',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Ad Soyad',
+                  prefixIcon: const Icon(Icons.person_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: ageCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Yaş',
+                        prefixIcon: const Icon(Icons.cake_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: heightCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Boy (cm)',
+                        prefixIcon: const Icon(Icons.height),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedGender,
+                decoration: InputDecoration(
+                  labelText: 'Cinsiyet',
+                  prefixIcon: const Icon(Icons.wc),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'M', child: Text('Erkek')),
+                  DropdownMenuItem(value: 'F', child: Text('Kadın')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setInternalState(() => selectedGender = v);
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: bioCtrl,
+                maxLines: 2,
+                maxLength: 100,
+                decoration: InputDecoration(
+                  labelText: 'Hakkımda',
+                  prefixIcon: const Icon(Icons.info_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    final ageVal = int.tryParse(ageCtrl.text) ?? 30;
+                    final heightVal = double.tryParse(heightCtrl.text) ?? 170.0;
+                    await onSave(
+                      nameCtrl.text.trim(),
+                      bioCtrl.text.trim(),
+                      ageVal,
+                      selectedGender,
+                      heightVal,
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Kaydet', style: TextStyle(fontSize: 15)),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
