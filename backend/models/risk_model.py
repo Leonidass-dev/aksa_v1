@@ -128,8 +128,10 @@ def _compute_risk_ml(snap: HealthSnapshot) -> RiskResult:
         level = "high"
 
     factors = []
-    if hr_mean > 85:
-        factors.append(RiskFactor("Nabız", 20.0, f"Yüksek ortalama nabız: {hr_mean:.0f}"))
+    if hr_mean > 95:
+        # Taşikardi sınırı (100) yaklaşıyorsa kademeli katkı
+        hr_contribution = min(20.0, (hr_mean - 95) * 2.0 + 5.0)
+        factors.append(RiskFactor("Nabız", hr_contribution, f"Yüksek ortalama nabız: {hr_mean:.0f}"))
     if steps_window < 300:
         factors.append(RiskFactor("Hareketsizlik", 15.0, f"Düşük aktivite: {steps_window:.0f} adım/saat"))
     if snap.stress_level > 60:
@@ -170,6 +172,10 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         factors.append(RiskFactor("Yaş", age_penalty, f"Yaşa bağlı risk artışı ({snap.age})"))
 
     # 3. Adım ve Aktivite (Sedanter Yaşam)
+    # Tez M3: Zaman duyarlı risk analizi (Sabah saatlerinde düşük adım normaldir)
+    import datetime
+    current_hour = datetime.datetime.now().hour
+    
     if snap.steps > 0:
         # 10.000 adım altı için lineer risk
         step_risk = _normalize(10000 - snap.steps, 0, 10000) * 15
@@ -177,9 +183,11 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         if step_risk > 7:
             factors.append(RiskFactor("Hareketsizlik", step_risk, f"Günlük {int(snap.steps)} adım — hedef 10.000"))
     else:
-        # Veri yoksa veya 0 ise tam ceza (aktivite bazlı risk)
-        score += 15
-        factors.append(RiskFactor("Hareketsizlik", 15.0, "Gün içi veri kaydedilmedi"))
+        # Saat 11:00'den önce ve veri 0 ise ceza verme (henüz gün başlamadı)
+        if current_hour >= 11:
+            penalty = 15.0 if current_hour > 18 else 8.0
+            score += penalty
+            factors.append(RiskFactor("Hareketsizlik", penalty, "Gün içi veri kaydedilmedi"))
 
     # 4. Uyku Hijyeni
     if snap.sleep_hours > 0:
@@ -191,12 +199,11 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
             score += 5
             factors.append(RiskFactor("Aşırı Uyku", 5.0, f"{snap.sleep_hours:.1f} saat — metabolik yavaşlama"))
 
-    # 5. Kalp Hızı (Dinlenik Nabız)
-    if snap.heart_rate_resting > 0:
-        if snap.heart_rate_resting > 90:
-            hr_risk = _normalize(snap.heart_rate_resting, 90, 140) * 20
-            score += hr_risk
-            factors.append(RiskFactor("Taşikardi Riski", hr_risk, f"Yüksek dinlenik nabız: {snap.heart_rate_resting:.0f} bpm"))
+    # 5. Kalp Hızı (Dinlenik Nabız) — AHA: 60-100 Normal
+    if snap.heart_rate_resting > 100:
+        hr_risk = _normalize(snap.heart_rate_resting, 100, 150) * 15
+        score += hr_risk
+        factors.append(RiskFactor("Taşikardi Riski", hr_risk, f"Yüksek dinlenik nabız: {snap.heart_rate_resting:.0f} bpm"))
 
     # 6. Kan Basıncı (Tansiyon) — AHA Standartları
     if snap.systolic > 0 or snap.diastolic > 0:
@@ -236,9 +243,10 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         factors.append(RiskFactor("Otonom Stres", stress_risk, f"Yüksek stres: {snap.stress_level:.0f}/100"))
 
     # 9. SINERJİ (Birden fazla yüksek riskin çarpan etkisi)
-    high_risks = len([f for f in factors if f.contribution >= 15])
+    # Tez M3: Kritik vakaların birleşimi daha dengeli hesaplanmalı
+    high_risks = len([f for f in factors if f.contribution >= 18])
     if high_risks >= 2:
-        synergy_bonus = score * 0.15
+        synergy_bonus = score * 0.10
         score += synergy_bonus
         factors.append(RiskFactor("Sinerjik Risk", synergy_bonus, f"{high_risks} farklı kritik faktör çakışması"))
 

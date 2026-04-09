@@ -15,27 +15,27 @@ DATABASE_URL = os.getenv(
     "sqlite+aiosqlite:///./aksa_dev.db",
 )
 
-import ssl
-
+# ── Bağlantı Ayarları ──────────────────────────────────────────
 connect_args = {}
-# SQLAlchemy'de asyncpg için sslmode string parametresi sorun yaratabilir
-# "?sslmode=require" url'de kalırsa hata veriyor. Gerekirse URL'den temizleyip args olarak veriyoruz.
-if "sslmode=require" in DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "")
-    DATABASE_URL = DATABASE_URL.replace("&sslmode=require", "")
-    # asyncpg için SSL context
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    connect_args["ssl"] = ctx
 
-if DATABASE_URL.startswith("sqlite"):
+if DATABASE_URL.startswith("postgresql"):
+    # Render veya bazı bulut sistemlerinde SSL zorunlu olabilir
+    import ssl
+    if "sslmode=require" in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "").replace("&sslmode=require", "")
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ctx
+elif DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
+# ── Engine & Session ───────────────────────────────────────────
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     connect_args=connect_args,
+    pool_pre_ping=True, # Bağlantı kopmalarına karşı direnç
 )
 
 async_session = async_sessionmaker(

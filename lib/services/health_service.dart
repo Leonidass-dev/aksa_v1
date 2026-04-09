@@ -48,8 +48,16 @@ class HealthService {
     final types = [
       HealthDataType.STEPS,
       HealthDataType.ACTIVE_ENERGY_BURNED,
+      HealthDataType.TOTAL_CALORIES_BURNED,
       HealthDataType.HEART_RATE,
+      HealthDataType.RESTING_HEART_RATE,
+      HealthDataType.BLOOD_OXYGEN,
+      HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+      HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
       HealthDataType.SLEEP_ASLEEP,
+      HealthDataType.SLEEP_DEEP,
+      HealthDataType.SLEEP_LIGHT,
+      HealthDataType.SLEEP_REM,
     ];
 
     final permissions = types.map((e) => HealthDataAccess.READ).toList();
@@ -109,7 +117,13 @@ class HealthService {
       int diaCount = 0;
 
       for (var point in healthData) {
-        final val = double.tryParse(point.value.toString()) ?? 0;
+        // 'health' ^13.3.1 paketinde değerler NumericHealthValue veya benzeri objeler olarak döner.
+        double val = 0;
+        if (point.value is NumericHealthValue) {
+          val = (point.value as NumericHealthValue).numericValue.toDouble();
+        } else {
+          val = double.tryParse(point.value.toString()) ?? 0;
+        }
 
         switch (point.type) {
           case HealthDataType.STEPS:
@@ -213,6 +227,36 @@ class HealthService {
       debugPrint("Uyku Dakikası: $totalSleepMin");
       debugPrint("-----------------------------------");
       
+      // ── Tez Modül 2: Ham Verileri Pipeline'a Gönder ──────────────
+      final hrPoints = healthData
+          .where((p) => p.type == HealthDataType.HEART_RATE)
+          .map((p) => {
+                'timestamp': p.dateFrom.toIso8601String(),
+                'value': (p.value is NumericHealthValue)
+                    ? (p.value as NumericHealthValue).numericValue.toDouble()
+                    : (double.tryParse(p.value.toString()) ?? 0),
+              })
+          .toList();
+
+      final stepsPoints = healthData
+          .where((p) => p.type == HealthDataType.STEPS)
+          .map((p) => {
+                'timestamp': p.dateFrom.toIso8601String(),
+                'value': (p.value is NumericHealthValue)
+                    ? (p.value as NumericHealthValue).numericValue.toDouble()
+                    : (double.tryParse(p.value.toString()) ?? 0),
+              })
+          .toList();
+
+      if (hrPoints.isNotEmpty || stepsPoints.isNotEmpty) {
+        ApiService.preprocessRawData(
+          heartRateData: hrPoints,
+          stepsData: stepsPoints,
+        ).then((success) {
+          if (success) debugPrint("Pipeline Veri İşleme Başarılı.");
+        });
+      }
+
       return true;
     } catch (e) {
       debugPrint("Sağlık verisi eşitleme hatası: $e");

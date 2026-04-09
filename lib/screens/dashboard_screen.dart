@@ -48,6 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // Bugünün Firestore'dan gelen verileri
   HealthEntry? _todayEntry;
+  AnomalyApiResult? _anomalyResult; // Modül 7: Anomali Sonuçları
 
   String get _greeting {
     final hour = DateTime.now().hour;
@@ -123,7 +124,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     final entry = await HealthService.getTodayEntry();
-    final existingEntry = await HealthService.getTodayEntry();
     final todayData = entry ?? HealthEntry(date: DateTime.now());
 
     if (mounted) {
@@ -134,9 +134,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       // manuel veriyi SILME (çünkü kullanıcı daha yürümeye başlamamış ama dün manuel veri girmiş olabilir).
       final isEarlyMorning = DateTime.now().hour < 2;
       
-      final steps = (todayData.steps > 0 || !isEarlyMorning) ? todayData.steps : (existingEntry?.steps ?? 0);
-      final heartRate = (todayData.heartRate > 0 || !isEarlyMorning) ? todayData.heartRate : (existingEntry?.heartRate ?? 0);
-      final sleepHours = (todayData.sleepHours > 0 || !isEarlyMorning) ? todayData.sleepHours : (existingEntry?.sleepHours ?? 0);
+      final steps = (todayData.steps > 0 || !isEarlyMorning) ? todayData.steps : (entry?.steps ?? 0);
+      final heartRate = (todayData.heartRate > 0 || !isEarlyMorning) ? todayData.heartRate : (entry?.heartRate ?? 0);
+      final sleepHours = (todayData.sleepHours > 0 || !isEarlyMorning) ? todayData.sleepHours : (entry?.sleepHours ?? 0);
 
       // Firestore'dan veri gelsin ya da gelmesin, mevcut profil bilgisiyle API hesaplamasini yap.
       final result = await ApiService.fetchRiskScore(
@@ -149,7 +149,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           sleepHours: sleepHours,
           systolic: todayData.systolic,
           diastolic: todayData.diastolic,
-          heartRateResting: heartRate,
+          heartRateResting: heartRate, // Dinlenik
+          heartRateAvg: heartRate,     // Şimdilik aynı, pipeline'dan gelmeli
           spo2: todayData.spo2,
         ),
       );
@@ -158,6 +159,30 @@ class _DashboardScreenState extends State<DashboardScreen>
         setState(() {
           _waterTarget = HealthService.calculateWaterTarget(pWeight);
         });
+      }
+
+      // MODÜL 7: ANOMALİ TESPİTİ (Son 7 gün vs Bugün)
+      try {
+        final last7Days = await HealthService.getLastNDays(7);
+        // Metrik bazlı history map oluştur (Backend beklentisi: {'steps': [v1,v2...], 'heart_rate': [...]})
+        final Map<String, List<double>> formattedHistory = {
+          'steps': last7Days.map((e) => e.steps).toList(),
+          'heart_rate': last7Days.map((e) => e.heartRate).toList(),
+          'sleep_hours': last7Days.map((e) => e.sleepHours).toList(),
+          'systolic': last7Days.map((e) => e.systolic).toList(),
+          'diastolic': last7Days.map((e) => e.diastolic).toList(),
+          'weight': last7Days.map((e) => e.weight).toList(),
+        };
+
+        final anomaly = await ApiService.checkAnomalies(
+          history: formattedHistory,
+          today: todayData.toJson(),
+        );
+        if (mounted) {
+          setState(() => _anomalyResult = anomaly);
+        }
+      } catch (e) {
+        debugPrint("Anomali kontrol hatası: $e");
       }
 
       if (result != null) {
@@ -272,289 +297,505 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButton: FloatingActionButton(
         onPressed: () => context.go('/app/data-entry'),
         backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+        elevation: 4,
+        child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
       ),
       body: RefreshIndicator(
         onRefresh: _silentSyncAndLoad,
         color: AppColors.primary,
-        child: SingleChildScrollView(
+        child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            children: [
-              _buildHeader(context),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          slivers: [
+            _buildSliverHeader(context),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
-                    _buildWaterTracker(context),
-                    const SizedBox(height: 24),
-                    _buildQuickActions(context),
-                    const SizedBox(height: 24),
-                    _buildMoodTracker(context),
-                    const SizedBox(height: 20),
-                    _buildWeeklyTrend(context),
-                    const SizedBox(height: 20),
-                    _buildTodayActivity(context),
-                    const SizedBox(height: 80),
+                    if (_anomalyResult?.hasAnomaly == true) ...[
+                      _buildModernAnomalyBanner(context),
+                      const SizedBox(height: 20),
+                    ],
+                    _buildMainHealthGauge(context),
+                    const SizedBox(height: 32),
+                    _buildSectionTitle(context, 'Günlük Metrikler', Icons.insights_rounded),
+                    const SizedBox(height: 12),
+                    _buildMetricsGrid(context),
+                    const SizedBox(height: 32),
+                    _buildSectionTitle(context, 'Hızlı Keşfet', Icons.explore_outlined),
+                    const SizedBox(height: 12),
+                    _buildDiscoverGrid(context),
+                    const SizedBox(height: 32),
+                    _buildWaterAndMoodSection(context),
+                    const SizedBox(height: 40),
+                    _buildWeeklyTrendCard(context),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryLight],
+  Widget _buildSliverHeader(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 120,
+      floating: false,
+      pinned: true,
+      backgroundColor: AppColors.primary,
+      elevation: 0,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.primary, AppColors.primaryLight],
+            ),
+          ),
         ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
+        titlePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _greeting,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                Text(
+                  _userName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                _buildHeaderIcon(Icons.sync_rounded, _handleManualSync),
+                const SizedBox(width: 8),
+                _buildHeaderIcon(Icons.notifications_none_rounded, () => context.go('/app/alerts'), hasBadge: true),
+              ],
+            ),
+          ],
         ),
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
+    );
+  }
+
+  Widget _buildHeaderIcon(IconData icon, VoidCallback onTap, {bool hasBadge = false}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+          if (hasBadge)
+            Positioned(
+              right: 6,
+              top: 6,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(BuildContext context, String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.primary.withValues(alpha: 0.7)),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: -0.5),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMainHealthGauge(BuildContext context) {
+    final risk = _riskResult;
+    return AppCard(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).cardColor,
+            Theme.of(context).cardColor.withValues(alpha: 0.8),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$_greeting,',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        _userName.isEmpty ? 'Kullanici' : _userName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+              const Text(
+                'Genel Sağlık Durumu',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (risk?.level.color ?? AppColors.primary).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  risk?.level.label ?? 'Hesaplanıyor...',
+                  style: TextStyle(
+                    color: risk?.level.color ?? AppColors.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
-                  Row(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Text(
-                          'Senkronize',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _handleManualSync,
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(
-                            Icons.sync_rounded,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: () => context.go('/app/alerts'),
-                        child: Stack(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(
-                                Icons.notifications_none_rounded,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.accent,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 180,
+                height: 180,
+                child: CircularProgressIndicator(
+                  value: (risk?.score ?? 0) / 100,
+                  strokeWidth: 16,
+                  backgroundColor: Colors.grey.withValues(alpha: 0.1),
+                  valueColor: AlwaysStoppedAnimation<Color>(risk?.level.color ?? AppColors.primary),
+                  strokeCap: StrokeCap.round,
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    risk != null ? '${risk.score.toInt()}' : '--',
+                    style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900, letterSpacing: -2),
+                  ),
+                  const Text(
+                    'Risk Skoru',
+                    style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            _topFactorSummary(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricsGrid(BuildContext context) {
+    final entry = _todayEntry;
+    return GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 1.5,
+      children: [
+        _buildMetricTile(
+          context,
+          'Adım',
+          '${entry?.steps.toInt() ?? 0}',
+          Icons.directions_walk_rounded,
+          AppColors.primary,
+          'Hedef: 10k',
+        ),
+        _buildMetricTile(
+          context,
+          'Nabız',
+          entry?.heartRate != null ? '${entry!.heartRate.toInt()} bpm' : '--',
+          Icons.favorite_rounded,
+          AppColors.secondary,
+          'Dinlenik',
+        ),
+        _buildMetricTile(
+          context,
+          'Uyku',
+          '${entry?.sleepHours.toStringAsFixed(1) ?? 0} s',
+          Icons.bedtime_rounded,
+          Colors.indigo,
+          'Kaliteli',
+        ),
+        _buildMetricTile(
+          context,
+          'Tansiyon',
+          (entry?.systolic ?? 0) > 0 ? '${entry!.systolic.toInt()}/${entry.diastolic.toInt()}' : '--',
+          Icons.speed_rounded,
+          AppColors.destructive,
+          'Normal',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricTile(BuildContext context, String label, String value, IconData icon, Color color, String sub) {
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, color: color, size: 20),
+              Text(sub, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiscoverGrid(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 4,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 16,
+      children: [
+        _buildDiscoverItem(context, Icons.apple_rounded, 'Beslenme', AppColors.secondary, '/app/nutrition'),
+        _buildDiscoverItem(context, Icons.fitness_center_rounded, 'Egzersiz', AppColors.primary, '/app/exercise'),
+        _buildDiscoverItem(context, Icons.psychology_rounded, 'AI Asistan', AppColors.accent, '/app/assistant'),
+        _buildDiscoverItem(context, Icons.analytics_rounded, 'Raporlar', Colors.purple, '/app/reports'),
+      ],
+    );
+  }
+
+  Widget _buildDiscoverItem(BuildContext context, IconData icon, String label, Color color, String path) {
+    return GestureDetector(
+      onTap: () => context.go(path),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernAnomalyBanner(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.destructive.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.destructive.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: AppColors.destructive, size: 28),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sağlık Uyarısı!',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.destructive),
                 ),
+                Text(
+                  _anomalyResult?.anomalies.first.description ?? 'Düzensiz metrik tespit edildi.',
+                  style: TextStyle(fontSize: 13, color: AppColors.destructive.withValues(alpha: 0.8)),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => context.go('/app/alerts'),
+            child: const Text('İncele', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaterAndMoodSection(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: _buildWaterTracker(context)),
+        const SizedBox(width: 16),
+        Expanded(child: _buildMoodTracker(context)),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyTrendCard(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Haftalık Trend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 100,
+            child: CustomPaint(
+              size: const Size(double.infinity, 100),
+              painter: AppLineChartPainter(data: _weeklyData, color: AppColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaterTracker(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final double currentMl = _todayEntry?.waterMl ?? 0;
+
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Su Takibi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              WaterWaveWidget(currentMl: currentMl, targetMl: _waterTarget),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Bugünün Sağlık Özeti',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => context.go('/app/risk-score'),
-                          child: Text(
-                            'Detaylar',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 88,
-                          height: 88,
-                          child: (_loadingRisk || _riskResult == null)
-                              ? const Center(
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 3,
-                                  ),
-                                )
-                              : Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 88,
-                                      height: 88,
-                                      child: CircularProgressIndicator(
-                                        value: _riskResult!.score / 100,
-                                        strokeWidth: 8,
-                                        backgroundColor: Colors.white
-                                            .withValues(alpha: 0.2),
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              _levelColor,
-                                            ),
-                                        strokeCap: StrokeCap.round,
-                                      ),
-                                    ),
-                                    Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          '${_riskResult!.score.toInt()}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Skor',
-                                          style: TextStyle(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.6,
-                                            ),
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: _levelColor,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    _riskResult?.level.label ?? '-',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _todayEntry != null && _riskResult != null
-                                    ? '${_todayEntry!.steps.toInt()} adım • ${_todayEntry!.sleepHours.toStringAsFixed(1)} s • VKE: ${_calculateBMI(_userHeight, _todayEntry!.weight > 0 ? _todayEntry!.weight : _userWeight)}'
-                                    : (_riskResult != null
-                                          ? _topFactorSummary()
-                                          : 'Veri bekleniyor...'),
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.7),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildWaterAddBtn(context, 200),
+                    const SizedBox(height: 8),
+                    _buildWaterAddBtn(context, 500),
                   ],
                 ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaterAddBtn(BuildContext context, int amount) {
+    return InkWell(
+      onTap: () async {
+        await HealthService.updateWater(amount.toDouble());
+        _loadTodayData();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
         ),
+        child: Center(
+          child: Text('+$amount', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoodTracker(BuildContext context) {
+    final currentMood = _todayEntry?.mood ?? 'neutral';
+    final moods = [
+      {'val': 'happy', 'emoji': '🤩'},
+      {'val': 'good', 'emoji': '😊'},
+      {'val': 'neutral', 'emoji': '😐'},
+      {'val': 'tired', 'emoji': '😫'},
+      {'val': 'stressed', 'emoji': '😵‍💫'},
+    ];
+
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Modun?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: moods.map((m) {
+              final isSelected = currentMood == m['val'];
+              return GestureDetector(
+                onTap: () async {
+                  await HealthService.updateMood(m['val']!);
+                  _loadTodayData();
+                },
+                child: Text(
+                  m['emoji']!,
+                  style: TextStyle(
+                    fontSize: 22,
+                    color: isSelected ? null : Colors.grey.withValues(alpha: 0.5),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
@@ -573,440 +814,4 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
     return '${negative.join(', ')} dikkat gerektiriyor.';
   }
-
-  Widget _buildQuickActions(BuildContext context) {
-    final actions = [
-      _QuickAction(
-        icon: Icons.apple_outlined,
-        label: 'Beslenme',
-        subtitle: 'Öğün planı',
-        color: AppColors.secondary,
-        path: '/app/nutrition',
-      ),
-      _QuickAction(
-        icon: Icons.fitness_center_outlined,
-        label: 'Egzersiz',
-        subtitle: 'Antrenman',
-        color: AppColors.primary,
-        path: '/app/exercise',
-      ),
-      _QuickAction(
-        icon: Icons.description_outlined,
-        label: 'Raporlar',
-        subtitle: 'Analizler',
-        color: AppColors.accent,
-        path: '/app/reports',
-      ),
-      _QuickAction(
-        icon: Icons.warning_amber_outlined,
-        label: 'Uyarılar',
-        subtitle: 'Anomali tespiti',
-        color: AppColors.destructive,
-        path: '/app/alerts',
-      ),
-    ];
-    final screenWidth = MediaQuery.of(context).size.width;
-    // Calculate aspect ratio dynamically based on screen width
-    // Narrower screens need a smaller ratio (more height)
-    final double dynamicAspectRatio = screenWidth < 360 ? 1.1 : 1.3;
-
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: dynamicAspectRatio,
-      children: actions.map((a) => _buildActionCard(context, a)).toList(),
-    );
-  }
-
-  Widget _buildActionCard(BuildContext context, _QuickAction action) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: () => context.go(action.path),
-      child: AppCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppIconBadge(icon: action.icon, color: action.color),
-            const Spacer(),
-            Text(
-              action.label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-                fontSize: 13,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              action.subtitle,
-              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWeeklyTrend(BuildContext context) {
-    if (_weeklyData.isEmpty) return const SizedBox.shrink();
-    final cs = Theme.of(context).colorScheme;
-    final trendPct = _weeklyData.length >= 2
-        ? ((_weeklyData.last - _weeklyData.first) / _weeklyData.first * 100)
-              .abs()
-        : 0.0;
-    final trendUp = _weeklyData.last >= _weeklyData.first;
-
-    return AppCard(
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Haftalık Trend',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Bu haftaki sağlık skorunuz',
-                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Icon(
-                    trendUp ? Icons.trending_up : Icons.trending_down,
-                    color: trendUp
-                        ? AppColors.secondary
-                        : AppColors.destructive,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${trendUp ? "+" : "-"}${trendPct.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      color: trendUp
-                          ? AppColors.secondary
-                          : AppColors.destructive,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 80,
-            child: CustomPaint(
-              size: const Size(double.infinity, 80),
-              painter: AppLineChartPainter(
-                data: _weeklyData,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: _days
-                .map(
-                  (d) => Text(
-                    d,
-                    style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTodayActivity(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final int hr = _todayEntry?.heartRate.toInt() ?? 0;
-    final int steps = _todayEntry?.steps.toInt() ?? 0;
-    final int kcal = (_todayEntry?.activeCalories ?? 0) > 0 
-        ? _todayEntry!.activeCalories.toInt() 
-        : (steps * 0.04).toInt();
-    final double spo2 = _todayEntry?.spo2 ?? 0;
-    final String bp = (_todayEntry?.systolic ?? 0) > 0 
-        ? '${_todayEntry!.systolic.toInt()}/${_todayEntry!.diastolic.toInt()}' 
-        : '--';
-
-    final stats = [
-      _Stat(
-        icon: Icons.favorite_outline,
-        color: AppColors.secondary,
-        title: 'Kalp Atışı',
-        subtitle: 'Cihazdan',
-        value: hr > 0 ? '$hr bpm' : '--',
-      ),
-      _Stat(
-        icon: Icons.directions_walk_outlined,
-        color: AppColors.primary,
-        title: 'Adım',
-        subtitle: 'Cihazdan',
-        value: steps > 0 ? '$steps' : '--',
-      ),
-      _Stat(
-        icon: Icons.local_fire_department,
-        color: AppColors.accent,
-        title: 'Kalori',
-        subtitle: 'Aktif Yakılan',
-        value: kcal > 0 ? '$kcal kcal' : '--',
-      ),
-      _Stat(
-        icon: Icons.bloodtype_outlined,
-        color: AppColors.destructive,
-        title: 'Tansiyon',
-        subtitle: 'Manuel Giriş',
-        value: bp,
-      ),
-      _Stat(
-        icon: Icons.opacity_outlined,
-        color: Colors.blueAccent,
-        title: 'Kandaki Oksijen',
-        subtitle: 'SpO2',
-        value: spo2 > 0 ? '%${spo2.toInt()}' : '--',
-      ),
-    ];
-
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Bugünün Aktivitesi',
-            style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
-          ),
-          const SizedBox(height: 16),
-          ...stats.map(
-            (stat) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Row(
-                children: [
-                  AppIconBadge(icon: stat.icon, color: stat.color, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          stat.title,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            color: cs.onSurface,
-                            fontSize: 14,
-                          ),
-                        ),
-                        Text(
-                          stat.subtitle,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    stat.value,
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWaterTracker(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final double currentMl = _todayEntry?.waterMl ?? 0;
-
-    return AppCard(
-      child: Row(
-        children: [
-          WaterWaveWidget(currentMl: currentMl, targetMl: _waterTarget),
-          const SizedBox(width: 24),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Su Takibi',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: cs.onSurface,
-                  ),
-                ),
-                Text(
-                  'Hedef: ${_waterTarget.toInt()} ml',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildWaterAddBtn(context, 200),
-                    _buildWaterAddBtn(context, 500),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWaterAddBtn(BuildContext context, int amount) {
-    return InkWell(
-      onTap: () async {
-        await HealthService.updateWater(amount.toDouble());
-        _loadTodayData();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.add, size: 14, color: AppColors.primary),
-            const SizedBox(width: 4),
-            Text(
-              '$amount ml',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMoodTracker(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final currentMood = _todayEntry?.mood ?? 'neutral';
-
-    final moods = [
-      {'val': 'happy', 'emoji': '🤩', 'label': 'Harika'},
-      {'val': 'good', 'emoji': '😊', 'label': 'İyi'},
-      {'val': 'neutral', 'emoji': '😐', 'label': 'Normal'},
-      {'val': 'tired', 'emoji': '😫', 'label': 'Yorgun'},
-      {'val': 'stressed', 'emoji': '😵‍💫', 'label': 'Stresli'},
-    ];
-
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Modun Nasıl?',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: moods.map((m) {
-              final isSelected = currentMood == m['val'];
-              return GestureDetector(
-                onTap: () async {
-                  await HealthService.updateMood(m['val']!);
-                  _loadTodayData();
-                },
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.primary.withValues(alpha: 0.1)
-                            : Colors.transparent,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isSelected ? AppColors.primary : Colors.transparent,
-                        ),
-                      ),
-                      child: Text(m['emoji']!, style: const TextStyle(fontSize: 24)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      m['label']!,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? AppColors.primary : cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickAction {
-  final IconData icon;
-  final String label, subtitle, path;
-  final Color color;
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.color,
-    required this.path,
-  });
-}
-
-class _Stat {
-  final IconData icon;
-  final Color color;
-  final String title, subtitle, value;
-  const _Stat({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-  });
 }

@@ -7,6 +7,9 @@ import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
 import '../utils/image_utils.dart';
 import '../widgets/theme_aware_state.dart';
+import '../services/api_service.dart';
+import '../models/api_models.dart';
+import '../services/user_profile_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -25,6 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   int _age = 30;
   String _gender = 'M';
   double _height = 170.0;
+  double _userWeight = 75.0; // Eksik değişken eklendi
   bool _loading = true;
 
   double _targetWeight = 68;
@@ -150,7 +154,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         age: _age,
         gender: _gender,
         height: _height,
-        onSave: (name, bio, age, gender, height) async {
+        weight: _userWeight,
+        onSave: (name, bio, age, gender, height, weight) async {
           final u = FirebaseAuth.instance.currentUser;
           if (u == null) return;
           await u.updateDisplayName(name);
@@ -160,13 +165,27 @@ class _ProfileScreenState extends State<ProfileScreen>
             'age': age,
             'gender': gender,
             'height': height,
+            'weight': weight,
           });
+
+          // MODÜL 3: Risk Skorunu Güncelle (Profil değişikliği sonrası)
+          await ApiService.fetchRiskScore(
+            RiskApiRequest(
+              age: age,
+              gender: gender,
+              height: height,
+              weight: weight,
+              // Diğer verileri son kayıttan alabiliriz, ama profil temeldir
+            ),
+          );
+
           setState(() {
             _fullName = name;
             _bio = bio;
             _age = age;
             _gender = gender;
             _height = height;
+            _userWeight = weight; // State'i güncelle
           });
         },
       ),
@@ -1035,7 +1054,8 @@ class _EditProfileSheet extends StatelessWidget {
   final int age;
   final String gender;
   final double height;
-  final Future<void> Function(String name, String bio, int age, String gender, double height) onSave;
+  final double weight;
+  final Future<void> Function(String name, String bio, int age, String gender, double height, double weight) onSave;
 
   const _EditProfileSheet({
     required this.nameCtrl,
@@ -1043,6 +1063,7 @@ class _EditProfileSheet extends StatelessWidget {
     required this.age,
     required this.gender,
     required this.height,
+    required this.weight,
     required this.onSave,
   });
 
@@ -1052,6 +1073,7 @@ class _EditProfileSheet extends StatelessWidget {
     final ageCtrl = TextEditingController(text: age.toString());
     final heightCtrl = TextEditingController(text: height.toString());
     String selectedGender = gender;
+    double selectedWeight = weight;
 
     return StatefulBuilder(
       builder: (context, setInternalState) => Container(
@@ -1133,6 +1155,19 @@ class _EditProfileSheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
+              TextField(
+                controller: TextEditingController(text: selectedWeight.toString()),
+                keyboardType: TextInputType.number,
+                onChanged: (v) => setInternalState(() => selectedWeight = double.tryParse(v) ?? selectedWeight),
+                decoration: InputDecoration(
+                  labelText: 'Kilo (kg)',
+                  prefixIcon: const Icon(Icons.monitor_weight_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: selectedGender,
                 decoration: InputDecoration(
@@ -1176,6 +1211,7 @@ class _EditProfileSheet extends StatelessWidget {
                       ageVal,
                       selectedGender,
                       heightVal,
+                      selectedWeight,
                     );
                     if (context.mounted) Navigator.pop(context);
                   },

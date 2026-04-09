@@ -13,6 +13,7 @@ class RiskApiRequest {
   final double steps;
   final double sleepHours;
   final double heartRateResting;
+  final double heartRateAvg; // Yeni alan
   final double systolic;
   final double diastolic;
   final double spo2;
@@ -26,6 +27,7 @@ class RiskApiRequest {
     this.steps = 0,
     this.sleepHours = 0,
     this.heartRateResting = 0,
+    this.heartRateAvg = 0, // Varsayılan değer
     this.systolic = 0,
     this.diastolic = 0,
     this.spo2 = 0,
@@ -40,6 +42,7 @@ class RiskApiRequest {
     'steps': steps,
     'sleep_hours': sleepHours,
     'heart_rate_resting': heartRateResting,
+    'heart_rate_avg': heartRateAvg, // Backend beklentisiyle eşle
     'systolic': systolic,
     'diastolic': diastolic,
     'spo2': spo2,

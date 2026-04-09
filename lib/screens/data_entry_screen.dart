@@ -92,6 +92,8 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
           weight: _weight,
           systolic: _systolic,
           diastolic: _diastolic,
+          heartRateResting: entry.heartRate,
+          heartRateAvg: entry.heartRate, // Manuel girişte mevcut nabzı koru
         ),
       );
 

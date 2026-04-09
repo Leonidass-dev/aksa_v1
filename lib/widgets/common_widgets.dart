@@ -14,6 +14,7 @@ class AppCard extends StatelessWidget {
   final Color? backgroundColor;
   final Border? border;
   final List<BoxShadow>? boxShadow;
+  final Decoration? decoration;
 
   const AppCard({
     super.key,
@@ -23,6 +24,7 @@ class AppCard extends StatelessWidget {
     this.backgroundColor,
     this.border,
     this.boxShadow,
+    this.decoration,
   });
 
   @override
@@ -30,7 +32,7 @@ class AppCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: padding,
-      decoration: BoxDecoration(
+      decoration: decoration ?? BoxDecoration(
         color: backgroundColor ?? cs.surface,
         borderRadius: BorderRadius.circular(borderRadius),
         border: border ?? Border.all(color: cs.outlineVariant),

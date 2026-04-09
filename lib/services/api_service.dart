@@ -25,6 +25,36 @@ class ApiService {
     };
   }
 
+  // ── Tez Modül 2: Sensör Verisi Önişleme (Pipeline) ────────────
+  static Future<bool> preprocessRawData({
+    required List<Map<String, dynamic>> heartRateData,
+    required List<Map<String, dynamic>> stepsData,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final body = jsonEncode({
+        'heart_rate_data': heartRateData,
+        'steps_data': stepsData,
+      });
+
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/preprocess-sensor-data'),
+            headers: headers,
+            body: body,
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        debugPrint("ML Pipeline (Preprocessing) başarıyla tamamlandı.");
+        return true;
+      }
+    } catch (e) {
+      debugPrint('ML Pipeline hatası: $e');
+    }
+    return false;
+  }
+
   // ── Yemek Fotoğrafı Analizi ──────────────────────────────────
   static Future<FoodAnalysisResult?> analyzeFoodImage(
     List<int> imageBytes,
