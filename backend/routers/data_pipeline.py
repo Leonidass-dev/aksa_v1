@@ -24,10 +24,15 @@ class PreprocessingResponse(BaseModel):
     processed_windows: int
     features: List[Dict[str, Any]]
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_db
+import crud
+
 @router.post("/preprocess-sensor-data", response_model=PreprocessingResponse)
-def preprocess_sensor_data(
+async def preprocess_sensor_data(
     req: PreprocessingRequest,
-    uid: str = Depends(get_current_user)
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Tez Modül 2: Zaman Serisi Sensör Verilerinin Temizlenmesi.
@@ -67,6 +72,25 @@ def preprocess_sensor_data(
                 features_df['window_start'] = features_df['window_start'].dt.strftime('%Y-%m-%dT%H:%M:%S')
                 features_df['window_end'] = features_df['window_end'].dt.strftime('%Y-%m-%dT%H:%M:%S')
                 features_list = features_df.to_dict(orient="records")
+
+                # Son çıkarılan özellikleri direkt olarak Veritabanına "Günlük Özellik" olarak mühürle
+                user = await crud.get_or_create_user(db, uid)
+                # Özelliklerin ortalamasını alıp kaydetmek M7 LSTM-AE için tutarlı bir data yapısı sağlar
+                # features_list icerisindeki son pencerenin degerlerini M7 modeli icin kaydet
+                if len(features_list) > 0:
+                    latest_window = features_list[-1]
+                    ml_features_array = [
+                        latest_window.get("hr_mean", 0),
+                        latest_window.get("hr_median", 0),
+                        latest_window.get("hr_min", 0),
+                        latest_window.get("hr_max", 0),
+                        latest_window.get("hr_std", 0),
+                        latest_window.get("steps_sum", 0),
+                        latest_window.get("steps_active_mins", 0),
+                        latest_window.get("steps_max", 0),
+                        latest_window.get("missing_pct", 0)
+                    ]
+                    await crud.save_health_record(db, user, data={"ml_features": ml_features_array})
 
         return PreprocessingResponse(
             status="success",

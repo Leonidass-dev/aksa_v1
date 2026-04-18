@@ -14,6 +14,10 @@ class HealthService {
   static final _db = FirebaseFirestore.instance;
   static final Health _healthFactory = Health();
 
+  // Akıllı Sınırlandırma (Cooldown) için değişkenler
+  static DateTime? _lastSyncTime;
+  static const Duration _syncCooldown = Duration(minutes: 15);
+
   static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
   static String _dateKey(DateTime date) =>
@@ -41,9 +45,18 @@ class HealthService {
   }
 
   // ── Sensörlerden (Health Connect) Otomatik Veri Çekme ─────────
-  static Future<bool> syncFromDevice() async {
+  static Future<bool> syncFromDevice({bool force = false}) async {
     final uid = _uid;
     if (uid == null) return false;
+
+    // Cooldown kontrolü: Eğer zorunlu (force) değilse ve 15 dakika geçmemişse atla
+    if (!force && _lastSyncTime != null) {
+      final diff = DateTime.now().difference(_lastSyncTime!);
+      if (diff < _syncCooldown) {
+        debugPrint("Sağlık senkronizasyonu cooldown'da. Kalan süre: ${(_syncCooldown - diff).inMinutes} dk");
+        return true; 
+      }
+    }
 
     final types = [
       HealthDataType.STEPS,
@@ -58,13 +71,13 @@ class HealthService {
       HealthDataType.SLEEP_DEEP,
       HealthDataType.SLEEP_LIGHT,
       HealthDataType.SLEEP_REM,
+      HealthDataType.DISTANCE_DELTA,
     ];
 
     final permissions = types.map((e) => HealthDataAccess.READ).toList();
 
     try {
       // Health Connect SDK Durum Kontrolü (Android 11-13 için önemli)
-      // Not: sdkAvailable kontrolü ana kontrolümüz.
       final sdkStatus = await Health().getHealthConnectSdkStatus();
       if (sdkStatus != HealthConnectSdkStatus.sdkAvailable) {
         debugPrint("Health Connect SDK uygun değil: $sdkStatus");
@@ -80,23 +93,57 @@ class HealthService {
         return false;
       }
 
-      // Artık sadece 'Bugün' (00:00'dan bugüne) olan verileri çekiyoruz.
       final now = DateTime.now();
-      final startTime = DateTime(now.year, now.month, now.day);
+      final midnight = DateTime(now.year, now.month, now.day, 0, 0, 0);
+      final yesterdayNoon = midnight.subtract(const Duration(hours: 12));
       final endTime = now;
+
+      // ── ADIM VERİSİ: Sadece bugünden çek (dünden sızma olmasın) ────
+      List<HealthDataPoint> stepsData = await _healthFactory
+          .getHealthDataFromTypes(
+            startTime: midnight,    // Kesinlikle bugünün gece yarısından itibaren
+            endTime: endTime,
+            types: [HealthDataType.STEPS],
+          );
+      stepsData = Health().removeDuplicates(stepsData);
+
+      // ── DİĞER VERİLER: Uyku için dün öğleden itibaren çekme ────────
+      // Uyku verisini (dün geceden başlayan) kaçırmamak için yesterdayNoon kullanıyoruz
+      // STEPS hariç diğer tipler — adımı zaten yukarıda ayrıca çektik
+      final remainingTypes = [
+        HealthDataType.ACTIVE_ENERGY_BURNED,
+        HealthDataType.TOTAL_CALORIES_BURNED,
+        HealthDataType.HEART_RATE,
+        HealthDataType.RESTING_HEART_RATE,
+        HealthDataType.BLOOD_OXYGEN,
+        HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+        HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
+        HealthDataType.SLEEP_ASLEEP,
+        HealthDataType.SLEEP_DEEP,
+        HealthDataType.SLEEP_LIGHT,
+        HealthDataType.SLEEP_REM,
+        HealthDataType.DISTANCE_DELTA,
+      ];
 
       List<HealthDataPoint> healthData = await _healthFactory
           .getHealthDataFromTypes(
-            startTime: startTime,
+            startTime: yesterdayNoon,
             endTime: endTime,
-            types: types,
+            types: remainingTypes,
           );
-
       healthData = Health().removeDuplicates(healthData);
+
+      debugPrint("[HEALTH DIAGNOSTIC] Toplam Ham Veri Sayısı: ${healthData.length + stepsData.length}");
+      for (var p in [...stepsData, ...healthData]) {
+        String valText = p.value.toString();
+        if (p.value is NumericHealthValue) {
+          valText = (p.value as NumericHealthValue).numericValue.toString();
+        }
+        debugPrint("[HEALTH DIAGNOSTIC] Tür: ${p.typeString} | Değer: $valText | Kaynak: ${p.sourceName} | Tarih: ${p.dateFrom}");
+      }
 
       final todayEntry = await getTodayEntry();
 
-      double totalSteps = 0;
       double avgHeartRate = 0;
       double avgRestingHr = 0;
       double avgSpo2 = 0;
@@ -109,6 +156,7 @@ class HealthService {
       double activeCalories = 0;
       double totalCalories = 0;
       double distanceM = 0;
+      double totalSteps = 0;
 
       int hrCount = 0;
       int restHrCount = 0;
@@ -116,27 +164,64 @@ class HealthService {
       int sysCount = 0;
       int diaCount = 0;
 
-      for (var point in healthData) {
-        // 'health' ^13.3.1 paketinde değerler NumericHealthValue veya benzeri objeler olarak döner.
+
+      // Kümülatif metrikler için kaynak bazlı en büyük değeri al
+      final Map<String, double> stepsBySrc = {};
+      final Map<String, double> activeCalBySrc = {};
+      final Map<String, double> totalCalBySrc = {};
+      final Map<String, double> distanceBySrc = {};
+
+      // ── ADIM: Sadece bugünün verisinden kaynak bazlı toplam ────
+      for (var point in stepsData) {
         double val = 0;
         if (point.value is NumericHealthValue) {
           val = (point.value as NumericHealthValue).numericValue.toDouble();
         } else {
           val = double.tryParse(point.value.toString()) ?? 0;
         }
+        final src = point.sourceName;
+        stepsBySrc[src] = (stepsBySrc[src] ?? 0) + val;
+      }
+
+      for (var point in healthData) {
+        final isSleep = [
+          HealthDataType.SLEEP_ASLEEP,
+          HealthDataType.SLEEP_DEEP,
+          HealthDataType.SLEEP_LIGHT,
+          HealthDataType.SLEEP_REM,
+          // HealthDataType.SLEEP_AWAKE, // Eklenebilir, ancak switch'te yok
+          // HealthDataType.SLEEP_IN_BED,
+        ].contains(point.type);
+
+        // Uyku dışındaki verileri sadece MİDNIGHT sonrasındaysa işle
+        if (!isSleep && point.dateFrom.isBefore(midnight)) {
+          continue;
+        }
+
+        double val = 0;
+        if (isSleep) {
+          // Uyku için duration (dakika) hesaplanmalı
+          val = point.dateTo.difference(point.dateFrom).inMinutes.toDouble();
+        } else if (point.value is NumericHealthValue) {
+          val = (point.value as NumericHealthValue).numericValue.toDouble();
+        } else {
+          val = double.tryParse(point.value.toString()) ?? 0;
+        }
+
+        final src = point.sourceName;
 
         switch (point.type) {
+          // ADIM: Yukarıda ayrıca sadece bugünden çekildi, burada atla
           case HealthDataType.STEPS:
-            totalSteps += val;
             break;
           case HealthDataType.ACTIVE_ENERGY_BURNED:
-            activeCalories += val;
+            activeCalBySrc[src] = (activeCalBySrc[src] ?? 0) + val;
             break;
           case HealthDataType.TOTAL_CALORIES_BURNED:
-            totalCalories += val;
+            totalCalBySrc[src] = (totalCalBySrc[src] ?? 0) + val;
             break;
-          case HealthDataType.DISTANCE_WALKING_RUNNING:
-            distanceM += val;
+          case HealthDataType.DISTANCE_DELTA:
+            distanceBySrc[src] = (distanceBySrc[src] ?? 0) + val;
             break;
           case HealthDataType.HEART_RATE:
             avgHeartRate += val;
@@ -175,6 +260,27 @@ class HealthService {
         }
       }
 
+      // Kümülatif metriklerde aykırı kaynakları eleyen strateji:
+      // ADIM → Medyan (aykırı kaynağı doğal olarak eler)
+      //   Örn: Xiaomi=39016, GoogleFit=2137, Telefon=1523 → medyan=2137 ✓
+      // KALORİ/MESAFE → Max (duplikasyonu önler)
+      if (stepsBySrc.isNotEmpty) {
+        final sortedSteps = stepsBySrc.values.toList()..sort();
+        // Alt medyan: tek kaynak→direkt al, çift→küçük ortayı al, tek→ortayı al
+        totalSteps = sortedSteps[(sortedSteps.length - 1) ~/ 2];
+        debugPrint("Adım kaynakları: $stepsBySrc → Medyan seçildi: $totalSteps");
+      }
+      if (activeCalBySrc.isNotEmpty) {
+        activeCalories = activeCalBySrc.values.reduce((a, b) => a > b ? a : b);
+      }
+      if (totalCalBySrc.isNotEmpty) {
+        totalCalories = totalCalBySrc.values.reduce((a, b) => a > b ? a : b);
+      }
+      if (distanceBySrc.isNotEmpty) {
+        distanceM = distanceBySrc.values.reduce((a, b) => a > b ? a : b);
+      }
+
+      // Ortalamalar
       if (hrCount > 0) avgHeartRate /= hrCount;
       if (restHrCount > 0) avgRestingHr /= restHrCount;
       if (spo2Count > 0) avgSpo2 /= spo2Count;
@@ -185,24 +291,25 @@ class HealthService {
           ? totalSleepMin / 60.0
           : (sleepDeepMin + sleepLightMin + sleepRemMin) / 60.0;
 
-      // Cihaz verileri (steps, heartRate, sleepHours) manuel verilerden (manualSteps vb) üstündür.
-      // KRİTİK: Eğer saat gece yarısı (00:00 - 02:00) ise ve cihazdan 0 veri geliyorsa, 
-      // manuel veriyi SILME (çünkü kullanıcı daha yürümeye başlamamış ama bugün manuel veri girmiş olabilir).
-      final isEarlyMorning = DateTime.now().hour < 2;
-      
-      final steps = (totalSteps > 0 || !isEarlyMorning) ? totalSteps : (todayEntry?.steps ?? 0);
-      final heartRate = (avgHeartRate > 0 || !isEarlyMorning) ? avgHeartRate : (todayEntry?.heartRate ?? 0);
-      final finalSleepHours = (sleepHrs > 0 || !isEarlyMorning) ? sleepHrs : (todayEntry?.sleepHours ?? 0);
+      // Cihazdan 0 gelebilir (henüz güncellenmemiştir, vb.).
+      // Bu durumda geçmiş datayı sıfırlamamak için sadece > 0 ise güncelle, değilse mevcut veriyi koru.
+      final steps = (totalSteps > 0) ? totalSteps : (todayEntry?.steps ?? 0);
+      final heartRate = (avgHeartRate > 0) ? avgHeartRate : (todayEntry?.heartRate ?? 0);
+      final restingHeartRate = (avgRestingHr > 0) ? avgRestingHr : (todayEntry?.restingHeartRate ?? 0);
+      final spo2 = (avgSpo2 > 0) ? avgSpo2 : (todayEntry?.spo2 ?? 0);
+      final systolic = (avgSystolic > 0) ? avgSystolic : (todayEntry?.systolic ?? 0);
+      final diastolic = (avgDiastolic > 0) ? avgDiastolic : (todayEntry?.diastolic ?? 0);
+      final finalSleepHours = (sleepHrs > 0) ? sleepHrs : (todayEntry?.sleepHours ?? 0);
 
       final newEntry = HealthEntry(
         date: now,
         weight: todayEntry?.weight ?? 0,
         steps: steps,
         heartRate: heartRate,
-        restingHeartRate: avgRestingHr,
-        spo2: avgSpo2,
-        systolic: avgSystolic,
-        diastolic: avgDiastolic,
+        restingHeartRate: restingHeartRate,
+        spo2: spo2,
+        systolic: systolic,
+        diastolic: diastolic,
         sleepHours: finalSleepHours,
         sleepDeepMin: sleepDeepMin,
         sleepLightMin: sleepLightMin,
@@ -221,10 +328,11 @@ class HealthService {
       
       debugPrint("--- SAĞLIK SENKRONİZASYONU ÖZETİ ---");
       debugPrint("İşlenen Veri Noktası: ${healthData.length}");
-      debugPrint("Toplam Adım: $totalSteps");
-      debugPrint("Yakılan Kalori: $activeCalories");
+      debugPrint("Toplam Adım (medyan kaynak): $totalSteps");
+      debugPrint("Yakılan Kalori (max source): $activeCalories");
       debugPrint("Ortalama Nabız: $avgHeartRate");
       debugPrint("Uyku Dakikası: $totalSleepMin");
+      debugPrint("Mesafe: ${distanceM.toStringAsFixed(0)}m");
       debugPrint("-----------------------------------");
       
       // ── Tez Modül 2: Ham Verileri Pipeline'a Gönder ──────────────
@@ -238,7 +346,7 @@ class HealthService {
               })
           .toList();
 
-      final stepsPoints = healthData
+      final stepsPoints = stepsData
           .where((p) => p.type == HealthDataType.STEPS)
           .map((p) => {
                 'timestamp': p.dateFrom.toIso8601String(),
@@ -256,6 +364,9 @@ class HealthService {
           if (success) debugPrint("Pipeline Veri İşleme Başarılı.");
         });
       }
+
+      // Başarılı senkronizasyon zamanını kaydet
+      _lastSyncTime = DateTime.now();
 
       return true;
     } catch (e) {

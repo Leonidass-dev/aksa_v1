@@ -135,7 +135,7 @@ def _pick_plan_rules(req: ExerciseRequest) -> int:
             return 3  # Bisiklet
 
 
-def _pick_plan_rnn(req: ExerciseRequest, records: list = None) -> int:
+def _pick_plan_rnn(req: ExerciseRequest, records: list = None, ml_features: list[float] | None = None) -> int:
     """RNN ile plan seçimi (Kullanıcının gerçek verileriyle)."""
     _load_rnn()
     if _rnn_model is None:
@@ -158,7 +158,14 @@ def _pick_plan_rnn(req: ExerciseRequest, records: list = None) -> int:
         target_date = today - timedelta(days=(seq_len - 1 - i))
         r = record_dict.get(target_date)
         
-        if r:
+        # Bugünün kaydı ve M2 özellikleri varsa, temiz verileri kullan
+        if target_date == today and ml_features is not None and len(ml_features) == 9:
+            steps = float(ml_features[5])  # steps_rolling_sum
+            active_mins = float(ml_features[6])  # steps_active_time
+            sleep = float(r.sleep_hours or 5.0) if r else 5.0
+            logger.info(f"🎯 M6 Egzersiz RNN: Bugün M2 temiz verileri kullanılıyor (steps={steps:.0f})")
+        elif r:
+            logger.info(f"⚠️ M6 Egzersiz RNN: M2 verisi yok, {target_date} için ham DB verisi (Fallback) kullanılıyor.")
             steps = float(r.steps or 0)
             # Aktif Süreyi aktif kaloriden veya adımdan tahmin et
             active_cals = getattr(r, 'active_calories', 0)
@@ -200,11 +207,11 @@ def _pick_plan_rnn(req: ExerciseRequest, records: list = None) -> int:
     return int(np.argmax(probs))
 
 
-async def get_exercise_class(req: ExerciseRequest, records: list = None) -> int:
+async def get_exercise_class(req: ExerciseRequest, records: list = None, ml_features: list[float] | None = None) -> int:
     """Yoğunluk seviyesini (0-4) belirleyen ana sınıflandırıcı."""
     try:
         if _HAS_ML:
-            return _pick_plan_rnn(req, records)
+            return _pick_plan_rnn(req, records, ml_features=ml_features)
         else:
             return _pick_plan_rules(req)
     except Exception as e:

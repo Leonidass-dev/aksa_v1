@@ -56,8 +56,12 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
           systolic: entry.systolic,
           diastolic: entry.diastolic,
           weight: entry.weight,
-          heartRateResting: entry.heartRate,
+          heartRateResting: entry.restingHeartRate > 0
+              ? entry.restingHeartRate
+              : entry.heartRate, // Dinlenik yoksa ortalamayı kullan
+          heartRateAvg: entry.heartRate,
           spo2: entry.spo2,
+          stressLevel: entry.stressLevel,
         ),
       );
 
@@ -163,7 +167,6 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
           : _hasData
           ? 'Yapay Zeka & Gerçek Verileriniz'
           : 'Bugün henüz sağlık verisi girmediniz.',
-      gradientColors: [_levelColor, _levelColor.withValues(alpha: 0.7)],
       height: 160,
       trailing: AppRefreshButton(
         onTap: _loading ? null : _loadFromApi,

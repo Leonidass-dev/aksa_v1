@@ -1,4 +1,5 @@
 import os
+from datetime import date
 import json
 import httpx
 import logging
@@ -20,7 +21,7 @@ router = APIRouter()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.5-flash:generateContent"
+    "gemini-2.0-flash:generateContent"
 )
 
 # ── RAG BİLGİ TABANI (KNOWLEDGE BASE) ──
@@ -122,7 +123,23 @@ async def analyze_food(
     # Kullanıcının en güncel sağlık risk geçmişi çekilir.
     risk_history = await crud.get_risk_history(db, user, limit=1)
     
+    # M2 Pipeline'dan bugünün temizlenmiş özellik matrisini çek
+    today_record = await crud.get_today_health(db, user)
+    ml_features = today_record.ml_features if today_record and hasattr(today_record, 'ml_features') else None
+    
     rag_context_texts = []
+
+    # M2 verilerini RAG bağlamına ekle (varsa)
+    if ml_features and len(ml_features) == 9:
+        rag_context_texts.append(
+            f"Kullanıcının M2 Pipeline Temiz Verileri — "
+            f"Ort. Nabız: {ml_features[0]:.0f} bpm, "
+            f"Min Nabız: {ml_features[2]:.0f} bpm, "
+            f"Maks Nabız: {ml_features[3]:.0f} bpm, "
+            f"Adım Yoğunluğu: {ml_features[5]:.0f}, "
+            f"Aktif Süre: {ml_features[6]:.0f} dk"
+        )
+
     if risk_history and len(risk_history) > 0:
         latest_risk = risk_history[0]
         rag_context_texts.append(f"Kullanıcının Genel Sağlık Risk Seviyesi: {latest_risk.level_label}")
@@ -158,7 +175,8 @@ async def analyze_food(
             }
         ],
         "generationConfig": {
-            "temperature": 0.2
+            "temperature": 0.2,
+            "responseMimeType": "application/json"
         },
     }
 
@@ -282,3 +300,105 @@ async def meal_history(
         )
         for r in records
     ]
+
+# ── M5: DİYETİSYEN SİSTEMİ (ÖĞÜN PLANLAYICI) ──
+from services.diet_generator import generate_diet_plan, DietPlanResponse
+
+@router.get("/diet-plan", response_model=DietPlanResponse)
+async def get_diet_plan(
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Kullanıcının risk haritası, M2 sensör verileri ve günlük kalori ihtiyacına
+    göre yapay zeka destekli diyet listesi oluşturur. 
+    Aynı gün içindeki isteklerde önbellekteki planı döner.
+    """
+    user = await crud.get_or_create_user(db, uid)
+    today = date.today()
+
+    # 0. Önbellek Kontrolü (Günde 1 kez oluşturma kuralı)
+    cached_plan = await crud.get_daily_diet_plan(db, user, today)
+    if cached_plan:
+        return DietPlanResponse(**cached_plan.plan_data)
+    
+    # 1. Kullanıcı Profili ve Kalori Hedefi
+    age = user.age if user.age else 30
+    weight = user.weight if user.weight else 70.0
+    height = user.height if user.height else 170.0
+    gender = user.gender if user.gender else "Erkek"
+    
+    # Basit BMR hesabı
+    if gender.lower() == "erkek":
+        bmr = 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * age)
+    else:
+        bmr = 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * age)
+    
+    # 2. Risk Verileri
+    risk_history = await crud.get_risk_history(db, user, limit=1)
+    risk_level = "Medium"
+    risk_factors = ""
+    
+    if risk_history and len(risk_history) > 0:
+        latest = risk_history[0]
+        risk_level = latest.level_label
+        if latest.top_factors:
+            risk_factors = ", ".join([f.get("name", "") if isinstance(f, dict) else getattr(f, "name", "") for f in latest.top_factors])
+
+    # 3. M2 Sensör Verileri & Kalori Tahmini
+    today_record = await crud.get_today_health(db, user)
+    health_context = ""
+    
+    # Varsayılan: Sedanter (Hareketsiz) TDEE
+    target_calories = int(bmr * 1.2)
+    calc_method = "BMR * 1.2 (Default)"
+    
+    if today_record:
+        raw_active = today_record.active_calories or 0
+        
+        if raw_active > 0:
+            # KRİTİK KONTROL: Eğer gelen aktif kalori BMR'den büyükse, saat muhtemelen 
+            # "Toplam Yakılan Kalori" (BMR + Aktif) gönderiyordur. Üstüne tekrar BMR ekleme.
+            if raw_active > bmr:
+                target_calories = int(raw_active)
+                calc_method = f"Device Total Calories ({raw_active})"
+            else:
+                target_calories = int(bmr + raw_active)
+                calc_method = f"BMR ({int(bmr)}) + Active ({raw_active})"
+        else:
+            calc_method = "BMR * 1.2 (No Active Data)"
+
+        # M2 Meta verileri
+        ml_features = today_record.ml_features if hasattr(today_record, 'ml_features') else None
+        if ml_features and len(ml_features) == 9:
+            health_context = (
+                f"Nabız Ort: {ml_features[0]:.0f}, "
+                f"Nabız Max: {ml_features[3]:.0f}, "
+                f"Adım/Aktivite Skoru: {ml_features[5]:.0f}"
+            )
+        else:
+            health_context = "Veri M2'den geçmemiş."
+
+    # GÜVENLİK SINIRLARI: İnsan limitlerini zorlama.
+    if target_calories < 1200:
+        target_calories = 1200
+        calc_method += " -> Capped at Min 1200"
+    elif target_calories > 3500:
+        target_calories = 3500
+        calc_method += " -> Capped at Max 3500"
+
+    logger.info(f"🎯 M5 Diyet Planlayıcı: Kullanıcı {user.firebase_uid} için hedef kalori: {target_calories} ({calc_method})")
+            
+    plan = await generate_diet_plan(
+        age, gender, height, weight,
+        risk_level, risk_factors, health_context,
+        target_calories
+    )
+    
+    if not plan:
+        raise HTTPException(status_code=500, detail="Diyet planı üretilemedi.")
+    
+    # 4. Sonucu Önbelleğe Kaydet
+    await crud.save_daily_diet_plan(db, user, today, plan.model_dump())
+        
+    return plan

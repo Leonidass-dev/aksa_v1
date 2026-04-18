@@ -51,6 +51,8 @@ class RiskResponse(BaseModel):
     recommendations: list[str]
     model_version: str
 
+    model_config = {'protected_namespaces': ()}
+
 
 class RiskHistoryItem(BaseModel):
     id: int
@@ -61,6 +63,8 @@ class RiskHistoryItem(BaseModel):
     recommendations: list | None
     model_version: str
     calculated_at: str
+
+    model_config = {'protected_namespaces': ()}
 
 
 LEVEL_LABELS = {
@@ -99,7 +103,12 @@ async def calculate_risk(
         height=req.height,
     )
 
-    result = compute_risk(snap)
+    # Veritabanından bugünün M2 pipeline temizlik sonuçlarını çek
+    user = await crud.get_or_create_user(db, uid)
+    today_record = await crud.get_today_health(db, user)
+    ml_features = today_record.ml_features if today_record and hasattr(today_record, 'ml_features') else None
+
+    result = compute_risk(snap, ml_features=ml_features)
     level_label = LEVEL_LABELS.get(result.level, result.level)
 
     factors_response = [
@@ -111,8 +120,7 @@ async def calculate_risk(
         for f in result.top_factors
     ]
 
-    # DB'ye kaydet
-    user = await crud.get_or_create_user(db, uid)
+    # DB'ye kaydet (user zaten yukarıda çekildi)
     await crud.save_risk_score(
         db, user,
         score=result.score,

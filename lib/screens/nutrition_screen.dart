@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/theme_aware_state.dart';
+import 'diet_plan_screen.dart';
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -63,21 +64,30 @@ class _NutritionScreenState extends State<NutritionScreen>
                 recommendation: h.recommendation ?? '',
                 tags: List<String>.from(h.tags ?? []),
               ),
-              time: TimeOfDay.fromDateTime(DateTime.parse(h.analyzedAt).toLocal()),
+              dateTime: DateTime.parse(h.analyzedAt).toLocal(),
             )));
       });
     }
   }
 
-  int get _totalCalories => _meals.fold(0, (s, m) => s + m.calories);
+  DateTime? _lastAnalyzedDate;
+
+  int get _totalCalories {
+    final now = DateTime.now();
+    return _meals.where((m) {
+      return m.dateTime.year == now.year &&
+          m.dateTime.month == now.month &&
+          m.dateTime.day == now.day;
+    }).fold(0, (s, m) => s + m.calories);
+  }
 
   Future<void> _pickAndAnalyze(ImageSource source) async {
-    // Fotoğrafların hafızayı şişirmemesi ve UI'ın kasmasını engellemek için piksel sınırı eklendi. (Eski cihaz optimizasyonu)
+    // API hızlandırması için resim boyutu ciddi şekilde sıkıştırıldı
     final xfile = await _picker.pickImage(
       source: source,
-      imageQuality: 70,
-      maxWidth: 800,
-      maxHeight: 800,
+      imageQuality: 50,
+      maxWidth: 500,
+      maxHeight: 500,
     );
     if (xfile == null) return;
 
@@ -95,7 +105,7 @@ class _NutritionScreenState extends State<NutritionScreen>
           _MealEntry(
             image: File(xfile.path),
             result: result,
-            time: TimeOfDay.now(),
+            dateTime: DateTime.now(),
           ),
         );
       });
@@ -187,26 +197,48 @@ class _NutritionScreenState extends State<NutritionScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _analyzing ? null : _showImageSourceSheet,
-        backgroundColor: AppColors.secondary,
-        icon: _analyzing
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : const Icon(Icons.add_a_photo_outlined, color: Colors.white),
-        label: Text(
-          _analyzing ? 'Analiz ediliyor...' : 'Öğün Ekle',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: "diet_plan",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DietPlanScreen()),
+              );
+            },
+            backgroundColor: AppColors.primary,
+            icon: const Icon(Icons.auto_awesome, color: Colors.white),
+            label: const Text(
+              'Bugün Ne Yemeliyim?',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          FloatingActionButton.extended(
+            heroTag: "add_meal",
+            onPressed: _analyzing ? null : _showImageSourceSheet,
+            backgroundColor: AppColors.secondary,
+            icon: _analyzing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(Icons.add_a_photo_outlined, color: Colors.white),
+            label: Text(
+              _analyzing ? 'Analiz ediliyor...' : 'Öğün Ekle',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -241,7 +273,7 @@ class _NutritionScreenState extends State<NutritionScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.secondary, AppColors.secondaryDark],
+          colors: [AppColors.primary, AppColors.primaryLight],
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(32),
@@ -400,9 +432,15 @@ class _NutritionScreenState extends State<NutritionScreen>
 
   Widget _buildCalorieSummary(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final totalProtein = _meals.fold(0.0, (s, m) => s + m.result.proteinG);
-    final totalCarbs = _meals.fold(0.0, (s, m) => s + m.result.carbsG);
-    final totalFat = _meals.fold(0.0, (s, m) => s + m.result.fatG);
+    final now = DateTime.now();
+    final todayMeals = _meals.where((m) =>
+        m.dateTime.year == now.year &&
+        m.dateTime.month == now.month &&
+        m.dateTime.day == now.day);
+
+    final totalProtein = todayMeals.fold(0.0, (s, m) => s + m.result.proteinG);
+    final totalCarbs = todayMeals.fold(0.0, (s, m) => s + m.result.carbsG);
+    final totalFat = todayMeals.fold(0.0, (s, m) => s + m.result.fatG);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -583,7 +621,7 @@ class _NutritionScreenState extends State<NutritionScreen>
                       ),
                     ),
                     Text(
-                      meal.time.format(context),
+                      '${meal.dateTime.hour.toString().padLeft(2, '0')}:${meal.dateTime.minute.toString().padLeft(2, '0')}',
                       style: TextStyle(
                         fontSize: 12,
                         color: cs.onSurfaceVariant,
@@ -778,11 +816,11 @@ class _SourceButton extends StatelessWidget {
 class _MealEntry {
   final File? image;
   final FoodAnalysisResult result;
-  final TimeOfDay time;
+  final DateTime dateTime;
   const _MealEntry({
     this.image,
     required this.result,
-    required this.time,
+    required this.dateTime,
   });
 
   int get calories => result.calories;

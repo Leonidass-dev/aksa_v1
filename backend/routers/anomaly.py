@@ -56,22 +56,31 @@ def _to_snapshot(r: DailySnapshotRequest) -> DailySnapshot:
     )
 
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_db
+import crud
+
 @router.post("/anomaly-check", response_model=AnomalyCheckResponse)
-def check_anomaly(
+async def check_anomaly(
     req: AnomalyCheckRequest,
     uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    M7 — Anomali Tespiti (Z-Skor)
-
-    history: son 3-7 günlük veriler,
-    today: bugünün verisi.
-
-    |z| >= 1.5 → medium, |z| >= 2.5 → high anomali
+    M7 — Anomali Tespiti (Z-Skor ve LSTM-AE)
+    M2 (Data Pipeline) tarafından veritabanına kaydedilen "ml_features" array'ı bulunursa,
+    sahte özellik matrisi yerine doğrudan M2'den gelen %100 temiz veriyi LSTM modeline besler.
     """
     history = [_to_snapshot(s) for s in req.history]
     today = _to_snapshot(req.today)
-    result = detect_anomalies(history, today)
+
+    # Veritabanından bugünün M2 pipeline temizlik sonuçlarını çek
+    user = await crud.get_or_create_user(db, uid)
+    today_record = await crud.get_today_health(db, user)
+    ml_features = today_record.ml_features if today_record and hasattr(today_record, 'ml_features') else None
+
+    # Modelle gönder
+    result = detect_anomalies(history, today, ml_features=ml_features)
 
     return AnomalyCheckResponse(
         has_anomaly=result.has_anomaly,

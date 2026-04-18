@@ -11,7 +11,7 @@ def train_risk_xgboost():
     print("XGBoost Modeli Eğitimi Başlıyor (Modül 3)...")
     
     # 1. Veri Yükleme
-    df = pd.read_csv('ml_training/data/synthetic_health_windows.csv')
+    df = pd.read_csv('ml_training/data/wesad_processed.csv')
     
     # Özellikler (Features) ve Hedef (Target)
     feature_cols = ['hr_mean', 'hr_median', 'hr_min', 'hr_max', 'hr_std', 

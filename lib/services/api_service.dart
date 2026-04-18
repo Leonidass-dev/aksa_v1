@@ -79,9 +79,29 @@ class ApiService {
     return null;
   }
 
+  // ── M5: Diyet Planı Önerisi (Yapay Zeka Yeni Modül) ────────────
+  static Future<DietPlanResult?> getDietPlan() async {
+    try {
+      final headers = await _authHeaders();
+      final res = await http.get(
+        Uri.parse('$_baseUrl/diet-plan'),
+        headers: headers,
+      ).timeout(const Duration(seconds: 30));
+      
+      if (res.statusCode == 200) {
+        return DietPlanResult.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)),
+        );
+      }
+    } catch (e) {
+      debugPrint('Diet plan API hatası: $e');
+    }
+    return null;
+  }
+
   // ── Anomali Tespiti ────────────────────────────────────────────
   static Future<AnomalyApiResult?> checkAnomalies({
-    required Map<String, dynamic> history,
+    required List<Map<String, dynamic>> history,  // Backend list[DailySnapshotRequest] bekliyor
     required Map<String, dynamic> today,
   }) async {
     try {
@@ -90,7 +110,7 @@ class ApiService {
         Uri.parse('$_baseUrl/anomaly-check'),
         headers: headers,
         body: jsonEncode({'history': history, 'today': today}),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
         return AnomalyApiResult.fromJson(
           jsonDecode(utf8.decode(res.bodyBytes)),
@@ -112,7 +132,7 @@ class ApiService {
         Uri.parse('$_baseUrl/exercise-plan'),
         headers: headers,
         body: jsonEncode(req.toJson()),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
         return ExerciseApiResult.fromJson(
           jsonDecode(utf8.decode(res.bodyBytes)),

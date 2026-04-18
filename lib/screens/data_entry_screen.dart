@@ -58,8 +58,9 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
       final profile = await UserProfileService.getProfile();
       
       // Firestore'a kaydet (M1)
-      final entry = HealthEntry(
-        date: DateTime.now(),
+      // Mevcut Health Connect verilerini koruyarak sadece manuel alanları güncelle
+      final existingEntry = await HealthService.getTodayEntry();
+      final entry = (existingEntry ?? HealthEntry(date: DateTime.now())).copyWith(
         weight: _weight,
         systolic: _systolic,
         diastolic: _diastolic,

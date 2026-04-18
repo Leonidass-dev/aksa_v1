@@ -18,7 +18,7 @@ def train_risk_gru():
     print("PyTorch GRU Modeli Eğitimi Başlıyor (Modül 3)...")
     
     # Veri Yükleme
-    df = pd.read_csv('ml_training/data/synthetic_health_windows.csv')
+    df = pd.read_csv('ml_training/data/wesad_processed.csv')
     feature_cols = ['hr_mean', 'hr_median', 'hr_min', 'hr_max', 'hr_std', 
                     'steps_sum', 'steps_active_mins', 'steps_max', 'missing_pct']
     

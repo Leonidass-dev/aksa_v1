@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db_models import (
     User, HealthRecord, RiskScore,
     MealRecord, ExercisePlan, ChatMessage,
+    DailyDietPlan
 )
 
 
@@ -72,14 +73,15 @@ async def save_health_record(
         "systolic", "diastolic", "sleep_hours", "sleep_deep_min",
         "sleep_light_min", "sleep_rem_min", "sleep_awake_min",
         "active_calories", "total_calories", "distance_m",
-        "stress_level", "weight", "water_ml", "mood",
+        "stress_level", "weight", "water_ml", "mood", "ml_features"
     ]:
         new_val = data.get(field)
         if new_val is not None:
-            # Sayısal alanlar için 0'dan büyük kontrolü, mood gibi stringler içinse sadece varlık kontrolü
-            if isinstance(new_val, (int, float)) and new_val > 0:
-                setattr(record, field, new_val)
-            elif isinstance(new_val, str) and new_val:
+            # Sayısal alanlar için 0'dan büyük kontrolü, string/list/dict gibi objeler için varlık kontrolü
+            if isinstance(new_val, (int, float)):
+                if new_val > 0:
+                    setattr(record, field, new_val)
+            elif new_val:
                 setattr(record, field, new_val)
 
     if "source" in data:
@@ -308,3 +310,51 @@ async def get_chat_history(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  DAILY DIET PLANS (Caching)
+# ═══════════════════════════════════════════════════════════════════
+
+async def get_daily_diet_plan(
+    db: AsyncSession,
+    user: User,
+    target_date: date
+) -> DailyDietPlan | None:
+    """Belirli bir tarihteki diyet planını getir."""
+    stmt = select(DailyDietPlan).where(
+        DailyDietPlan.user_id == user.id,
+        DailyDietPlan.plan_date == target_date
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def save_daily_diet_plan(
+    db: AsyncSession,
+    user: User,
+    plan_date: date,
+    plan_data: dict
+) -> DailyDietPlan:
+    """Bir günlük diyet planını kaydet."""
+    # Varsa güncelle yoksa oluştur
+    stmt = select(DailyDietPlan).where(
+        DailyDietPlan.user_id == user.id,
+        DailyDietPlan.plan_date == plan_date
+    )
+    result = await db.execute(stmt)
+    record = result.scalar_one_or_none()
+
+    if record:
+        record.plan_data = plan_data
+    else:
+        record = DailyDietPlan(
+            user_id=user.id,
+            plan_date=plan_date,
+            plan_data=plan_data
+        )
+        db.add(record)
+
+    await db.commit()
+    await db.refresh(record)
+    return record

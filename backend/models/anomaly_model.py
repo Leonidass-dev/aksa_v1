@@ -212,22 +212,29 @@ def _get_shap_contributions(x_t: torch.Tensor) -> list[tuple[str, float]]:
         logger.warning(f"SHAP explainer hesaplanırken hata: {e}")
         return []
 
-def _check_ae_anomaly(today: DailySnapshot) -> tuple[bool, float, list[tuple[str, float]]]:
+def _check_ae_anomaly(today: DailySnapshot, ml_features: list[float] | None = None) -> tuple[bool, float, list[tuple[str, float]]]:
     """LSTM-AE ile anomali kontrolü. ML yoksa (False, 0, []) döner."""
     if not _HAS_ML:
-        return False, 0.0
+        return False, 0.0, []
     try:
         _load_ae()
         if _ae_model is None:
-            return False, 0.0
+            return False, 0.0, []
 
-        hr_mean = today.heart_rate if today.heart_rate else 75
-        features = np.array([[
-            hr_mean, hr_mean, hr_mean - 10, hr_mean + 30, 10.0,
-            today.steps if today.steps else 500,
-            max(1, int(today.steps / 100)) if today.steps else 5,
-            50, 0.05
-        ]])
+        if ml_features is not None and len(ml_features) == 9:
+            # M2 Pipeline'dan çoktan temizlenmiş gerçek özellikler aktı!
+            features = np.array([ml_features])
+            logger.info("🎯 M7 Anomali Modeli: M2(Data Pipeline)'den gelen 100% temiz veri listesi LSTM-AE ağına besleniyor!")
+        else:
+            # M2 özellikleri henüz hazır değilse sentetik fallback (Eski Yöntem)
+            hr_mean = today.heart_rate if today.heart_rate else 75
+            features = np.array([[
+                hr_mean, hr_mean, hr_mean - 10, hr_mean + 30, 10.0,
+                today.steps if today.steps else 500,
+                max(1, int(today.steps / 100)) if today.steps else 5,
+                50, 0.05
+            ]])
+            logger.info("⚠️ M7 Anomali Modeli: M2 verisi bulunamadı, fallback ortalama özellikleri kullanılıyor!")
         features_scaled = _ae_scaler.transform(features)
         x_t = torch.tensor(features_scaled, dtype=torch.float32).unsqueeze(1)
         with torch.no_grad():
@@ -244,10 +251,10 @@ def _check_ae_anomaly(today: DailySnapshot) -> tuple[bool, float, list[tuple[str
         return False, 0.0, []
 
 
-def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot) -> AnomalyResult:
+def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_features: list[float] | None = None) -> AnomalyResult:
     """Ana fonksiyon — LSTM-AE + Z-skor veya sadece Z-skor."""
 
-    has_anomaly_ml, mse, shap_factors = _check_ae_anomaly(today)
+    has_anomaly_ml, mse, shap_factors = _check_ae_anomaly(today, ml_features=ml_features)
 
     # Z-Skor tabanlı kontrol (her zaman çalışır)
     anomalies: list[AnomalyItem] = []

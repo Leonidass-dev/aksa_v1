@@ -42,6 +42,17 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     backend_dir = os.path.join(base_dir, "backend")
 
+    # ── 0. PostgreSQL Otomatik Başlatıcı ─────────────────────
+    pg_ctl = r"C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe"
+    pg_data = r"C:\Program Files\PostgreSQL\18\data"
+    if os.path.exists(pg_ctl) and os.path.exists(pg_data):
+        print("[*] PostgreSQL kontrol ediliyor (uykudaysa uyandirilir)...")
+        subprocess.run(
+            [pg_ctl, "start", "-D", pg_data],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
     # ── 1. Backend başlat ────────────────────────────────────
     python_exe = os.path.join(backend_dir, "venv", "Scripts", "python.exe")
     if not os.path.exists(python_exe):

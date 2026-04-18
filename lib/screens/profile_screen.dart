@@ -7,9 +7,11 @@ import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
 import '../utils/image_utils.dart';
 import '../widgets/theme_aware_state.dart';
+import '../widgets/common_widgets.dart';
 import '../services/api_service.dart';
 import '../models/api_models.dart';
 import '../services/user_profile_service.dart';
+import '../services/health_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -28,7 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   int _age = 30;
   String _gender = 'M';
   double _height = 170.0;
-  double _userWeight = 75.0; // Eksik değişken eklendi
+  double _userWeight = 75.0;
   bool _loading = true;
 
   double _targetWeight = 68;
@@ -38,6 +40,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _activeDays = '0';
   String _dataPoints = '0';
   String _healthScore = '-';
+
+  // Gerçek ilerleme verileri
+  double _currentAvgSteps = 0;
+  double _currentAvgSleep = 0;
 
   @override
   void initState() {
@@ -69,6 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           _age = (data['age'] as num?)?.toInt() ?? 30;
           _gender = data['gender'] ?? 'M';
           _height = (data['height'] as num?)?.toDouble() ?? 170.0;
+          _userWeight = (data['weight'] as num?)?.toDouble() ?? 75.0;
         });
       } else {
         await FirebaseFirestore.instance.collection('users').doc(u.uid).set({
@@ -112,12 +119,32 @@ class _ProfileScreenState extends State<ProfileScreen>
           .collection('users')
           .doc(u.uid)
           .collection('health_entries')
+          .orderBy('date', descending: true)
+          .limit(30)
           .get();
       final count = entries.docs.length;
+
+      // Son 7 günün ortalamasını hesapla
+      double totalSteps = 0, totalSleep = 0;
+      int validDays = 0;
+      for (var doc in entries.docs.take(7)) {
+        final d = doc.data();
+        final steps = (d['steps'] as num?)?.toDouble() ?? 0;
+        final sleep = (d['sleepHours'] as num?)?.toDouble() ?? 0;
+        if (steps > 0 || sleep > 0) validDays++;
+        totalSteps += steps;
+        totalSleep += sleep;
+      }
+
       setState(() {
         _activeDays = count.toString();
         _dataPoints = (count * 5).toString();
+        if (validDays > 0) {
+          _currentAvgSteps = totalSteps / validDays;
+          _currentAvgSleep = totalSleep / validDays;
+        }
       });
+
       // Risk geçmişinden en son skoru al
       final history = await FirebaseFirestore.instance
           .collection('users')
@@ -175,7 +202,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               gender: gender,
               height: height,
               weight: weight,
-              // Diğer verileri son kayıttan alabiliriz, ama profil temeldir
             ),
           );
 
@@ -185,7 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             _age = age;
             _gender = gender;
             _height = height;
-            _userWeight = weight; // State'i güncelle
+            _userWeight = weight;
           });
         },
       ),
@@ -381,299 +407,590 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  // ── BMI Hesaplama ──────────────────────────────────────────────────
+  double get _bmi {
+    if (_height <= 0 || _userWeight <= 0) return 0;
+    return _userWeight / ((_height / 100) * (_height / 100));
+  }
+
+  String get _bmiCategory {
+    final b = _bmi;
+    if (b <= 0) return '-';
+    if (b < 18.5) return 'Zayıf';
+    if (b < 25) return 'Normal';
+    if (b < 30) return 'Fazla Kilolu';
+    return 'Obez';
+  }
+
+  Color get _bmiColor {
+    final b = _bmi;
+    if (b < 18.5) return AppColors.accent;
+    if (b < 25) return AppColors.secondary;
+    if (b < 30) return AppColors.accent;
+    return AppColors.destructive;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bg = Theme.of(context).scaffoldBackgroundColor;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildHeader(context),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          : CustomScrollView(
+              slivers: [
+                // ── Sabit Header ──
+                SliverAppBar(
+                  expandedHeight: 200,
+                  floating: false,
+                  pinned: true,
+                  backgroundColor: AppColors.primary,
+                  elevation: 0,
+                  automaticallyImplyLeading: false,
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [AppColors.primary, AppColors.primaryLight],
+                        ),
+                      ),
+                      child: SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                          child: Column(
+                            children: [
+                              // Top row
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Profilim',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: _showEditProfileSheet,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(Icons.edit_outlined, color: Colors.white, size: 20),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              // Profile info row
+                              Row(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 32,
+                                      backgroundImage: ImageUtils.getPhotoProvider(_photoUrl),
+                                      backgroundColor: Colors.white.withValues(alpha: 0.1),
+                                      child: _photoUrl.isEmpty
+                                          ? const Icon(Icons.person, color: Colors.white, size: 32)
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _fullName.isNotEmpty ? _fullName : 'İsimsiz Kullanıcı',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _email,
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.7),
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        if (_bio.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _bio,
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.6),
+                                              fontSize: 12,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    titlePadding: const EdgeInsets.only(left: 24, bottom: 16),
+                    title: const SizedBox.shrink(),
+                  ),
+                ),
+
+                // ── Body ──
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
                     child: Column(
                       children: [
-                        _buildProfileCard(context),
+                        _buildQuickStats(context),
                         const SizedBox(height: 16),
-                        _buildPersonalInfo(context),
-                        const SizedBox(height: 16),
-                        _buildPreferences(context),
+                        _buildBodyMetrics(context),
                         const SizedBox(height: 16),
                         _buildHealthGoals(context),
+                        const SizedBox(height: 16),
+                        _buildPreferences(context),
                         const SizedBox(height: 16),
                         _buildAbout(context),
                         const SizedBox(height: 16),
                         _buildSignOut(context),
-                        const SizedBox(height: 80),
                       ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      height: 160,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryLight],
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => context.go('/app/dashboard'),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Profilim',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    'Hesabınızı yönetin',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileCard(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Transform.translate(
-      offset: const Offset(0, -40),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: cs.outlineVariant),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundImage: ImageUtils.getPhotoProvider(_photoUrl),
-                  backgroundColor: AppColors.primary,
-                  child: _photoUrl.isEmpty
-                      ? const Icon(Icons.person, color: Colors.white, size: 36)
-                      : null,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _fullName.isNotEmpty ? _fullName : 'İsimsiz Kullanıcı',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                      Text(
-                        _email,
-                        style: TextStyle(
-                          color: cs.onSurfaceVariant,
-                          fontSize: 13,
-                        ),
-                      ),
-                      if (_bio.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          _bio,
-                          style: TextStyle(
-                            color: cs.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                // ── Düzenle butonu ──
-                GestureDetector(
-                  onTap: _showEditProfileSheet,
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.edit_outlined,
-                      color: AppColors.primary,
-                      size: 20,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            Divider(color: cs.outlineVariant),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _profileStat(context, _healthScore, 'Sağlık Skoru'),
-                _profileStat(context, _activeDays, 'Aktif Gün'),
-                _profileStat(context, _dataPoints, 'Veri Noktası'),
-              ],
-            ),
-          ],
-        ),
+    );
+  }
+
+  // ── Hızlı İstatistikler ──
+  Widget _buildQuickStats(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _quickStat(cs, _healthScore, 'Sağlık\nSkoru', AppColors.secondary),
+          Container(width: 1, height: 40, color: cs.outlineVariant),
+          _quickStat(cs, _activeDays, 'Aktif\nGün', AppColors.primary),
+          Container(width: 1, height: 40, color: cs.outlineVariant),
+          _quickStat(cs, _dataPoints, 'Veri\nNoktası', AppColors.accent),
+        ],
       ),
     );
   }
 
-  Widget _profileStat(BuildContext context, String value, String label) {
-    final cs = Theme.of(context).colorScheme;
+  Widget _quickStat(ColorScheme cs, String value, String label, Color color) {
     return Column(
       children: [
         Text(
           value,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: cs.onSurface,
-          ),
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: color),
         ),
-        Text(label, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, height: 1.3),
+        ),
       ],
     );
   }
 
-  Widget _buildPersonalInfo(BuildContext context) {
+  // ── Vücut Metrikleri (BMI + Boy/Kilo/Yaş) ──
+  Widget _buildBodyMetrics(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final items = [
-      _InfoItem(
-        Icons.mail_outline,
-        'Email',
-        _email.isNotEmpty ? _email : '-',
-        null,
-      ),
-      _InfoItem(
-        Icons.info_outline,
-        'Hakkımda',
-        _bio.isNotEmpty ? _bio : 'Eklemek için dokunun',
-        _showEditBioDialog,
-      ),
-      _InfoItem(
-        Icons.cake_outlined,
-        'Fiziksel Veriler',
-        'Yaş: $_age, Boy: $_height cm, Cinsiyet: ${_gender == 'M' ? 'Erkek' : 'Kadın'}',
-        _showEditProfileSheet,
-      ),
-    ];
-    return _sectionCard(
-      context: context,
-      title: 'Kişisel Bilgiler',
+    return AppCard(
+      padding: const EdgeInsets.all(20),
       child: Column(
-        children: items.asMap().entries.map((e) {
-          return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              InkWell(
-                onTap: e.value.onTap,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Row(
-                    children: [
-                      Icon(e.value.icon, color: cs.onSurfaceVariant, size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              e.value.label,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                            Text(
-                              e.value.value,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: e.value.onTap != null
-                                    ? cs.onSurface
-                                    : cs.onSurfaceVariant,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (e.value.onTap != null)
-                        Icon(
-                          Icons.chevron_right,
-                          color: cs.onSurfaceVariant,
-                          size: 20,
-                        ),
-                    ],
+              Text('Vücut Metrikleri', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+              GestureDetector(
+                onTap: _showEditProfileSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Düzenle',
+                    style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
-              if (e.key < items.length - 1)
-                Divider(color: cs.outlineVariant, height: 1),
             ],
+          ),
+          const SizedBox(height: 16),
+          // BMI Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _bmiColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _bmiColor.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _bmiColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.monitor_weight_outlined, color: _bmiColor, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Vücut Kitle İndeksi (BMI)', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                      const SizedBox(height: 2),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            _bmi > 0 ? _bmi.toStringAsFixed(1) : '--',
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _bmiColor),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _bmiColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _bmiCategory,
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _bmiColor),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Body stats row
+          Row(
+            children: [
+              _bodyMetricChip(cs, Icons.height, 'Boy', '${_height.toInt()} cm'),
+              const SizedBox(width: 8),
+              _bodyMetricChip(cs, Icons.monitor_weight_outlined, 'Kilo', '${_userWeight.toStringAsFixed(1)} kg', onTap: _showWeightUpdateSheet),
+              const SizedBox(width: 8),
+              _bodyMetricChip(cs, Icons.cake_outlined, 'Yaş', '$_age'),
+              const SizedBox(width: 8),
+              _bodyMetricChip(cs, Icons.wc, 'Cinsiyet', _gender == 'M' ? 'Erkek' : 'Kadın'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bodyMetricChip(ColorScheme cs, IconData icon, String label, String value, {VoidCallback? onTap}) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: onTap != null ? Border.all(color: AppColors.primary.withValues(alpha: 0.2)) : null,
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 16, color: onTap != null ? AppColors.primary : cs.onSurfaceVariant),
+              const SizedBox(height: 4),
+              Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurface)),
+              Text(label, style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Hızlı Kilo Güncelleme ──
+  void _showWeightUpdateSheet() {
+    double newWeight = _userWeight;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final cs = Theme.of(ctx).colorScheme;
+          final newBmi = newWeight / ((_height / 100) * (_height / 100));
+          String bmiCat;
+          Color bmiCol;
+          if (newBmi < 18.5) { bmiCat = 'Zayıf'; bmiCol = AppColors.accent; }
+          else if (newBmi < 25) { bmiCat = 'Normal'; bmiCol = AppColors.secondary; }
+          else if (newBmi < 30) { bmiCat = 'Fazla Kilolu'; bmiCol = AppColors.accent; }
+          else { bmiCat = 'Obez'; bmiCol = AppColors.destructive; }
+
+          return Container(
+            decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: cs.outlineVariant, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text('Kilo Güncelle', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface)),
+                const SizedBox(height: 20),
+                Text(
+                  '${newWeight.toStringAsFixed(1)} kg',
+                  style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: cs.onSurface),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('BMI: ${newBmi.toStringAsFixed(1)} ', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: bmiCol.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                      child: Text(bmiCat, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: bmiCol)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: AppColors.primary,
+                    thumbColor: AppColors.primary,
+                    inactiveTrackColor: AppColors.primary.withValues(alpha: 0.2),
+                  ),
+                  child: Slider(
+                    value: newWeight, min: 30, max: 200,
+                    onChanged: (v) => setLocal(() => newWeight = double.parse(v.toStringAsFixed(1))),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // +/- butonları
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _weightBtn(ctx, '-1', () => setLocal(() => newWeight = (newWeight - 1).clamp(30, 200))),
+                    const SizedBox(width: 8),
+                    _weightBtn(ctx, '-0.1', () => setLocal(() => newWeight = double.parse((newWeight - 0.1).clamp(30, 200).toStringAsFixed(1)))),
+                    const SizedBox(width: 8),
+                    _weightBtn(ctx, '+0.1', () => setLocal(() => newWeight = double.parse((newWeight + 0.1).clamp(30, 200).toStringAsFixed(1)))),
+                    const SizedBox(width: 8),
+                    _weightBtn(ctx, '+1', () => setLocal(() => newWeight = (newWeight + 1).clamp(30, 200))),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () async {
+                      // Profile güncelle
+                      final profile = await UserProfileService.getProfile();
+                      if (profile != null) {
+                        final updated = UserProfile(
+                          uid: profile.uid,
+                          fullName: profile.fullName,
+                          email: profile.email,
+                          age: profile.age,
+                          height: profile.height,
+                          weight: newWeight,
+                          gender: profile.gender,
+                          photoUrl: profile.photoUrl,
+                          bio: profile.bio,
+                        );
+                        await UserProfileService.saveProfile(updated);
+                      }
+                      // Bugünkü entry'ye de yaz
+                      final existing = await HealthService.getTodayEntry();
+                      final entry = (existing ?? HealthEntry(date: DateTime.now())).copyWith(
+                        weight: newWeight,
+                        source: 'manual',
+                      );
+                      await HealthService.saveHealthEntry(entry);
+
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      setState(() => _userWeight = newWeight);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Kaydet', style: TextStyle(fontSize: 15)),
+                  ),
+                ),
+              ],
+            ),
           );
-        }).toList(),
+        },
+      ),
+    );
+  }
+
+  Widget _weightBtn(BuildContext context, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary)),
+      ),
+    );
+  }
+
+  // ── Sağlık Hedefleri (gerçek verilerle) ──
+  Widget _buildHealthGoals(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    // Gerçek ilerlemeleri hesapla
+    final weightProgress = _targetWeight > 0
+        ? (1 - ((_userWeight - _targetWeight).abs() / _userWeight)).clamp(0.0, 1.0)
+        : 0.0;
+    final stepsProgress = _targetSteps > 0
+        ? (_currentAvgSteps / _targetSteps).clamp(0.0, 1.0)
+        : 0.0;
+    final sleepProgress = _targetSleep > 0
+        ? (_currentAvgSleep / _targetSleep).clamp(0.0, 1.0)
+        : 0.0;
+
+    final goals = [
+      _Goal(
+        'Hedef Kilo',
+        '${_userWeight.toStringAsFixed(1)} / ${_targetWeight.toInt()} kg',
+        weightProgress,
+        AppColors.primary,
+      ),
+      _Goal(
+        'Günlük Adım',
+        '${_currentAvgSteps.toInt()} / ${(_targetSteps / 1000).toStringAsFixed(0)}k ort.',
+        stepsProgress,
+        AppColors.secondary,
+      ),
+      _Goal(
+        'Uyku Süresi',
+        '${_currentAvgSleep.toStringAsFixed(1)} / ${_targetSleep.toStringAsFixed(0)} saat ort.',
+        sleepProgress,
+        AppColors.accent,
+      ),
+    ];
+
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Sağlık Hedefleri', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+              GestureDetector(
+                onTap: _showHealthGoalsSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Düzenle',
+                    style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...goals.map((g) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        g.label,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: cs.onSurface),
+                      ),
+                      Text(
+                        g.value,
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: g.color),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: g.progress,
+                            minHeight: 6,
+                            backgroundColor: cs.outlineVariant.withValues(alpha: 0.3),
+                            valueColor: AlwaysStoppedAnimation<Color>(g.color),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${(g.progress * 100).toInt()}%',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: g.color),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          )),
+        ],
       ),
     );
   }
@@ -681,11 +998,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildPreferences(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = themeNotifier.value == ThemeMode.dark;
-    return _sectionCard(
-      context: context,
-      title: 'Tercihler',
+    return AppCard(
+      padding: const EdgeInsets.all(20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Tercihler', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+          const SizedBox(height: 16),
           _toggleRow(
             context,
             Icons.notifications_outlined,
@@ -708,7 +1027,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             }),
           ),
           Divider(color: cs.outlineVariant, height: 24),
-          // ── Gizlilik ve Güvenlik — tıklanabilir ──
           InkWell(
             onTap: _showPrivacyDialog,
             borderRadius: BorderRadius.circular(8),
@@ -720,31 +1038,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                     color: AppColors.secondary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.shield_outlined,
-                    color: AppColors.secondary,
-                    size: 20,
-                  ),
+                  child: const Icon(Icons.shield_outlined, color: AppColors.secondary, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Gizlilik ve Güvenlik',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                      Text(
-                        'Veri koruma ayarları',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
+                      Text('Gizlilik ve Güvenlik', style: TextStyle(fontWeight: FontWeight.w500, color: cs.onSurface)),
+                      Text('Veri koruma ayarları', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                     ],
                   ),
                 ),
@@ -782,17 +1084,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: cs.onSurface,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-              ),
+              Text(title, style: TextStyle(fontWeight: FontWeight.w500, color: cs.onSurface)),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
             ],
           ),
         ),
@@ -805,103 +1098,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildHealthGoals(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final goals = [
-      _Goal(
-        'Hedef Kilo',
-        '${_targetWeight.toInt()} kg',
-        0.60,
-        AppColors.primary,
-      ),
-      _Goal(
-        'Günlük Adım',
-        '${(_targetSteps / 1000).toStringAsFixed(1)}k',
-        0.84,
-        AppColors.secondary,
-      ),
-      _Goal(
-        'Uyku Süresi',
-        '${_targetSleep.toStringAsFixed(1)} saat',
-        0.94,
-        AppColors.accent,
-      ),
-    ];
-    return _sectionCard(
-      context: context,
-      title: 'Sağlık Hedefleri',
-      trailing: GestureDetector(
-        onTap: _showHealthGoalsSheet,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Text(
-            'Düzenle',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.primary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-      child: Column(
-        children: goals
-            .map(
-              (g) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            g.label,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: cs.onSurface,
-                            ),
-                          ),
-                          Text(
-                            g.value,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: g.color,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: g.progress,
-                          minHeight: 6,
-                          backgroundColor: cs.outlineVariant,
-                          valueColor: AlwaysStoppedAnimation<Color>(g.color),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
   Widget _buildAbout(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final items = [
@@ -909,11 +1105,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       ('Kullanım Koşulları', _showTermsDialog),
       ('Gizlilik Politikası', _showPrivacyPolicyDialog),
     ];
-    return _sectionCard(
-      context: context,
-      title: 'Hakkında',
+    return AppCard(
+      padding: const EdgeInsets.all(20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Hakkında', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+          const SizedBox(height: 16),
           ...items.map(
             (item) => Column(
               children: [
@@ -926,11 +1124,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(item.$1, style: TextStyle(color: cs.onSurface)),
-                        Icon(
-                          Icons.chevron_right,
-                          color: cs.onSurfaceVariant,
-                          size: 20,
-                        ),
+                        Icon(Icons.chevron_right, color: cs.onSurfaceVariant, size: 20),
                       ],
                     ),
                   ),
@@ -942,8 +1136,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Text(
-              'Versiyon 1.0.0',
-              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+              'AKSA v1.0.0 • Akıllı Kişisel Sağlık Asistanı',
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             ),
           ),
         ],
@@ -998,50 +1192,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             fontWeight: FontWeight.w600,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _sectionCard({
-    required BuildContext context,
-    required String title,
-    required Widget child,
-    Widget? trailing,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface,
-                ),
-              ),
-              if (trailing != null) trailing,
-            ],
-          ),
-          const SizedBox(height: 16),
-          child,
-        ],
       ),
     );
   }
@@ -1539,13 +1689,6 @@ class _HelpItem extends StatelessWidget {
       ],
     );
   }
-}
-
-class _InfoItem {
-  final IconData icon;
-  final String label, value;
-  final VoidCallback? onTap;
-  const _InfoItem(this.icon, this.label, this.value, this.onTap);
 }
 
 class _Goal {

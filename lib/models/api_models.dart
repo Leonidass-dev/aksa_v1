@@ -148,6 +148,51 @@ class FoodAnalysisResult {
   }
 }
 
+class DietMealItem {
+  final String mealType;
+  final String foodName;
+  final String portion;
+  final int calories;
+  final String reasoning;
+
+  const DietMealItem({
+    required this.mealType,
+    required this.foodName,
+    required this.portion,
+    required this.calories,
+    required this.reasoning,
+  });
+
+  factory DietMealItem.fromJson(Map<String, dynamic> json) => DietMealItem(
+        mealType: json['meal_type'] as String? ?? '',
+        foodName: json['food_name'] as String? ?? '',
+        portion: json['portion'] as String? ?? '',
+        calories: json['calories'] as int? ?? 0,
+        reasoning: json['reasoning'] as String? ?? '',
+      );
+}
+
+class DietPlanResult {
+  final int dailyCaloriesTarget;
+  final List<DietMealItem> meals;
+  final String aiAdvice;
+
+  const DietPlanResult({
+    required this.dailyCaloriesTarget,
+    required this.meals,
+    required this.aiAdvice,
+  });
+
+  factory DietPlanResult.fromJson(Map<String, dynamic> json) => DietPlanResult(
+        dailyCaloriesTarget: json['daily_calories_target'] as int? ?? 0,
+        meals: (json['meals'] as List<dynamic>?)
+                ?.map((e) => DietMealItem.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        aiAdvice: json['ai_advice'] as String? ?? '',
+      );
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Anomali Tespiti
 // ═══════════════════════════════════════════════════════════════

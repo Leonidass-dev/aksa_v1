@@ -64,36 +64,36 @@ class HealthEntry {
     this.source = 'manual',
   });
 
-  Map<String, dynamic> toJson() => {
-    'date': date.toIso8601String(),
-    // Aktivite
-    'steps': steps,
-    'active_calories': activeCalories,
-    'total_calories': totalCalories,
-    'distance_m': distanceM,
-    // Kardiyovasküler
-    'heart_rate': heartRate,
-    'resting_heart_rate': restingHeartRate,
-    'spo2': spo2,
-    // Tansiyon
-    'systolic': systolic,
-    'diastolic': diastolic,
-    // Uyku
-    'sleep_hours': sleepHours,
-    'sleep_deep_min': sleepDeepMin,
-    'sleep_light_min': sleepLightMin,
-    'sleep_rem_min': sleepRemMin,
-    'sleep_awake_min': sleepAwakeMin,
-    // Stres & Vücut
-    'stress_level': stressLevel,
-    'weight': weight,
-    // Yeni Özellikler
-    'water_ml': waterMl,
-    'mood': mood,
-    // Meta
-    'source': source,
-    'updated_at': FieldValue.serverTimestamp(),
-  };
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'date': date.toIso8601String(),
+      'mood': mood,
+      'source': source,
+      'updated_at': FieldValue.serverTimestamp(),
+    };
+
+    // Sadece anlamlı (> 0) değerleri yaz, böylece merge:true ile
+    // mevcut Health Connect verileri sıfırlanmaz
+    if (steps > 0) map['steps'] = steps;
+    if (activeCalories > 0) map['active_calories'] = activeCalories;
+    if (totalCalories > 0) map['total_calories'] = totalCalories;
+    if (distanceM > 0) map['distance_m'] = distanceM;
+    if (heartRate > 0) map['heart_rate'] = heartRate;
+    if (restingHeartRate > 0) map['resting_heart_rate'] = restingHeartRate;
+    if (spo2 > 0) map['spo2'] = spo2;
+    if (systolic > 0) map['systolic'] = systolic;
+    if (diastolic > 0) map['diastolic'] = diastolic;
+    if (sleepHours > 0) map['sleep_hours'] = sleepHours;
+    if (sleepDeepMin > 0) map['sleep_deep_min'] = sleepDeepMin;
+    if (sleepLightMin > 0) map['sleep_light_min'] = sleepLightMin;
+    if (sleepRemMin > 0) map['sleep_rem_min'] = sleepRemMin;
+    if (sleepAwakeMin > 0) map['sleep_awake_min'] = sleepAwakeMin;
+    if (stressLevel > 0) map['stress_level'] = stressLevel;
+    if (weight > 0) map['weight'] = weight;
+    if (waterMl > 0) map['water_ml'] = waterMl;
+
+    return map;
+  }
 
   factory HealthEntry.fromJson(Map<String, dynamic> json) => HealthEntry(
     date: DateTime.tryParse(json['date'] ?? '') ?? DateTime.now(),

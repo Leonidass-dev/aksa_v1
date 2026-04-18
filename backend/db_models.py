@@ -34,6 +34,7 @@ class User(Base):
     meal_records = relationship("MealRecord", back_populates="user", cascade="all, delete-orphan")
     exercise_plans = relationship("ExercisePlan", back_populates="user", cascade="all, delete-orphan")
     chat_messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")
+    daily_diet_plans = relationship("DailyDietPlan", back_populates="user", cascade="all, delete-orphan")
 
 
 class HealthRecord(Base):
@@ -76,6 +77,9 @@ class HealthRecord(Base):
     # ── Yeni Özellikler ──────────────────────────────────────
     water_ml = Column(Float, default=0)                  # Su içme (ml)
     mood = Column(String(50), default="neutral")         # Ruh hali (happy, sad, etc.)
+
+    # ── Yapay Zeka & Filtrelenmiş Veriler (M2 - Pipeline) ────
+    ml_features = Column(JSON, nullable=True)            # Sliding Window özellikleri (LSTM için hazır matris)
 
     # ── Meta ──────────────────────────────────────────────────
     source = Column(String(50), default="manual")        # "health_connect" | "manual"
@@ -150,3 +154,16 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="chat_messages")
+
+
+class DailyDietPlan(Base):
+    """Günü birlik diyet planı önbelleği."""
+    __tablename__ = "daily_diet_plans"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    plan_date = Column(Date, nullable=False, index=True)
+    plan_data = Column(JSON, nullable=False)  # DietPlanResponse içeriği (JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="daily_diet_plans")

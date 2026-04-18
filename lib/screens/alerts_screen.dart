@@ -4,6 +4,7 @@ import '../services/health_service.dart';
 import '../services/api_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/theme_aware_state.dart';
+import 'package:intl/intl.dart';
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
@@ -14,8 +15,10 @@ class AlertsScreen extends StatefulWidget {
 
 class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
   bool _loading = true;
+  bool _syncing = false;
   AnomalyApiResult? _result;
   String? _errorMsg;
+  DateTime? _analyzedDate;
 
   @override
   void initState() {
@@ -26,8 +29,18 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
   Future<void> _runAnomalyCheck() async {
     setState(() {
       _loading = true;
+      _syncing = true;
       _errorMsg = null;
     });
+
+    // ── GÖREVLENDİRME: Önce Saatten Senkronize Ol (Analiz Güncelliği İçin) ──
+    try {
+      await HealthService.syncFromDevice(force: true);
+    } catch (e) {
+      debugPrint("Senkronizasyon hatası (geçiliyor): $e");
+    }
+    
+    if (mounted) setState(() => _syncing = false);
 
     // Son 7 günün verisini Firestore'dan çek
     final entries = await HealthService.getLastNDays(8);
@@ -44,6 +57,8 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
     // Bugünün kaydı en yeni entry; history = geri kalanlar
     final todayEntry = entries.first;
     final historyEntries = entries.skip(1).toList();
+    
+    _analyzedDate = todayEntry.date;
 
     if (historyEntries.length < 3) {
       setState(() {
@@ -66,7 +81,7 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
     };
 
     final result = await ApiService.checkAnomalies(
-      history: {'data': historyEntries.map(entryToMap).toList()},
+      history: historyEntries.map(entryToMap).toList(),
       today: entryToMap(todayEntry),
     );
 
@@ -154,15 +169,15 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
 
   Widget _buildBody(BuildContext context) {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 60),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
         child: Column(
           children: [
-            CircularProgressIndicator(color: AppColors.primary),
-            SizedBox(height: 16),
+            const CircularProgressIndicator(color: AppColors.primary),
+            const SizedBox(height: 16),
             Text(
-              'Son 7 gün analiz ediliyor...',
-              style: TextStyle(fontSize: 13),
+              _syncing ? 'Akıllı saatten veri alınıyor...' : 'Son 7 gün analiz ediliyor...',
+              style: const TextStyle(fontSize: 13),
             ),
           ],
         ),
@@ -182,12 +197,29 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            '${_result!.anomalies.length} Uyarı Tespit Edildi',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${_result!.anomalies.length} Uyarı Tespit Edildi',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              if (_analyzedDate != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    DateFormat('d MMMM yyyy').format(_analyzedDate!),
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  ),
+                ),
+            ],
           ),
         ),
         ..._result!.anomalies.map(

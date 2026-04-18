@@ -79,7 +79,7 @@ async def chat_with_assistant(
         context += f"- Ruh Hali: {latest_record.mood or 'Belirtilmedi'}\n"
     if latest_risk:
         context += f"- Hesaplanan Risk Skoru: {latest_risk.score} / 100\n"
-        context += f"- Risk Seviyesi: {latest_risk.level_name}\n"
+        context += f"- Risk Seviyesi: {latest_risk.level_label}\n"
     context += "--------------------------------\n"
 
     # Kullanıcı mesajını DB'ye kaydet

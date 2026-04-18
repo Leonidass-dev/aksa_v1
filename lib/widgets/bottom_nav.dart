@@ -24,8 +24,14 @@ class BottomNav extends StatelessWidget {
       _NavItem(
         icon: Icons.grid_view_outlined,
         activeIcon: Icons.grid_view_rounded,
-        label: 'Ana Ekran',
+        label: 'Ana Sayfa',
         path: '/app/dashboard',
+      ),
+      _NavItem(
+        icon: Icons.restaurant_outlined,
+        activeIcon: Icons.restaurant_rounded,
+        label: 'Beslenme',
+        path: '/app/nutrition',
       ),
       _NavItem(
         icon: Icons.auto_awesome_outlined,
@@ -33,6 +39,12 @@ class BottomNav extends StatelessWidget {
         label: 'Asistan',
         path: '/app/assistant',
         isSpecial: true,
+      ),
+      _NavItem(
+        icon: Icons.fitness_center_outlined,
+        activeIcon: Icons.fitness_center_rounded,
+        label: 'Egzersiz',
+        path: '/app/exercise',
       ),
       _NavItem(
         icon: Icons.person_outline,
@@ -57,9 +69,9 @@ class BottomNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: items.map((item) {
               final isActive = location.startsWith(item.path);
@@ -78,20 +90,20 @@ class BottomNav extends StatelessWidget {
                     children: [
                       Icon(
                         isActive ? item.activeIcon : item.icon,
-                        size: 24,
+                        size: 22,
                         color: isActive
                             ? AppColors.primary
-                            : AppColors.mutedForeground.withValues(alpha: 0.7),
+                            : AppColors.mutedForeground.withValues(alpha: 0.6),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         item.label,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                           color: isActive
                               ? AppColors.primary
-                              : AppColors.mutedForeground.withValues(alpha: 0.7),
+                              : AppColors.mutedForeground.withValues(alpha: 0.6),
                         ),
                       ),
                     ],
@@ -106,9 +118,10 @@ class BottomNav extends StatelessWidget {
   }
 
   Widget _buildSpecialItem(BuildContext context, _NavItem item, bool isActive) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => context.go(item.path),
+    return GestureDetector(
+      onTap: () => context.go(item.path),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -126,21 +139,21 @@ class BottomNav extends StatelessWidget {
                   BoxShadow(
                     color: AppColors.secondary.withValues(alpha: 0.3),
                     blurRadius: 8,
-                    offset: const Offset(0, 4),
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
               child: Icon(
                 item.activeIcon,
                 color: Colors.white,
-                size: 24,
+                size: 22,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               item.label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
                 color: isActive ? AppColors.secondaryDark : AppColors.mutedForeground,
               ),

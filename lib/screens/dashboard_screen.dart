@@ -11,7 +11,6 @@ import '../constants/app_constants.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/app_line_chart.dart';
 import '../widgets/theme_aware_state.dart';
-import '../widgets/water_wave_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -49,6 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   // Bugünün Firestore'dan gelen verileri
   HealthEntry? _todayEntry;
   AnomalyApiResult? _anomalyResult; // Modül 7: Anomali Sonuçları
+  bool _isAnomalyDismissed = false;
 
   String get _greeting {
     final hour = DateTime.now().hour;
@@ -83,14 +83,22 @@ class _DashboardScreenState extends State<DashboardScreen>
     _isSyncing = true;
 
     try {
+      // Health Connect'in `Foreground` kısıtlamasına (Android 14+) takılmamak için
+      // render döngüsünün tam olarak bitmesini küçük bir gecikmeyle garantiye alıyoruz
+      await Future.delayed(const Duration(milliseconds: 800));
+      
       // Uygulama açıldığında veya arkaplandan döndüğünde sessizce verileri eşitle
       await HealthService.syncFromDevice();
       // Ardından arayüzü güncelle
       if (mounted) {
         await _loadTodayData();
       }
+    } catch (e) {
+      debugPrint("Sessiz senkronizasyon hatası: $e");
     } finally {
-      _isSyncing = false;
+      if (mounted) {
+        _isSyncing = false;
+      }
     }
   }
 
@@ -108,6 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _loadTodayData() async {
+    if (!mounted) return;
     setState(() => _loadingRisk = true);
 
     final profile = await UserProfileService.getProfile();
@@ -129,14 +138,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (mounted) {
       if (entry != null) setState(() => _todayEntry = entry);
 
-      // Cihaz verileri (steps, heartRate, sleepHours) manuel verilerden (manualSteps vb) üstündür.
-      // KRİTİK: Eğer saat gece yarısı (00:00 - 02:00) ise ve cihazdan 0 veri geliyorsa, 
-      // manuel veriyi SILME (çünkü kullanıcı daha yürümeye başlamamış ama dün manuel veri girmiş olabilir).
-      final isEarlyMorning = DateTime.now().hour < 2;
-      
-      final steps = (todayData.steps > 0 || !isEarlyMorning) ? todayData.steps : (entry?.steps ?? 0);
-      final heartRate = (todayData.heartRate > 0 || !isEarlyMorning) ? todayData.heartRate : (entry?.heartRate ?? 0);
-      final sleepHours = (todayData.sleepHours > 0 || !isEarlyMorning) ? todayData.sleepHours : (entry?.sleepHours ?? 0);
+      // Not: Erken sabah (00:00-02:00) mantığı health_service.dart syncFromDevice içinde zaten uygulanıyor.
+      // Firestore'dan gelen veri bu düzeltmeyi içeriyor, burada tekrar etmeye gerek yok.
 
       // Firestore'dan veri gelsin ya da gelmesin, mevcut profil bilgisiyle API hesaplamasini yap.
       final result = await ApiService.fetchRiskScore(
@@ -145,13 +148,16 @@ class _DashboardScreenState extends State<DashboardScreen>
           gender: pGender,
           height: pHeight,
           weight: profile?.weight ?? 70.0,
-          steps: steps,
-          sleepHours: sleepHours,
+          steps: todayData.steps,
+          sleepHours: todayData.sleepHours,
           systolic: todayData.systolic,
           diastolic: todayData.diastolic,
-          heartRateResting: heartRate, // Dinlenik
-          heartRateAvg: heartRate,     // Şimdilik aynı, pipeline'dan gelmeli
+          heartRateResting: todayData.restingHeartRate > 0
+              ? todayData.restingHeartRate
+              : todayData.heartRate, // Dinlenik yoksa ortalamayı kullan
+          heartRateAvg: todayData.heartRate,
           spo2: todayData.spo2,
+          stressLevel: todayData.stressLevel,
         ),
       );
 
@@ -164,22 +170,29 @@ class _DashboardScreenState extends State<DashboardScreen>
       // MODÜL 7: ANOMALİ TESPİTİ (Son 7 gün vs Bugün)
       try {
         final last7Days = await HealthService.getLastNDays(7);
-        // Metrik bazlı history map oluştur (Backend beklentisi: {'steps': [v1,v2...], 'heart_rate': [...]})
-        final Map<String, List<double>> formattedHistory = {
-          'steps': last7Days.map((e) => e.steps).toList(),
-          'heart_rate': last7Days.map((e) => e.heartRate).toList(),
-          'sleep_hours': last7Days.map((e) => e.sleepHours).toList(),
-          'systolic': last7Days.map((e) => e.systolic).toList(),
-          'diastolic': last7Days.map((e) => e.diastolic).toList(),
-          'weight': last7Days.map((e) => e.weight).toList(),
-        };
+        // Backend beklentisi: history parametresi list[DailySnapshotRequest] olmalıdır.
+        final List<Map<String, dynamic>> formattedHistory = last7Days.map((e) {
+          final json = e.toJson();
+          json.remove('updated_at'); // FieldValue.serverTimestamp hatasını önlemek için
+          // 'date' alanı zaten toJson'da var, backend 'date' string bekliyor
+          json['date'] ??= DateTime.now().toIso8601String();
+          return json;
+        }).toList();
+
+        // FieldValue.serverTimestamp() nesnesi (updated_at) JSON encode edilemez, bu yüzden API'ye gitmeden önce siliyoruz
+        final todayJson = todayData.toJson();
+        todayJson.remove('updated_at');
+        todayJson['date'] ??= DateTime.now().toIso8601String();
 
         final anomaly = await ApiService.checkAnomalies(
           history: formattedHistory,
-          today: todayData.toJson(),
+          today: todayJson,
         );
         if (mounted) {
-          setState(() => _anomalyResult = anomaly);
+          setState(() {
+            _anomalyResult = anomaly;
+            _isAnomalyDismissed = false; // Yeni veri geldiğinde (veya tazelendiğinde) tekrar göster
+          });
         }
       } catch (e) {
         debugPrint("Anomali kontrol hatası: $e");
@@ -255,7 +268,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
 
-    final success = await HealthService.syncFromDevice();
+    final success = await HealthService.syncFromDevice(force: true);
     
     if (success) {
       await _loadTodayData();
@@ -298,12 +311,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/app/data-entry'),
-        backgroundColor: AppColors.primary,
-        elevation: 4,
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
-      ),
       body: RefreshIndicator(
         onRefresh: _silentSyncAndLoad,
         color: AppColors.primary,
@@ -313,26 +320,26 @@ class _DashboardScreenState extends State<DashboardScreen>
             _buildSliverHeader(context),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_anomalyResult?.hasAnomaly == true) ...[
+                    if (_anomalyResult?.hasAnomaly == true && !_isAnomalyDismissed) ...[
                       _buildModernAnomalyBanner(context),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                     ],
                     _buildMainHealthGauge(context),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                     _buildSectionTitle(context, 'Günlük Metrikler', Icons.insights_rounded),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     _buildMetricsGrid(context),
-                    const SizedBox(height: 32),
-                    _buildSectionTitle(context, 'Hızlı Keşfet', Icons.explore_outlined),
-                    const SizedBox(height: 12),
-                    _buildDiscoverGrid(context),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                     _buildWaterAndMoodSection(context),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 24),
+                    _buildSectionTitle(context, 'Hızlı Keşfet', Icons.explore_outlined),
+                    const SizedBox(height: 10),
+                    _buildDiscoverGrid(context),
+                    const SizedBox(height: 24),
                     _buildWeeklyTrendCard(context),
                   ],
                 ),
@@ -531,113 +538,315 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildMetricsGrid(BuildContext context) {
     final entry = _todayEntry;
+    final steps = entry?.steps ?? 0;
+    final hr = entry?.heartRate ?? 0;
+    final sleepH = entry?.sleepHours ?? 0;
+    final sys = entry?.systolic ?? 0;
+    final dia = entry?.diastolic ?? 0;
+    final spo2 = entry?.spo2 ?? 0;
+    final stress = entry?.stressLevel ?? 0;
+
     return GridView.count(
       crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.5,
+      childAspectRatio: 1.35,
       children: [
         _buildMetricTile(
           context,
-          'Adım',
-          '${entry?.steps.toInt() ?? 0}',
-          Icons.directions_walk_rounded,
-          AppColors.primary,
-          'Hedef: 10k',
+          icon: Icons.directions_walk_rounded,
+          color: const Color(0xFF6366F1),
+          label: 'Adım',
+          value: steps > 0 ? '${steps.toInt()}' : '--',
+          sub: '/ 10.000',
+          progress: (steps / 10000).clamp(0.0, 1.0),
         ),
         _buildMetricTile(
           context,
-          'Nabız',
-          entry?.heartRate != null ? '${entry!.heartRate.toInt()} bpm' : '--',
-          Icons.favorite_rounded,
-          AppColors.secondary,
-          'Dinlenik',
+          icon: Icons.favorite_rounded,
+          color: AppColors.destructive,
+          label: 'Nabız',
+          value: hr > 0 ? '${hr.toInt()}' : '--',
+          sub: hr > 0 ? 'bpm' : '',
+          progress: hr > 0 ? ((hr - 40) / 160).clamp(0.0, 1.0) : 0,
+          progressColor: hr > 100 ? AppColors.destructive : AppColors.secondary,
         ),
         _buildMetricTile(
           context,
-          'Uyku',
-          '${entry?.sleepHours.toStringAsFixed(1) ?? 0} s',
-          Icons.bedtime_rounded,
-          Colors.indigo,
-          'Kaliteli',
+          icon: Icons.bloodtype_rounded,
+          color: AppColors.primary,
+          label: 'Oksijen',
+          value: spo2 > 0 ? '%${spo2.toInt()}' : '--',
+          sub: spo2 > 95 ? 'Normal' : 'Düşük',
+          progress: (spo2 / 100).clamp(0.0, 1.0),
         ),
         _buildMetricTile(
           context,
-          'Tansiyon',
-          (entry?.systolic ?? 0) > 0 ? '${entry!.systolic.toInt()}/${entry.diastolic.toInt()}' : '--',
-          Icons.speed_rounded,
-          AppColors.destructive,
-          'Normal',
+          icon: Icons.psychology_rounded,
+          color: const Color(0xFFF59E0B),
+          label: 'Stres',
+          value: stress > 0 ? '${stress.toInt()}' : '--',
+          sub: stress < 40 ? 'Düşük' : stress < 70 ? 'Orta' : 'Yüksek',
+          progress: (stress / 100).clamp(0.0, 1.0),
+          progressColor: stress > 70 ? AppColors.destructive : stress > 40 ? const Color(0xFFF59E0B) : AppColors.secondary,
+        ),
+        _buildMetricTile(
+          context,
+          icon: Icons.bedtime_rounded,
+          color: const Color(0xFF8B5CF6),
+          label: 'Uyku',
+          value: sleepH > 0 ? sleepH.toStringAsFixed(1) : '--',
+          sub: sleepH > 0 ? '/ 8 saat' : '',
+          progress: (sleepH / 8).clamp(0.0, 1.0),
+        ),
+        _buildMetricTile(
+          context,
+          icon: Icons.speed_rounded,
+          color: AppColors.accent,
+          label: 'Tansiyon',
+          value: sys > 0 ? '${sys.toInt()}/${dia.toInt()}' : '--',
+          sub: sys > 0 ? (sys < 120 ? 'Normal' : sys < 140 ? 'Yüksek' : 'Riskli') : '',
+          progress: sys > 0 ? ((sys - 80) / 120).clamp(0.0, 1.0) : 0,
+          progressColor: sys > 140 ? AppColors.destructive : sys > 130 ? AppColors.accent : AppColors.secondary,
+          onTap: () => _showBPEntrySheet(context),
         ),
       ],
     );
   }
 
-  Widget _buildMetricTile(BuildContext context, String label, String value, IconData icon, Color color, String sub) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
+  Widget _buildMetricTile(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String value,
+    required String sub,
+    required double progress,
+    Color? progressColor,
+    VoidCallback? onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final pColor = progressColor ?? color;
+    return GestureDetector(
+      onTap: onTap,
+      child: AppCard(
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 20),
-              Text(sub, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(label, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500)),
             ],
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
                 value,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: cs.onSurface),
               ),
-              Text(
-                label,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
+              const SizedBox(width: 4),
+              Text(sub, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
             ],
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 4,
+              backgroundColor: cs.outlineVariant.withValues(alpha: 0.3),
+              valueColor: AlwaysStoppedAnimation<Color>(pColor),
+            ),
           ),
         ],
       ),
+    ),
     );
   }
 
-  Widget _buildDiscoverGrid(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      children: [
-        _buildDiscoverItem(context, Icons.apple_rounded, 'Beslenme', AppColors.secondary, '/app/nutrition'),
-        _buildDiscoverItem(context, Icons.fitness_center_rounded, 'Egzersiz', AppColors.primary, '/app/exercise'),
-        _buildDiscoverItem(context, Icons.psychology_rounded, 'AI Asistan', AppColors.accent, '/app/assistant'),
-        _buildDiscoverItem(context, Icons.analytics_rounded, 'Raporlar', Colors.purple, '/app/reports'),
-      ],
-    );
-  }
+  // ── Tansiyon Giriş Bottom Sheet ──
+  void _showBPEntrySheet(BuildContext context) {
+    final entry = _todayEntry;
+    double sys = entry?.systolic ?? 120;
+    double dia = entry?.diastolic ?? 80;
 
-  Widget _buildDiscoverItem(BuildContext context, IconData icon, String label, Color color, String path) {
-    return GestureDetector(
-      onTap: () => context.go(path),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final cs = Theme.of(ctx).colorScheme;
+          String category;
+          Color catColor;
+          if (sys < 120 && dia < 80) {
+            category = 'Normal';
+            catColor = AppColors.secondary;
+          } else if (sys < 140 || dia < 90) {
+            category = 'Yüksek';
+            catColor = AppColors.accent;
+          } else {
+            category = 'Hipertansiyon';
+            catColor = AppColors.destructive;
+          }
+
+          return Container(
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+              color: cs.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
-        ],
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: cs.outlineVariant, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Tansiyon Ölçümü', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: catColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(category, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: catColor)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Sistolik
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Sistolik (büyük)', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+                    Text('${sys.toInt()} mmHg', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.destructive)),
+                  ],
+                ),
+                SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: AppColors.destructive,
+                    thumbColor: AppColors.destructive,
+                    inactiveTrackColor: AppColors.destructive.withValues(alpha: 0.2),
+                  ),
+                  child: Slider(
+                    value: sys, min: 80, max: 200,
+                    onChanged: (v) => setLocal(() => sys = v.roundToDouble()),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Diastolik
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Diastolik (küçük)', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+                    Text('${dia.toInt()} mmHg', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.accent)),
+                  ],
+                ),
+                SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: AppColors.accent,
+                    thumbColor: AppColors.accent,
+                    inactiveTrackColor: AppColors.accent.withValues(alpha: 0.2),
+                  ),
+                  child: Slider(
+                    value: dia, min: 40, max: 130,
+                    onChanged: (v) => setLocal(() => dia = v.roundToDouble()),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () async {
+                      final existing = await HealthService.getTodayEntry();
+                      final updated = (existing ?? HealthEntry(date: DateTime.now())).copyWith(
+                        systolic: sys,
+                        diastolic: dia,
+                        source: 'manual',
+                      );
+                      await HealthService.saveHealthEntry(updated);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      _loadTodayData();
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Kaydet', style: TextStyle(fontSize: 15)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+  Widget _buildDiscoverGrid(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final shortcuts = [
+      _Shortcut(Icons.analytics_rounded, 'Raporlar', 'Haftalık analiz', const Color(0xFF8B5CF6), '/app/reports'),
+      _Shortcut(Icons.shield_rounded, 'Risk Detayı', 'Skor detayları', AppColors.primary, '/app/risk-score'),
+      _Shortcut(Icons.notifications_active_rounded, 'Uyarılar', 'Sağlık alerts', AppColors.accent, '/app/alerts'),
+    ];
+
+    return SizedBox(
+      height: 90,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: shortcuts.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final s = shortcuts[i];
+          return GestureDetector(
+            onTap: () => context.go(s.path),
+            child: Container(
+              width: 130,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: s.color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: s.color.withValues(alpha: 0.12)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Icon(s.icon, color: s.color, size: 22),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(s.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface)),
+                      Text(s.sub, style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -673,33 +882,54 @@ class _DashboardScreenState extends State<DashboardScreen>
             onPressed: () => context.go('/app/alerts'),
             child: const Text('İncele', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
+          IconButton(
+            onPressed: () => setState(() => _isAnomalyDismissed = true),
+            icon: Icon(Icons.close, size: 18, color: AppColors.destructive.withValues(alpha: 0.6)),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            splashRadius: 20,
+          ),
         ],
       ),
     );
   }
 
   Widget _buildWaterAndMoodSection(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        Expanded(child: _buildWaterTracker(context)),
-        const SizedBox(width: 16),
-        Expanded(child: _buildMoodTracker(context)),
+        _buildWaterTracker(context),
+        const SizedBox(height: 16),
+        _buildMoodTracker(context),
       ],
     );
   }
 
   Widget _buildWeeklyTrendCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AppCard(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Haftalık Trend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Haftalık Risk Trendi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: cs.onSurface)),
+              Row(
+                children: _days.asMap().entries.take(7).map((e) {
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Text(e.value, style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant)),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           SizedBox(
-            height: 100,
+            height: 80,
             child: CustomPaint(
-              size: const Size(double.infinity, 100),
+              size: const Size(double.infinity, 80),
               painter: AppLineChartPainter(data: _weeklyData, color: AppColors.primary),
             ),
           ),
@@ -711,70 +941,135 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildWaterTracker(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final double currentMl = _todayEntry?.waterMl ?? 0;
+    final double pct = (currentMl / _waterTarget).clamp(0.0, 1.0);
+    final Color waterColor = const Color(0xFF3B82F6);
 
     return AppCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Su Takibi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          const SizedBox(height: 12),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              WaterWaveWidget(currentMl: currentMl, targetMl: _waterTarget),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildWaterAddBtn(context, 200),
-                    const SizedBox(height: 8),
-                    _buildWaterAddBtn(context, 500),
-                  ],
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: waterColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.water_drop_rounded, color: waterColor, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Su Takibi', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: cs.onSurface)),
+                ],
+              ),
+              Text(
+                '${currentMl.toInt()} / ${_waterTarget.toInt()} ml',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: waterColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Progress bar
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: pct,
+                  minHeight: 10,
+                  backgroundColor: waterColor.withValues(alpha: 0.1),
+                  valueColor: AlwaysStoppedAnimation<Color>(waterColor),
+                ),
+              ),
+              Positioned.fill(
+                child: Center(
+                  child: Text(
+                    '${(pct * 100).toInt()}%',
+                    style: TextStyle(
+                      fontSize: 7,
+                      fontWeight: FontWeight.bold,
+                      color: pct > 0.4 ? Colors.white : waterColor,
+                    ),
+                  ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          // Quick add buttons
+          Row(
+            children: [200, 330, 500].map((amount) {
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: amount == 500 ? 0 : 8),
+                  child: InkWell(
+                    onTap: () async {
+                      await HealthService.updateWater(amount.toDouble());
+                      _loadTodayData();
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: waterColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: waterColor.withValues(alpha: 0.15)),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(Icons.add_rounded, color: waterColor, size: 16),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${amount}ml',
+                            style: TextStyle(color: waterColor, fontWeight: FontWeight.w600, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildWaterAddBtn(BuildContext context, int amount) {
-    return InkWell(
-      onTap: () async {
-        await HealthService.updateWater(amount.toDouble());
-        _loadTodayData();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Center(
-          child: Text('+$amount', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12)),
-        ),
-      ),
-    );
-  }
-
   Widget _buildMoodTracker(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final currentMood = _todayEntry?.mood ?? 'neutral';
     final moods = [
-      {'val': 'happy', 'emoji': '🤩'},
-      {'val': 'good', 'emoji': '😊'},
-      {'val': 'neutral', 'emoji': '😐'},
-      {'val': 'tired', 'emoji': '😫'},
-      {'val': 'stressed', 'emoji': '😵‍💫'},
+      {'val': 'happy', 'emoji': '🤩', 'label': 'Harika'},
+      {'val': 'good', 'emoji': '😊', 'label': 'İyi'},
+      {'val': 'neutral', 'emoji': '😐', 'label': 'Normal'},
+      {'val': 'tired', 'emoji': '😫', 'label': 'Yorgun'},
+      {'val': 'stressed', 'emoji': '😵‍💫', 'label': 'Stresli'},
     ];
 
     return AppCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Modun?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.emoji_emotions_outlined, color: AppColors.accent, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text('Bugün Nasılsın?', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: cs.onSurface)),
+            ],
+          ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -785,11 +1080,33 @@ class _DashboardScreenState extends State<DashboardScreen>
                   await HealthService.updateMood(m['val']!);
                   _loadTodayData();
                 },
-                child: Text(
-                  m['emoji']!,
-                  style: TextStyle(
-                    fontSize: 22,
-                    color: isSelected ? null : Colors.grey.withValues(alpha: 0.5),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.accent.withValues(alpha: 0.1) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: isSelected ? Border.all(color: AppColors.accent.withValues(alpha: 0.3)) : null,
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        m['emoji']!,
+                        style: TextStyle(
+                          fontSize: 24,
+                          color: isSelected ? null : Colors.grey.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        m['label']!,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          color: isSelected ? AppColors.accent : cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -814,4 +1131,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
     return '${negative.join(', ')} dikkat gerektiriyor.';
   }
+}
+
+class _Shortcut {
+  final IconData icon;
+  final String label;
+  final String sub;
+  final Color color;
+  final String path;
+  const _Shortcut(this.icon, this.label, this.sub, this.color, this.path);
 }

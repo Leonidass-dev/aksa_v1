@@ -36,8 +36,12 @@ async def get_exercise_plan(
         # Son 14 günlük sağlık verilerini çek (Context için)
         records = await crud.get_health_records(db, user, days=14)
         
+        # M2 Pipeline'dan bugünün temizlenmiş özellik matrisini çek
+        today_record = await crud.get_today_health(db, user)
+        ml_features = today_record.ml_features if today_record and hasattr(today_record, 'ml_features') else None
+        
         # 1. Klasifikasyon: Güvenlik Sınırı Belirle
-        class_id = await get_exercise_class(req, records)
+        class_id = await get_exercise_class(req, records, ml_features=ml_features)
         
         # 2. Sağlık Özeti (Prompt için)
         health_context = "Son 14 gün özeti:\n"
