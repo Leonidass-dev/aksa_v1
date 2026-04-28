@@ -84,7 +84,7 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
     // Radar verisini de burada hesapla (setState dışında async çalışsın)
     final profile = await UserProfileService.getProfile();
     final weight = profile?.weight ?? 70.0;
-    final waterTarget = HealthService.calculateWaterTarget(weight);
+    final waterTarget = HealthService.calculateWaterTarget(weight, 0.0);
 
     double avgSteps = 0, avgSleep = 0, avgWater = 0, avgRh = 0, avgRisk = 0;
     int count = sorted.length;

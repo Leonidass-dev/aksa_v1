@@ -8,12 +8,14 @@ import '../../services/user_profile_service.dart';
 class WeightUpdateSheet extends StatelessWidget {
   final double currentWeight;
   final double userHeight;
+  final int userAge;
   final ValueChanged<double> onSaved;
 
   const WeightUpdateSheet({
     super.key,
     required this.currentWeight,
     required this.userHeight,
+    required this.userAge,
     required this.onSaved,
   });
 
@@ -28,8 +30,8 @@ class WeightUpdateSheet extends StatelessWidget {
         builder: (ctx, setLocal) {
           final cs = Theme.of(ctx).colorScheme;
           final newBmi = BmiUtils.calculate(userHeight, newWeight);
-          final bmiCat = BmiUtils.category(newBmi);
-          final bmiCol = BmiUtils.color(newBmi);
+          final bmiCat = BmiUtils.category(newBmi, userAge);
+          final bmiCol = BmiUtils.color(newBmi, userAge);
 
           return Container(
             decoration: BoxDecoration(

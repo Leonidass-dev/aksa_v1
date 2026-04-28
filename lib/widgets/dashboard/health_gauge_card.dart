@@ -40,10 +40,14 @@ class HealthGaugeCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Genel Sağlık Durumu',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              const Expanded(
+                child: Text(
+                  'Genel Sağlık Durumu',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(

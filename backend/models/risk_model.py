@@ -197,10 +197,14 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     if snap.weight > 0 and snap.height > 100:
         height_m = snap.height / 100.0
         bmi = snap.weight / (height_m * height_m)
-        if bmi > 25:
-            bmi_penalty = min(20, (bmi - 25) * 1.5)
+        
+        # Yaşlılar için esnetilmiş WESAD/AHA eşiği
+        threshold = 27.0 if snap.age > 65 else 25.0
+        
+        if bmi > threshold:
+            bmi_penalty = min(20, (bmi - threshold) * 1.5)
             score += bmi_penalty
-            label = "Obezite" if bmi >= 30 else "Fazla Kilo"
+            label = "Obezite" if bmi >= (threshold + 5.0) else "Fazla Kilo"
             factors.append(RiskFactor("BMI (VKE)", bmi_penalty, f"{label}: {bmi:.1f}"))
 
     # 2. Yaş Faktörü (Kardiyovasküler yaşlanma)

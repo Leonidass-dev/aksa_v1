@@ -152,6 +152,25 @@ class ApiServiceImpl implements IApiService {
     return null;
   }
 
+  // ── Egzersiz Geri Bildirimi (Tez M6 Feedback Loop) ─────────────
+  @override
+  Future<bool> sendExerciseFeedback(String feedback) async {
+    try {
+      final headers = await _authHeaders();
+      final res = await http.post(
+        Uri.parse('$_baseUrl/exercise-plan/feedback'),
+        headers: headers,
+        body: jsonEncode({'feedback': feedback}),
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Exercise Feedback API hatası: $e');
+    }
+    return false;
+  }
+
   // ── Risk Skoru ────────────────────────────────────────────────
   @override
   Future<RiskApiResult?> fetchRiskScore(RiskApiRequest req) async {
@@ -354,6 +373,7 @@ class ApiService {
   }) => _instance.checkAnomalies(history: history, today: today);
 
   static Future<ExerciseApiResult?> fetchExercisePlan(ExerciseApiRequest req) => _instance.fetchExercisePlan(req);
+  static Future<bool> sendExerciseFeedback(String feedback) => _instance.sendExerciseFeedback(feedback);
   static Future<RiskApiResult?> fetchRiskScore(RiskApiRequest req) => _instance.fetchRiskScore(req);
   static Future<RiskApiResult?> fetchDemoRiskScore() => _instance.fetchDemoRiskScore();
   static Future<List<RiskHistoryItem>> fetchRiskHistory({int limit = 30}) => _instance.fetchRiskHistory(limit: limit);

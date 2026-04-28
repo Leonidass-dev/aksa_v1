@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../models/health_data.dart';
 import '../services/health_service.dart';
@@ -36,6 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // Bugünün Firestore'dan gelen verileri
   HealthEntry? _todayEntry;
+  bool _isDataMissing = false;
   AnomalyApiResult? _anomalyResult; // Modül 7: Anomali Sonuçları
   bool _isAnomalyDismissed = false;
 
@@ -54,6 +56,47 @@ class _DashboardScreenState extends State<DashboardScreen>
     WidgetsBinding.instance.addObserver(this);
     _loadUserName();
     _silentSyncAndLoad();
+    
+    // Uygulama yüklendikten sonra (frame render edildikten sonra) disclaimer kontrolü yap
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkMedicalDisclaimer();
+    });
+  }
+
+  Future<void> _checkMedicalDisclaimer() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeen = prefs.getBool('has_seen_medical_disclaimer') ?? false;
+    
+    if (!hasSeen && mounted) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false, // Kullanıcı kabul etmek zorunda
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.destructive),
+              SizedBox(width: 8),
+              Text('Tıbbi Uyarı'),
+            ],
+          ),
+          content: const Text(
+            'Bu uygulama yapay zeka destekli genel sağlık analizleri sunar '
+            'ancak tıbbi bir teşhis, tedavi veya doktor tavsiyesi yerine geçmez.\n\n'
+            'Herhangi bir sağlık sorununuzda mutlaka bir sağlık profesyoneline başvurunuz.',
+            style: TextStyle(height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () async {
+                await prefs.setBool('has_seen_medical_disclaimer', true);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Anladım, Kabul Ediyorum'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
@@ -113,7 +156,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     final todayData = entry ?? HealthEntry(date: DateTime.now());
 
     if (mounted) {
-      if (entry != null) setState(() => _todayEntry = entry);
+      if (entry != null) {
+        setState(() {
+          _todayEntry = entry;
+          _isDataMissing = (entry.steps == 0 && entry.heartRate == 0);
+        });
+      } else {
+        setState(() {
+          _isDataMissing = true;
+        });
+      }
 
       final result = await ApiService.fetchRiskScore(
         RiskApiRequest(
@@ -135,7 +187,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
 
       if (mounted) {
-        setState(() => _waterTarget = HealthService.calculateWaterTarget(pWeight));
+        setState(() => _waterTarget = HealthService.calculateWaterTarget(pWeight, todayData.activeCalories));
       }
 
       // MODÜL 7: ANOMALİ TESPİTİ
@@ -271,6 +323,29 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                       const SizedBox(height: 16),
                     ],
+                    if (_isDataMissing) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Güncel sağlık verisi bulunamadı. Lütfen saatinizi senkronize edin.',
+                                style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     HealthGaugeCard(
                       riskResult: _riskResult,
                       factorSummary: _topFactorSummary(),
@@ -337,16 +412,22 @@ class _DashboardScreenState extends State<DashboardScreen>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _greeting,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w400),
-                ),
-                Text(_userName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greeting,
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w400),
+                  ),
+                  Text(
+                    _userName,
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
             Row(
               children: [

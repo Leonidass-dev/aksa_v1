@@ -17,6 +17,7 @@ abstract class IApiService {
   });
 
   Future<ExerciseApiResult?> fetchExercisePlan(ExerciseApiRequest req);
+  Future<bool> sendExerciseFeedback(String feedback);
 
   Future<RiskApiResult?> fetchRiskScore(RiskApiRequest req);
 

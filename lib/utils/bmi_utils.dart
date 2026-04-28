@@ -12,17 +12,33 @@ class BmiUtils {
     return weight / ((height / 100) * (height / 100));
   }
 
-  /// BMI değerine göre Türkçe kategori metni döndürür.
-  static String category(double bmi) {
+  /// BMI değerine göre Türkçe kategori metni döndürür. (Yaşa duyarlı)
+  static String category(double bmi, int age) {
     if (bmi <= 0) return '-';
+    
+    // Yaşlılar için eşikler esnetilir (WESAD & AHA standartları)
+    if (age > 65) {
+      if (bmi < 22) return 'Zayıf';
+      if (bmi <= 27) return 'Normal';
+      if (bmi < 32) return 'Fazla Kilolu';
+      return 'Obez';
+    }
+
     if (bmi < 18.5) return 'Zayıf';
     if (bmi < 25) return 'Normal';
     if (bmi < 30) return 'Fazla Kilolu';
     return 'Obez';
   }
 
-  /// BMI kategorisine göre uygun rengi döndürür.
-  static Color color(double bmi) {
+  /// BMI kategorisine göre uygun rengi döndürür. (Yaşa duyarlı)
+  static Color color(double bmi, int age) {
+    if (age > 65) {
+      if (bmi < 22) return AppColors.accent;
+      if (bmi <= 27) return AppColors.secondary;
+      if (bmi < 32) return AppColors.accent;
+      return AppColors.destructive;
+    }
+
     if (bmi < 18.5) return AppColors.accent;
     if (bmi < 25) return AppColors.secondary;
     if (bmi < 30) return AppColors.accent;

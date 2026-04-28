@@ -163,8 +163,12 @@ class _ExerciseScreenState extends State<ExerciseScreen>
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () => context.go('/profile-setup'),
-            child: const Text('Profilimi Tamamla'),
+            onPressed: _errorMsg!.contains('profil')
+                ? () => context.go('/profile-setup')
+                : _loadExercisePlan,
+            child: Text(_errorMsg!.contains('profil')
+                ? 'Profilimi Tamamla'
+                : 'Tekrar Dene'),
           ),
         ],
       );
@@ -822,15 +826,48 @@ class _ExerciseTimerDialogState extends State<_ExerciseTimerDialog> {
             ),
             const SizedBox(height: 28),
             if (_isComplete)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.secondary,
+              Column(
+                children: [
+                  Text(
+                    'Bu egzersiz nasıldı?',
+                    style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
                   ),
-                  child: const Text('Harika! 🎉'),
-                ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            ApiService.sendExerciseFeedback('too_easy');
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Çok Kolay'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            ApiService.sendExerciseFeedback('perfect');
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondary),
+                          child: const Text('İdeal'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            ApiService.sendExerciseFeedback('too_hard');
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Çok Zor'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               )
             else
               Row(

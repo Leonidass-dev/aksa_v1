@@ -212,12 +212,11 @@ class HealthServiceImpl implements IHealthService {
           .toList();
 
       if (hrPoints.isNotEmpty || stepsPoints.isNotEmpty) {
-        ApiService.preprocessRawData(
+        final success = await ApiService.preprocessRawData(
           heartRateData: hrPoints,
           stepsData: stepsPoints,
-        ).then((success) {
-          if (success) debugPrint("Pipeline Veri İşleme Başarılı.");
-        });
+        );
+        if (success) debugPrint("Pipeline Veri İşleme Başarılı.");
       }
 
       // Başarılı senkronizasyon zamanını kaydet
@@ -287,9 +286,12 @@ class HealthServiceImpl implements IHealthService {
 
   // ── Su Hedefi Hesapla (Kilo * 35ml) ──────────────────────────
   @override
-  double calculateWaterTarget(double weight) {
+  double calculateWaterTarget(double weight, double activeCalories) {
     if (weight <= 0) return 2000; // Varsayılan hedef
-    return (weight * 35).roundToDouble();
+    double base = (weight * 35);
+    // Yakılan her 100 aktif kalori için +100ml su ekle (Dinamik hedef)
+    double extra = (activeCalories / 100) * 100;
+    return (base + extra).roundToDouble();
   }
 }
 
@@ -306,5 +308,5 @@ class HealthService {
   static Future<List<HealthEntry>> getLastNDays(int n) => _instance.getLastNDays(n);
   static Future<void> updateWater(double ml) => _instance.updateWater(ml);
   static Future<void> updateMood(String mood) => _instance.updateMood(mood);
-  static double calculateWaterTarget(double weight) => _instance.calculateWaterTarget(weight);
+  static double calculateWaterTarget(double weight, double activeCalories) => _instance.calculateWaterTarget(weight, activeCalories);
 }

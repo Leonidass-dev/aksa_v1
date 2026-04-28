@@ -7,5 +7,5 @@ abstract class IHealthService {
   Future<List<HealthEntry>> getLastNDays(int n);
   Future<void> updateWater(double ml);
   Future<void> updateMood(String mood);
-  double calculateWaterTarget(double weight);
+  double calculateWaterTarget(double weight, double activeCalories);
 }

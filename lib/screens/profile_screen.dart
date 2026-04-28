@@ -153,8 +153,19 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   // ── BMI Hesaplama (BmiUtils'e delege) ────────────────────────────
 
   double get _bmi => BmiUtils.calculate(_height, _userWeight);
-  String get _bmiCategory => BmiUtils.category(_bmi);
-  Color get _bmiColor => BmiUtils.color(_bmi);
+  String get _bmiCategory => BmiUtils.category(_bmi, _age);
+  Color get _bmiColor => BmiUtils.color(_bmi, _age);
+
+  double get _completionRate {
+    double score = 0;
+    if (_fullName.isNotEmpty && _fullName != 'Kullanıcı' && _fullName != 'Guest') score += 0.2;
+    if (_age > 0) score += 0.2;
+    if (_height > 0) score += 0.2;
+    if (_userWeight > 0) score += 0.2;
+    if (_gender.isNotEmpty) score += 0.1;
+    if (_bio.isNotEmpty) score += 0.1;
+    return score;
+  }
 
   // ── Actions ──────────────────────────────────────────────────────
 
@@ -207,6 +218,10 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           activeDays: _activeDays,
                           dataPoints: _dataPoints,
                         ),
+                        if (_completionRate < 1.0) ...[
+                          const SizedBox(height: 16),
+                          _buildCompletionCard(),
+                        ],
                         const SizedBox(height: 16),
                         BodyMetricsCard(
                           bmi: _bmi,
@@ -220,6 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           onWeightTap: () => WeightUpdateSheet(
                             currentWeight: _userWeight,
                             userHeight: _height,
+                            userAge: _age,
                             onSaved: (w) => setState(() => _userWeight = w),
                           ).show(context),
                         ),
@@ -350,6 +366,56 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
         ),
         titlePadding: const EdgeInsets.only(left: 24, bottom: 16),
         title: const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  Widget _buildCompletionCard() {
+    final pct = (_completionRate * 100).toInt();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.stars_rounded, color: AppColors.accent, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Profil Tamamlama',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary.withValues(alpha: 0.8)),
+                  ),
+                ],
+              ),
+              Text(
+                '%$pct',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: _completionRate,
+              minHeight: 8,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Profilinizi tamamlayarak daha doğru sağlık analizleri alabilirsiniz.',
+            style: TextStyle(fontSize: 11, color: AppColors.mutedForeground),
+          ),
+        ],
       ),
     );
   }

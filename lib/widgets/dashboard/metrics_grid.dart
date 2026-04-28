@@ -157,21 +157,25 @@ class MetricTile extends StatelessWidget {
                 ),
               ],
             ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: cs.onSurface,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: cs.onSurface,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Text(sub, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-              ],
+                  const SizedBox(width: 4),
+                  Text(sub, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                ],
+              ),
             ),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),

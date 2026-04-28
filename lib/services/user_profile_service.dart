@@ -53,6 +53,18 @@ class UserProfile {
         photoUrl: m['photoUrl'] as String?,
         bio: m['bio'] as String?,
       );
+
+  /// Profil tamamlama oranını hesaplar (0.0 - 1.0)
+  double get completionRate {
+    double score = 0;
+    if (fullName.isNotEmpty && fullName != 'Kullanıcı') score += 0.2;
+    if (age > 0) score += 0.2;
+    if (height > 0) score += 0.2;
+    if (weight > 0) score += 0.2;
+    if (gender.isNotEmpty) score += 0.1;
+    if (bio != null && bio!.isNotEmpty) score += 0.1;
+    return score;
+  }
 }
 
 class UserProfileServiceImpl implements IUserProfileService {
