@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
-import '../models/api_models.dart';
 import '../theme/app_theme.dart';
 import 'package:intl/intl.dart';
 class DietPlanScreen extends StatefulWidget {

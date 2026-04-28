@@ -18,10 +18,11 @@ try:
     import torch.nn as nn
     import xgboost as xgb
     import joblib
+    import shap
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from ml_models.gru_model import RiskGRU
     _HAS_ML = True
-    logger.info("✅ Risk modeli: XGBoost + GRU yüklendi")
+    logger.info("✅ Risk modeli: XGBoost + GRU (ve SHAP) yüklendi")
 except ImportError as e:
     logger.warning(f"⚠️  ML kütüphaneleri yüklenemedi ({e}) — Kural tabanlı fallback aktif")
 
@@ -139,17 +140,42 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
     else:
         level = "high"
 
+    # Tez M3: SHAP (Açıklanabilir Yapay Zeka - XAI) Entagrasyonu
     factors = []
-    if hr_mean > 95:
-        # Taşikardi sınırı (100) yaklaşıyorsa kademeli katkı
-        hr_contribution = min(20.0, (hr_mean - 95) * 2.0 + 5.0)
-        factors.append(RiskFactor("Nabız", hr_contribution, f"Yüksek ortalama nabız: {hr_mean:.0f}"))
-    if steps_window < 300:
-        factors.append(RiskFactor("Hareketsizlik", 15.0, f"Düşük aktivite: {steps_window:.0f} adım/saat"))
-    if snap.stress_level > 60:
-        factors.append(RiskFactor("Stres", 10.0, "Yüksek stres"))
+    try:
+        explainer = shap.TreeExplainer(_xgb_model)
+        shap_values = explainer.shap_values(features_scaled)
+        
+        # XGBoost multi-class ise shap_values liste döner. En riskli sınıfın (High Risk) değerlerini alalım.
+        sv = shap_values[2] if isinstance(shap_values, list) else shap_values[0]
+        
+        feature_names = [
+            "Ortalama Nabız", "Medyan Nabız", "Min Nabız", "Maks Nabız", "Nabız Std",
+            "Günlük Adım", "Aktif Süre", "Maks Adım Yoğunluğu", "Eksik Veri Oranı"
+        ]
+        
+        # Mutlak değerlerle önem oranlarını (%) bul
+        sv_abs = np.abs(sv)
+        total_sv = np.sum(sv_abs) + 1e-9
+        
+        for i, val in enumerate(sv):
+            pct = (abs(val) / total_sv) * 100
+            if pct > 5.0: # Sadece %5'ten fazla etkisi olanları ekle
+                direction = "Artırıcı" if val > 0 else "Düşürücü"
+                desc = f"Algoritmik SHAP Etkisi ({direction})"
+                factors.append(RiskFactor(feature_names[i], round(float(pct), 1), desc))
+                
+        factors.sort(key=lambda x: x.contribution, reverse=True)
+    except Exception as e:
+        logger.warning(f"SHAP explainer hesaplanırken hata: {e}. Fallback kurallarına dönülüyor.")
+        if hr_mean > 95:
+            hr_contribution = min(20.0, (hr_mean - 95) * 2.0 + 5.0)
+            factors.append(RiskFactor("Nabız", hr_contribution, f"Yüksek ortalama nabız: {hr_mean:.0f}"))
+        if steps_window < 300:
+            factors.append(RiskFactor("Hareketsizlik", 15.0, f"Düşük aktivite: {steps_window:.0f} adım/saat"))
+            
     if not factors:
-        factors.append(RiskFactor("Genel", 0.0, "Veriler normal sınırlar içinde"))
+        factors.append(RiskFactor("Genel", 0.0, "Veriler normal sınırlar içinde veya risk dağılımı dengeli"))
 
     return RiskResult(
         score=score, level=level,

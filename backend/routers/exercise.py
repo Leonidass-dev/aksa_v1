@@ -1,6 +1,7 @@
 import logging
 import crud
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from auth import get_current_user
@@ -18,6 +19,9 @@ router = APIRouter(
     prefix="/exercise-plan",
     tags=["Exercise"]
 )
+
+class ExerciseFeedbackRequest(BaseModel):
+    feedback: str = Field(description="'too_hard', 'too_easy', 'perfect'")
 
 @router.post("", response_model=ExercisePlanResponse)
 async def get_exercise_plan(
@@ -41,7 +45,10 @@ async def get_exercise_plan(
         ml_features = today_record.ml_features if today_record and hasattr(today_record, 'ml_features') else None
         
         # 1. Klasifikasyon: Güvenlik Sınırı Belirle
-        class_id = await get_exercise_class(req, records, ml_features=ml_features)
+        last_plan = await crud.get_last_exercise_plan(db, user)
+        last_feedback = last_plan.feedback if last_plan else None
+        
+        class_id = await get_exercise_class(req, records, ml_features=ml_features, last_feedback=last_feedback)
         
         # 2. Sağlık Özeti (Prompt için)
         health_context = "Son 14 gün özeti:\n"
@@ -87,3 +94,23 @@ async def get_exercise_plan(
     except Exception as e:
         logger.error(f"Egzersiz planı router hatası: {e}")
         return get_fallback_plan(0)  # En güvenli fallback
+
+
+@router.post("/feedback")
+async def submit_exercise_feedback(
+    req: ExerciseFeedbackRequest,
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kullanıcının idman sonrası geri bildirimini kaydeder."""
+    try:
+        user = await crud.get_or_create_user(db, uid)
+        
+        # Kullanıcının en sonki egzersiz planını çek ve feedback'ini kaydet
+        # Tez M6: "Kullanıcı geri bildirimi ile güncelleme" sağlandı.
+        await crud.save_exercise_feedback(db, user, req.feedback)
+        
+        return {"status": "success", "message": "Geri bildiriminiz RNN döngüsüne eklendi."}
+    except Exception as e:
+        logger.error(f"Egzersiz feedback hatası: {e}")
+        return {"status": "error", "message": str(e)}

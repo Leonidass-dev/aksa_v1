@@ -137,6 +137,7 @@ class ExercisePlan(Base):
     total_duration_minutes = Column(Integer, default=0)
     total_calories = Column(Integer, default=0)
     ai_advice = Column(Text, nullable=True)
+    feedback = Column(String(50), nullable=True)         # "too_hard", "too_easy", "perfect"
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="exercise_plans")

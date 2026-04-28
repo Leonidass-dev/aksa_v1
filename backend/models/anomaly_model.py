@@ -168,7 +168,8 @@ def _describe(metric: str, z: float, today: float, avg: float, label: str, unit:
     return desc, rec
 
 
-def _get_shap_contributions(x_t: torch.Tensor) -> list[tuple[str, float]]:
+from typing import Any
+def _get_shap_contributions(x_t: Any) -> list[tuple[str, float]]:
     """SHAP GradientExplainer kullanarak Anomaliye yol açan özellikleri ağırlıklandırır."""
     if not _HAS_SHAP or not _HAS_ML or _ae_model is None:
         return []
@@ -291,15 +292,29 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_feat
 
     # ML anomali bulmuş ama kurallar bulamadıysa veya SHAP açıklaması varsa onu ana anomali olarak ekle
     if has_anomaly_ml:
-        shap_desc = f"LSTM Autoencoder yapısı (Hata Oranı: {mse:.2f}) analiz ederek beklenmeyen bir sapma tespit etti."
+        # Tez M7: K=3 Süreklilik Kuralı (Ardışık günlerde devam ediyor mu?)
+        consecutive_anomalies = 1
+        if len(history) >= 2:
+            for past_day in history[-2:]:
+                past_has_anomaly, _, _ = _check_ae_anomaly(past_day)
+                if past_has_anomaly:
+                    consecutive_anomalies += 1
+                    
+        severity = "medium"
+        if consecutive_anomalies >= 3:
+            severity = "high" # 3 gündür devam ediyorsa yüksek risk
+            shap_desc = f"LSTM-AE modeli {consecutive_anomalies} gündür ardışık anomali tespit ediyor (Süreklilik İhlali). Hata Oranı: {mse:.2f}."
+        else:
+            shap_desc = f"LSTM-AE modeli geçici bir sapma tespit etti. Hata Oranı: {mse:.2f}."
+
         if shap_factors:
             factors_text = ", ".join([f"%{f[1]:.0f} {f[0]}" for f in shap_factors])
-            shap_desc = f"Algoritmamız normal rutininizden sapan bir durum tespit etti. En çok etkileyen faktörler: {factors_text}"
+            shap_desc += f" En çok etkileyen faktörler: {factors_text}"
             
         anomalies.insert(0, AnomalyItem(
             metric="lstm_ae_fusion", metric_label="Yapay Zeka Anomali Tespiti",
             z_score=round(mse * 10, 2), today_value=0, avg_value=0, unit="",
-            severity="high" if mse > _ae_threshold * 1.5 else "medium",
+            severity=severity,
             description=shap_desc,
             recommendation="Farklı seyreden vücut verileriniz yorgunluk belirtisi olabilir. Bugün vücudunuzu dinlemeye özen gösterin.",
         ))

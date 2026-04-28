@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import '../models/health_data.dart';
 
 /// Tez Modül 3 — Risk Skoru Üretimi
@@ -280,23 +281,10 @@ class RiskEngine {
     // Lineer ters çevirme + yumuşatma
     final inverted = 1.0 - prob;
     // Sigmoid ile 0.2–0.8 aralığına sıkıştır, sonra 0–100'e ölçekle
-    final sigmoid = 1.0 / (1.0 + _exp(-10 * (inverted - 0.5)));
+    final sigmoid = 1.0 / (1.0 + math.exp(-10 * (inverted - 0.5)));
     return (sigmoid * 100).clamp(0.0, 100.0);
   }
 
-  static double _exp(double x) {
-    // Dart'ta math import olmadan basit exp yaklaşımı
-    // Gerçek sistemde dart:math kullan
-    if (x > 20) return 485165195.4;
-    if (x < -20) return 0.0000000021;
-    double result = 1.0;
-    double term = 1.0;
-    for (int i = 1; i <= 20; i++) {
-      term *= x / i;
-      result += term;
-    }
-    return result;
-  }
 
   /// Demo snapshot — DataEntry ekranından gelen verilerle oluşturulur
   static HealthSnapshot demoSnapshot({

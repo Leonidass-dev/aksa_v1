@@ -3,20 +3,25 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'interfaces/i_auth_service.dart';
 
-class AuthService {
-  static final FirebaseAuth _auth = FirebaseAuth.instance;
-  static final GoogleSignIn _googleSignIn = GoogleSignIn();
+class AuthServiceImpl implements IAuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // Mevcut kullanıcı stream'i
-  static Stream<User?> get userStream => _auth.authStateChanges();
+  @override
+  Stream<User?> get userStream => _auth.authStateChanges();
 
   // Mevcut kullanıcı
-  static User? get currentUser => _auth.currentUser;
+  @override
+  User? get currentUser => _auth.currentUser;
 
   // ── Email + Şifre: Kayıt ────────────────────────────────────────────────
-  static Future<AuthResult> registerWithEmail({
+  @override
+  Future<AuthResult> registerWithEmail({
     required String name,
     required String email,
     required String password,
@@ -38,7 +43,8 @@ class AuthService {
   }
 
   // ── Email + Şifre: Giriş ────────────────────────────────────────────────
-  static Future<AuthResult> signInWithEmail({
+  @override
+  Future<AuthResult> signInWithEmail({
     required String email,
     required String password,
   }) async {
@@ -56,7 +62,8 @@ class AuthService {
   }
 
   // ── Google ile Giriş ────────────────────────────────────────────────────
-  static Future<AuthResult> signInWithGoogle() async {
+  @override
+  Future<AuthResult> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
@@ -81,7 +88,8 @@ class AuthService {
   }
 
   // ── Apple ile Giriş ─────────────────────────────────────────────────────
-  static Future<AuthResult> signInWithApple() async {
+  @override
+  Future<AuthResult> signInWithApple() async {
     try {
       // Nonce üret (güvenlik için gerekli)
       final rawNonce = _generateNonce();
@@ -127,7 +135,8 @@ class AuthService {
   }
 
   // ── Şifre Sıfırlama ─────────────────────────────────────────────────────
-  static Future<AuthResult> sendPasswordReset(String email) async {
+  @override
+  Future<AuthResult> sendPasswordReset(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
       return AuthResult.successMessage(
@@ -141,13 +150,14 @@ class AuthService {
   }
 
   // ── Çıkış ───────────────────────────────────────────────────────────────
-  static Future<void> signOut() async {
+  @override
+  Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
   }
 
   // ── Nonce Yardımcıları (Apple için) ─────────────────────────────────────
-  static String _generateNonce([int length = 32]) {
+  String _generateNonce([int length = 32]) {
     const charset =
         '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
     final random = Random.secure();
@@ -157,14 +167,14 @@ class AuthService {
     ).join();
   }
 
-  static String _sha256ofString(String input) {
+  String _sha256ofString(String input) {
     final bytes = utf8.encode(input);
     final digest = sha256.convert(bytes);
     return digest.toString();
   }
 
   // ── Firebase Hata Mesajları ──────────────────────────────────────────────
-  static String _firebaseErrorMessage(String code) {
+  String _firebaseErrorMessage(String code) {
     switch (code) {
       case 'email-already-in-use':
         return 'Bu e-posta adresi zaten kullanımda.';
@@ -188,6 +198,33 @@ class AuthService {
         return 'Bir hata oluştu ($code). Lütfen tekrar deneyin.';
     }
   }
+}
+
+/// Test edilebilir Statik Facade yapısı.
+class AuthService {
+  static IAuthService _instance = AuthServiceImpl();
+
+  @visibleForTesting
+  static set instance(IAuthService mock) => _instance = mock;
+
+  static Stream<User?> get userStream => _instance.userStream;
+  static User? get currentUser => _instance.currentUser;
+
+  static Future<AuthResult> registerWithEmail({
+    required String name,
+    required String email,
+    required String password,
+  }) => _instance.registerWithEmail(name: name, email: email, password: password);
+
+  static Future<AuthResult> signInWithEmail({
+    required String email,
+    required String password,
+  }) => _instance.signInWithEmail(email: email, password: password);
+
+  static Future<AuthResult> signInWithGoogle() => _instance.signInWithGoogle();
+  static Future<AuthResult> signInWithApple() => _instance.signInWithApple();
+  static Future<AuthResult> sendPasswordReset(String email) => _instance.sendPasswordReset(email);
+  static Future<void> signOut() => _instance.signOut();
 }
 
 // ── Sonuç Modeli ─────────────────────────────────────────────────────────────

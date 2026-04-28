@@ -272,6 +272,31 @@ async def save_exercise_plan(
     return record
 
 
+async def save_exercise_feedback(
+    db: AsyncSession,
+    user: User,
+    feedback: str,
+) -> ExercisePlan | None:
+    """Son egzersiz planına geri bildirimi kaydeder."""
+    stmt = select(ExercisePlan).where(ExercisePlan.user_id == user.id).order_by(desc(ExercisePlan.created_at)).limit(1)
+    result = await db.execute(stmt)
+    plan = result.scalar_one_or_none()
+    
+    if plan:
+        plan.feedback = feedback
+        await db.commit()
+        return plan
+    return None
+
+async def get_last_exercise_plan(
+    db: AsyncSession,
+    user: User,
+) -> ExercisePlan | None:
+    """Kullanıcının en sonki egzersiz planını getirir."""
+    stmt = select(ExercisePlan).where(ExercisePlan.user_id == user.id).order_by(desc(ExercisePlan.created_at)).limit(1)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
 # ═══════════════════════════════════════════════════════════════════
 #  CHAT MESSAGES
 # ═══════════════════════════════════════════════════════════════════

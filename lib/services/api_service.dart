@@ -5,19 +5,22 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/health_entry.dart';
 import '../models/api_models.dart';
 
+import 'interfaces/i_api_service.dart';
+
 // Re-export so existing `import 'api_service.dart'` importers still see model classes.
 export '../models/api_models.dart';
 
 /// FastAPI backend'e HTTP istekleri gönderen servis.
 /// Tüm istekler Firebase token ile korunur.
-class ApiService {
-  static const String _baseUrl = String.fromEnvironment(
+class ApiServiceImpl implements IApiService {
+  final String _baseUrl = const String.fromEnvironment(
+
     'API_BASE_URL',
     defaultValue: 'http://10.0.2.2:8000/api',
   );
 
   // ── Firebase Token Helper ─────────────────────────────────────
-  static Future<Map<String, String>> _authHeaders() async {
+  Future<Map<String, String>> _authHeaders() async {
     final token = await FirebaseAuth.instance.currentUser?.getIdToken();
     return {
       'Content-Type': 'application/json',
@@ -26,7 +29,8 @@ class ApiService {
   }
 
   // ── Tez Modül 2: Sensör Verisi Önişleme (Pipeline) ────────────
-  static Future<bool> preprocessRawData({
+  @override
+  Future<bool> preprocessRawData({
     required List<Map<String, dynamic>> heartRateData,
     required List<Map<String, dynamic>> stepsData,
   }) async {
@@ -56,7 +60,8 @@ class ApiService {
   }
 
   // ── Yemek Fotoğrafı Analizi ──────────────────────────────────
-  static Future<FoodAnalysisResult?> analyzeFoodImage(
+  @override
+  Future<FoodAnalysisResult?> analyzeFoodImage(
     List<int> imageBytes,
   ) async {
     try {
@@ -80,7 +85,8 @@ class ApiService {
   }
 
   // ── M5: Diyet Planı Önerisi (Yapay Zeka Yeni Modül) ────────────
-  static Future<DietPlanResult?> getDietPlan() async {
+  @override
+  Future<DietPlanResult?> getDietPlan() async {
     try {
       final headers = await _authHeaders();
       final res = await http.get(
@@ -100,7 +106,8 @@ class ApiService {
   }
 
   // ── Anomali Tespiti ────────────────────────────────────────────
-  static Future<AnomalyApiResult?> checkAnomalies({
+  @override
+  Future<AnomalyApiResult?> checkAnomalies({
     required List<Map<String, dynamic>> history,  // Backend list[DailySnapshotRequest] bekliyor
     required Map<String, dynamic> today,
   }) async {
@@ -123,7 +130,8 @@ class ApiService {
   }
 
   // ── Egzersiz Planı Önerisi ─────────────────────────────────────
-  static Future<ExerciseApiResult?> fetchExercisePlan(
+  @override
+  Future<ExerciseApiResult?> fetchExercisePlan(
     ExerciseApiRequest req,
   ) async {
     try {
@@ -145,7 +153,8 @@ class ApiService {
   }
 
   // ── Risk Skoru ────────────────────────────────────────────────
-  static Future<RiskApiResult?> fetchRiskScore(RiskApiRequest req) async {
+  @override
+  Future<RiskApiResult?> fetchRiskScore(RiskApiRequest req) async {
     try {
       final headers = await _authHeaders();
       final response = await http
@@ -166,7 +175,8 @@ class ApiService {
   }
 
   /// Bağlantı testi — demo endpoint'i çağırır.
-  static Future<RiskApiResult?> fetchDemoRiskScore() async {
+  @override
+  Future<RiskApiResult?> fetchDemoRiskScore() async {
     try {
       final response = await http
           .get(Uri.parse('$_baseUrl/risk-score/demo'))
@@ -181,7 +191,8 @@ class ApiService {
   }
 
   // ── Risk Geçmişi ──────────────────────────────────────────────
-  static Future<List<RiskHistoryItem>> fetchRiskHistory({
+  @override
+  Future<List<RiskHistoryItem>> fetchRiskHistory({
     int limit = 30,
   }) async {
     try {
@@ -204,7 +215,8 @@ class ApiService {
   }
 
   // ── Yemek Geçmişi ────────────────────────────────────────────
-  static Future<List<MealHistoryItem>> fetchMealHistory({
+  @override
+  Future<List<MealHistoryItem>> fetchMealHistory({
     int limit = 30,
   }) async {
     try {
@@ -227,7 +239,8 @@ class ApiService {
   }
 
   // ── AI Asistan Chat ────────────────────────────────────────────
-  static Future<AssistantChatResponse?> sendAssistantMessage(
+  @override
+  Future<AssistantChatResponse?> sendAssistantMessage(
     String message,
   ) async {
     try {
@@ -252,7 +265,8 @@ class ApiService {
   }
 
   // ── Chat Geçmişi ──────────────────────────────────────────────
-  static Future<List<ChatHistoryItem>> fetchChatHistory({
+  @override
+  Future<List<ChatHistoryItem>> fetchChatHistory({
     int limit = 50,
   }) async {
     try {
@@ -275,7 +289,8 @@ class ApiService {
   }
 
   // ── Sağlık Verisi Backend Sync ────────────────────────────────
-  static Future<bool> syncHealthToBackend(HealthEntry entry) async {
+  @override
+  Future<bool> syncHealthToBackend(HealthEntry entry) async {
     try {
       final headers = await _authHeaders();
       final body = {
@@ -316,4 +331,34 @@ class ApiService {
       return false;
     }
   }
+}
+
+/// Test edilebilir Statik Facade yapısı.
+class ApiService {
+  static IApiService _instance = ApiServiceImpl();
+
+  @visibleForTesting
+  static set instance(IApiService mock) => _instance = mock;
+
+  static Future<bool> preprocessRawData({
+    required List<Map<String, dynamic>> heartRateData,
+    required List<Map<String, dynamic>> stepsData,
+  }) => _instance.preprocessRawData(heartRateData: heartRateData, stepsData: stepsData);
+
+  static Future<FoodAnalysisResult?> analyzeFoodImage(List<int> imageBytes) => _instance.analyzeFoodImage(imageBytes);
+  static Future<DietPlanResult?> getDietPlan() => _instance.getDietPlan();
+  
+  static Future<AnomalyApiResult?> checkAnomalies({
+    required List<Map<String, dynamic>> history,
+    required Map<String, dynamic> today,
+  }) => _instance.checkAnomalies(history: history, today: today);
+
+  static Future<ExerciseApiResult?> fetchExercisePlan(ExerciseApiRequest req) => _instance.fetchExercisePlan(req);
+  static Future<RiskApiResult?> fetchRiskScore(RiskApiRequest req) => _instance.fetchRiskScore(req);
+  static Future<RiskApiResult?> fetchDemoRiskScore() => _instance.fetchDemoRiskScore();
+  static Future<List<RiskHistoryItem>> fetchRiskHistory({int limit = 30}) => _instance.fetchRiskHistory(limit: limit);
+  static Future<List<MealHistoryItem>> fetchMealHistory({int limit = 30}) => _instance.fetchMealHistory(limit: limit);
+  static Future<AssistantChatResponse?> sendAssistantMessage(String message) => _instance.sendAssistantMessage(message);
+  static Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50}) => _instance.fetchChatHistory(limit: limit);
+  static Future<bool> syncHealthToBackend(HealthEntry entry) => _instance.syncHealthToBackend(entry);
 }

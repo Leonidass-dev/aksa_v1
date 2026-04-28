@@ -28,7 +28,8 @@ GEMINI_URL = (
 NUTRITION_KNOWLEDGE_BASE = {
     "Tansiyon": "Hipertansiyon riskiniz varsa sodyum tüketimini günlük 1500mg ile sınırlandırın. Sebze ve meyvelerdeki potasyum kan basıncını dengelemeye yardımcı olur.",
     "Nabız": "Taşikardi veya yüksek nabız eğilimi olan durumlarda kafein ve eklenti şeker tüketimi kısıtlanmalıdır. Bol su içmek kalp sağlığı için elzemdir.",
-    "Hareketsizlik": "Hareketsiz yaşam (düşük adım) dönemlerinde porsiyon kontrolü sağlamak ve kompleks karbonhidrat (lifli) ağırlıklı beslenmek kilo alımını önler.",
+    "Adım": "Hareketsiz yaşam (düşük adım) dönemlerinde porsiyon kontrolü sağlamak ve kompleks karbonhidrat (lifli) ağırlıklı beslenmek kilo alımını önler.",
+    "Aktif": "Hareketsizlik nedeniyle porsiyon kontrolü sağlamak önemlidir.",
     "Uyku": "Yetersiz uyku leptin hormonunu baskılayıp kalori iştahını artırabilir. Gece geç saatte sindirimi zor (yağlı, baharatlı) yiyeceklerden kaçının.",
     "Oksijen": "Solunum/SpO2 desteklemek için antioksidan (C vitamini) açısından zengin narenciye, biber, ve ıspanak tüketimi faydalı olabilir.",
     "Stres": "Stres (yüksek kortizol) dönemlerinde B vitamini açısından zengin tam tahıllar, magnezyumlu badem ve muz sinir sistemini yatıştırmaya destek olur."

@@ -1,0 +1,166 @@
+import 'package:flutter/foundation.dart';
+import 'package:health/health.dart';
+import '../models/health_entry.dart';
+
+/// Health Connect'ten çekilen ham veri noktalarının ayrıştırma ve
+/// kümeleme işlemlerini yürüten yardımcı sınıf.
+///
+/// `HealthService.syncFromDevice()` metodunun SRP uyumu için
+/// veri işleme sorumluluğu bu sınıfa devredilmiştir.
+class HealthDataParser {
+  HealthDataParser._();
+
+  /// Health Connect ham veri noktalarından bugünün kaynak bazlı
+  /// metriklerini hesaplar.
+  static ParsedHealthData parse({
+    required List<HealthDataPoint> stepsData,
+    required List<HealthDataPoint> healthData,
+    required DateTime midnight,
+    required HealthEntry? todayEntry,
+  }) {
+    double avgHeartRate = 0, avgRestingHr = 0, avgSpo2 = 0;
+    double avgSystolic = 0, avgDiastolic = 0;
+    double totalSleepMin = 0, sleepDeepMin = 0, sleepLightMin = 0, sleepRemMin = 0;
+    int hrCount = 0, restHrCount = 0, spo2Count = 0, sysCount = 0, diaCount = 0;
+
+    // Kümülatif metrikler için kaynak bazlı toplam
+    final Map<String, double> stepsBySrc = {};
+    final Map<String, double> activeCalBySrc = {};
+    final Map<String, double> totalCalBySrc = {};
+    final Map<String, double> distanceBySrc = {};
+
+    // ── ADIM: Kaynak bazlı toplam ────
+    for (var point in stepsData) {
+      final val = _numericValue(point);
+      final src = point.sourceName;
+      stepsBySrc[src] = (stepsBySrc[src] ?? 0) + val;
+    }
+
+    // ── DİĞER METRİKLER ────
+    for (var point in healthData) {
+      final isSleep = _sleepTypes.contains(point.type);
+
+      // Uyku dışı verileri sadece midnight sonrasında işle
+      if (!isSleep && point.dateFrom.isBefore(midnight)) continue;
+
+      final val = isSleep
+          ? point.dateTo.difference(point.dateFrom).inMinutes.toDouble()
+          : _numericValue(point);
+      final src = point.sourceName;
+
+      switch (point.type) {
+        case HealthDataType.STEPS:
+          break; // Yukarıda ayrıca işlendi
+        case HealthDataType.ACTIVE_ENERGY_BURNED:
+          activeCalBySrc[src] = (activeCalBySrc[src] ?? 0) + val;
+        case HealthDataType.TOTAL_CALORIES_BURNED:
+          totalCalBySrc[src] = (totalCalBySrc[src] ?? 0) + val;
+        case HealthDataType.DISTANCE_DELTA:
+          distanceBySrc[src] = (distanceBySrc[src] ?? 0) + val;
+        case HealthDataType.HEART_RATE:
+          avgHeartRate += val; hrCount++;
+        case HealthDataType.RESTING_HEART_RATE:
+          avgRestingHr += val; restHrCount++;
+        case HealthDataType.BLOOD_OXYGEN:
+          avgSpo2 += val; spo2Count++;
+        case HealthDataType.BLOOD_PRESSURE_SYSTOLIC:
+          avgSystolic += val; sysCount++;
+        case HealthDataType.BLOOD_PRESSURE_DIASTOLIC:
+          avgDiastolic += val; diaCount++;
+        case HealthDataType.SLEEP_ASLEEP:
+          totalSleepMin += val;
+        case HealthDataType.SLEEP_DEEP:
+          sleepDeepMin += val;
+        case HealthDataType.SLEEP_LIGHT:
+          sleepLightMin += val;
+        case HealthDataType.SLEEP_REM:
+          sleepRemMin += val;
+        default:
+          break;
+      }
+    }
+
+    // ── Kaynak kümeleme: Adım→Medyan, Kalori/Mesafe→Max ────
+    final totalSteps = _median(stepsBySrc);
+    final activeCalories = _max(activeCalBySrc);
+    final totalCalories = _max(totalCalBySrc);
+    final distanceM = _max(distanceBySrc);
+
+    if (stepsBySrc.isNotEmpty) {
+      debugPrint("Adım kaynakları: $stepsBySrc → Medyan seçildi: $totalSteps");
+    }
+
+    // ── Ortalamalar ────
+    if (hrCount > 0) avgHeartRate /= hrCount;
+    if (restHrCount > 0) avgRestingHr /= restHrCount;
+    if (spo2Count > 0) avgSpo2 /= spo2Count;
+    if (sysCount > 0) avgSystolic /= sysCount;
+    if (diaCount > 0) avgDiastolic /= diaCount;
+
+    final sleepHrs = totalSleepMin > 0
+        ? totalSleepMin / 60.0
+        : (sleepDeepMin + sleepLightMin + sleepRemMin) / 60.0;
+
+    // ── Sıfır koruma: Cihazdan 0 gelirse mevcut veriyi koru ────
+    return ParsedHealthData(
+      steps: totalSteps > 0 ? totalSteps : (todayEntry?.steps ?? 0),
+      heartRate: avgHeartRate > 0 ? avgHeartRate : (todayEntry?.heartRate ?? 0),
+      restingHeartRate: avgRestingHr > 0 ? avgRestingHr : (todayEntry?.restingHeartRate ?? 0),
+      spo2: avgSpo2 > 0 ? avgSpo2 : (todayEntry?.spo2 ?? 0),
+      systolic: avgSystolic > 0 ? avgSystolic : (todayEntry?.systolic ?? 0),
+      diastolic: avgDiastolic > 0 ? avgDiastolic : (todayEntry?.diastolic ?? 0),
+      sleepHours: sleepHrs > 0 ? sleepHrs : (todayEntry?.sleepHours ?? 0),
+      sleepDeepMin: sleepDeepMin,
+      sleepLightMin: sleepLightMin,
+      sleepRemMin: sleepRemMin,
+      activeCalories: activeCalories,
+      totalCalories: totalCalories,
+      distanceM: distanceM,
+    );
+  }
+
+  // ── Private helpers ────
+
+  static const _sleepTypes = [
+    HealthDataType.SLEEP_ASLEEP,
+    HealthDataType.SLEEP_DEEP,
+    HealthDataType.SLEEP_LIGHT,
+    HealthDataType.SLEEP_REM,
+  ];
+
+  static double _numericValue(HealthDataPoint point) {
+    if (point.value is NumericHealthValue) {
+      return (point.value as NumericHealthValue).numericValue.toDouble();
+    }
+    return double.tryParse(point.value.toString()) ?? 0;
+  }
+
+  /// Kaynak değerlerinin alt medyanını döndürür (aykırı değer dayanıklı).
+  static double _median(Map<String, double> bySource) {
+    if (bySource.isEmpty) return 0;
+    final sorted = bySource.values.toList()..sort();
+    return sorted[(sorted.length - 1) ~/ 2];
+  }
+
+  /// Kaynak değerlerinin maksimumunu döndürür.
+  static double _max(Map<String, double> bySource) {
+    if (bySource.isEmpty) return 0;
+    return bySource.values.reduce((a, b) => a > b ? a : b);
+  }
+}
+
+/// `HealthDataParser.parse()` sonucu — tüm sensör verileri.
+class ParsedHealthData {
+  final double steps, heartRate, restingHeartRate, spo2;
+  final double systolic, diastolic, sleepHours;
+  final double sleepDeepMin, sleepLightMin, sleepRemMin;
+  final double activeCalories, totalCalories, distanceM;
+
+  const ParsedHealthData({
+    required this.steps, required this.heartRate, required this.restingHeartRate,
+    required this.spo2, required this.systolic, required this.diastolic,
+    required this.sleepHours, required this.sleepDeepMin, required this.sleepLightMin,
+    required this.sleepRemMin, required this.activeCalories, required this.totalCalories,
+    required this.distanceM,
+  });
+}

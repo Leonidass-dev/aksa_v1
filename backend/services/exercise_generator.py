@@ -32,7 +32,8 @@ GİRDİ VERİLERİ:
 - Son Sağlık Verileri: {health_context}
 
 GÖREVİN:
-Bu verilere dayanarak kullanıcının o gün yapabileceği 1 ile 3 arası egzersizden oluşan bir plan üret. Planı MUTLAKA aşağıdaki JSON formatında döndür.
+Bu verilere dayanarak kullanıcının risk seviyesine uygun 3 ila 5 günlük bir HAFTALIK EGZERSİZ DÖNGÜSÜ (Weekly Plan) üret.
+Planı MUTLAKA aşağıdaki JSON formatında döndür. Egzersiz isimlerinin başına gün bilgisini ekle (Örn: "1. Gün: Tempolu Yürüyüş").
 
 JSON FORMATI ÖRNEĞİ:
 {{
@@ -46,9 +47,9 @@ JSON FORMATI ÖRNEĞİ:
       "description": "Yapılış özeti"
     }}
   ],
-  "total_duration_minutes": 20,
-  "total_calories": 100,
-  "ai_advice": "Kullanıcıya o gün için özel motivasyon veya dikkat uyarısı."
+  "total_duration_minutes": 150,
+  "total_calories": 800,
+  "ai_advice": "Haftalık hedefleriniz: İlk 3 gün kardiyo, sonraki günler aktif dinlenme. Unutmayın..."
 }}
 
 Sadece JSON çıktısı ver, başka açıklama ekleme.

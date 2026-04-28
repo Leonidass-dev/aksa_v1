@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'interfaces/i_user_profile_service.dart';
+
 
 /// Firestore users/{uid} dökümanında saklanan kullanıcı sağlık profili.
 class UserProfile {
@@ -52,14 +55,15 @@ class UserProfile {
       );
 }
 
-class UserProfileService {
-  static final _db = FirebaseFirestore.instance;
-  static final _auth = FirebaseAuth.instance;
+class UserProfileServiceImpl implements IUserProfileService {
+  final _db = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
 
-  static String? get _uid => _auth.currentUser?.uid;
+  String? get _uid => _auth.currentUser?.uid;
 
   /// Profil var mı kontrol et (onboarding atlandı mı?)
-  static Future<bool> profileExists() async {
+  @override
+  Future<bool> profileExists() async {
     if (_uid == null) return false;
     final doc = await _db.collection('users').doc(_uid).get();
     if (!doc.exists) return false;
@@ -69,7 +73,8 @@ class UserProfileService {
   }
 
   /// Profili kaydet / güncelle
-  static Future<void> saveProfile(UserProfile profile) async {
+  @override
+  Future<void> saveProfile(UserProfile profile) async {
     await _db
         .collection('users')
         .doc(profile.uid)
@@ -77,10 +82,24 @@ class UserProfileService {
   }
 
   /// Profili oku
-  static Future<UserProfile?> getProfile() async {
+  @override
+  Future<UserProfile?> getProfile() async {
     if (_uid == null) return null;
     final doc = await _db.collection('users').doc(_uid).get();
     if (!doc.exists) return null;
     return UserProfile.fromMap(_uid!, doc.data()!);
   }
+}
+
+/// Test edilebilir Statik Facade yapısı.
+/// UI kodlarına dokunmadan arkaplandaki instance'ı mocklamaya izin verir.
+class UserProfileService {
+  static IUserProfileService _instance = UserProfileServiceImpl();
+
+  @visibleForTesting
+  static set instance(IUserProfileService mock) => _instance = mock;
+
+  static Future<bool> profileExists() => _instance.profileExists();
+  static Future<void> saveProfile(UserProfile profile) => _instance.saveProfile(profile);
+  static Future<UserProfile?> getProfile() => _instance.getProfile();
 }

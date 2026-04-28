@@ -70,7 +70,6 @@ class _NutritionScreenState extends State<NutritionScreen>
     }
   }
 
-  DateTime? _lastAnalyzedDate;
 
   int get _totalCalories {
     final now = DateTime.now();

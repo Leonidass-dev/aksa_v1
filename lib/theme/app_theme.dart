@@ -15,6 +15,12 @@ class AppColors {
   static const Color border = Color(0xFFE2E8F0);
   static const Color chart4 = Color(0xFF6366F1);       // Indigo
   static const Color accentDark = Color(0xFFEA580C);
+
+  // Semantik metrik renkleri (dashboard/profile widget'larında)
+  static const Color stressYellow = Color(0xFFF59E0B);
+  static const Color sleepPurple = Color(0xFF8B5CF6);
+  static const Color waterBlue = Color(0xFF3B82F6);
+  static const Color stepsIndigo = Color(0xFF6366F1);
 }
 
 class AppTheme {

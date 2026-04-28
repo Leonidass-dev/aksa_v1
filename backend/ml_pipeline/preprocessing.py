@@ -16,9 +16,12 @@ class PreprocessorPipeline:
         self.min_valid_pct = min_valid_pct
     
     def hampel_filter(self, series, window_size=5, n_sigmas=3):
-        """HR için ani sıçramaları (outlier) temizleyen Hampel Filtresi"""
+        """HR için ani sıçramaları (outlier) temizleyen Hampel Filtresi (Vektörize)"""
         rolling_median = series.rolling(window=window_size, center=True).median()
-        rolling_mad = series.rolling(window=window_size, center=True).apply(lambda x: np.median(np.abs(x - np.median(x))))
+        
+        # Tamamen vektörize MAD hesaplaması (apply(lambda) darboğazı çözüldü)
+        abs_diff = (series - rolling_median).abs()
+        rolling_mad = abs_diff.rolling(window=window_size, center=True).median()
         
         # MAD'i standart sapmaya çevir (~1.4826)
         rolling_std = 1.4826 * rolling_mad
@@ -28,6 +31,10 @@ class PreprocessorPipeline:
         # Aykırı değerleri medyan ile değiştir (ya da np.nan ver)
         series_clean = series.copy()
         series_clean[outliers] = rolling_median[outliers]
+        
+        # Kenarlardaki veya arada kalan NaN değerleri interpolasyon/fill ile onar
+        series_clean = series_clean.bfill().ffill()
+        
         return series_clean
 
     def process_heart_rate(self, df_hr):
@@ -59,7 +66,7 @@ class PreprocessorPipeline:
         df_resampled['value'] = medfilt(df_resampled['value'].fillna(0), kernel_size=3)
         
         # Sıfır olan yerleri tekrar NaN yap (medfilt padding)
-        df_resampled['value'].replace(0, np.nan, inplace=True)
+        df_resampled['value'] = df_resampled['value'].replace(0, np.nan)
         return df_resampled
 
     def process_steps(self, df_steps):
@@ -84,7 +91,7 @@ class PreprocessorPipeline:
         
         # 1 dakikalık kovalara topla (sum)
         df_resampled = df.resample('1min').sum()
-        df_resampled['value'].fillna(0, inplace=True)
+        df_resampled['value'] = df_resampled['value'].fillna(0)
         
         return df_resampled
 
@@ -123,6 +130,10 @@ class PreprocessorPipeline:
             if valid_pct >= self.min_valid_pct:
                 hr_clean = hr_series.dropna()
                 
+                # Tez Uyumluluğu: Otonom Sinir Sistemi Stresi İçin HRV Metrikleri (M3)
+                hr_diffs = hr_clean.diff().dropna()
+                hr_rmssd = np.sqrt((hr_diffs ** 2).mean()) if len(hr_diffs) > 0 else 0
+
                 features = {
                     'window_start': current_time,
                     'window_end': window_end,
@@ -131,6 +142,10 @@ class PreprocessorPipeline:
                     'hr_min': hr_clean.min(),
                     'hr_max': hr_clean.max(),
                     'hr_std': hr_clean.std(),
+                    'hr_rmssd': hr_rmssd,                   # Yeni: HRV Proxy
+                    'hr_q25': hr_clean.quantile(0.25),      # Yeni: Alt çeyreklik
+                    'hr_q75': hr_clean.quantile(0.75),      # Yeni: Üst çeyreklik
+                    'hr_skewness': hr_clean.skew(),         # Yeni: Çarpıklık
                     'steps_sum': steps_series.sum(),
                     'steps_active_mins': (steps_series > 0).sum(),
                     'steps_max': steps_series.max(),
