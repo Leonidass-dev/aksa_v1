@@ -1,5 +1,6 @@
 import logging
 import crud
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,7 @@ from auth import get_current_user
 from models.exercise_model import (
     ExerciseRequest,
     ExercisePlanResponse,
+    ExerciseItem,
     get_exercise_class,
     get_fallback_plan
 )
@@ -60,6 +62,16 @@ async def get_exercise_plan(
             health_context += f"- Son Nabız: {latest.heart_rate} bpm\n"
         else:
             health_context += "Veri henüz yok."
+
+        # 2.5 SMART CACHE: Eğer son 24 saatte üretilmiş bir plan varsa onu kullan
+        if last_plan and last_plan.created_at > (datetime.utcnow() - timedelta(hours=24)):
+            logger.info(f"♻️ SMART CACHE: Son 24 saat içinde üretilmiş plan bulundu (ID: {last_plan.id}), Gemini atlanıyor.")
+            return ExercisePlanResponse(
+                exercises=[ExerciseItem(**e) for e in last_plan.exercises],
+                total_duration_minutes=last_plan.total_duration_minutes,
+                total_calories=last_plan.total_calories,
+                ai_advice=last_plan.ai_advice or ""
+            )
 
         # 3. Dinamik İçerik Üretimi (Gemini)
         plan = await generate_dynamic_plan(req, class_id, health_context)

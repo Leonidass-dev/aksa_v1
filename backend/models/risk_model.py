@@ -219,16 +219,17 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     import datetime
     current_hour = datetime.datetime.now().hour
     
-    if snap.steps > 0:
-        # Saat bazlı beklenen adım: sabah düşük, akşam yüksek
-        # Saat 8'de 1000, öğlen 12'de 4000, akşam 20'de 8000 beklenir
-        expected_steps = min(10000, max(1000, (current_hour - 6) * 600)) if current_hour > 6 else 500
-        if snap.steps < expected_steps:
-            step_risk = _normalize(expected_steps - snap.steps, 0, expected_steps) * 12
-            score += step_risk
-            if step_risk > 5:
-                factors.append(RiskFactor("Hareketsizlik", step_risk, f"Günlük {int(snap.steps)} adım — beklenen ~{int(expected_steps)}"))
-    # Eğer snap.steps == 0 ise, veri çekilememiştir (Eksik veri), buna ceza Puanı VERMİYORUZ.
+    # Saat bazlı beklenen adım: sabah düşük, akşam yüksek
+    # Saat 8'de 1000, öğlen 12'de 4000, akşam 20'de 8000 beklenir
+    expected_steps = min(10000, max(1000, (current_hour - 6) * 600)) if current_hour > 6 else 500
+    
+    if snap.steps < expected_steps:
+        step_diff = expected_steps - snap.steps
+        step_risk = _normalize(step_diff, 0, expected_steps) * 12
+        score += step_risk
+        if step_risk > 3:
+            factors.append(RiskFactor("Hareketsizlik", step_risk, f"Günlük {int(snap.steps)} adım — beklenen ~{int(expected_steps)}"))
+    # Eğer snap.steps == 0 ise, veri hiç gelmemiş olabilir ama akşam saatlerinde bu ciddi bir hareketsizlik göstergesidir.
 
     # 4. Uyku Hijyeni
     if snap.sleep_hours > 0:

@@ -8,10 +8,13 @@ from models.exercise_model import ExercisePlanResponse, ExerciseItem, ExerciseRe
 logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1/models/"
     "gemini-1.5-flash:generateContent"
 )
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 EXERCISE_PROMPT = """
 Sen uzman bir spor fizyoloğu ve sağlık koçusun. 
@@ -75,33 +78,47 @@ async def generate_dynamic_plan(
         health_context=health_context
     )
 
-    payload = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.7,
-            "responseMimeType": "application/json"
+    # ── AI SEÇİMİ ──
+    use_groq = bool(GROQ_API_KEY)
+    
+    if use_groq:
+        url = GROQ_URL
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": "Sen uzman bir spor fizyoloğu ve diyetisyensin. Sadece JSON formatında yanıt ver."},
+                {"role": "user", "content": prompt}
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.5
         }
-    }
+    else:
+        url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
+        headers = {}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "response_mime_type": "application/json"
+            }
+        }
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-                json=payload
-            )
+            resp = await client.post(url, json=payload, headers=headers)
             
         if resp.status_code != 200:
-            logger.error(f"Gemini API hatası (Egzersiz): {resp.status_code} - {resp.text}")
+            logger.error(f"AI API hatası (Egzersiz): {resp.status_code} - {resp.text}")
             return None
 
         data = resp.json()
-        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+        if use_groq:
+            raw_text = data["choices"][0]["message"]["content"]
+        else:
+            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
         
-        # JSON temizleme (Bazen Gemini ```json ... ``` bloğu içinde dönebiliyor)
+        # JSON temizleme
         cleaned_json = raw_text.strip()
         if cleaned_json.startswith("```json"):
             cleaned_json = cleaned_json[7:-3].strip()

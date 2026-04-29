@@ -8,10 +8,13 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
 GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.5-flash:generateContent"
+    "https://generativelanguage.googleapis.com/v1/models/"
+    "gemini-1.5-flash:generateContent"
 )
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # ── Pydantic Modelleri ──
 class DietMeal(BaseModel):
@@ -77,31 +80,45 @@ async def generate_diet_plan(
         health_context=health_context, target_calories=target_calories
     )
 
-    payload = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.3,
-            "responseMimeType": "application/json"
+    # ── AI SEÇİMİ ──
+    use_groq = bool(GROQ_API_KEY)
+    
+    if use_groq:
+        url = GROQ_URL
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": "Sen uzman bir klinik diyetisyen ve yapay zeka sağlık asistanısın. Sadece JSON formatında yanıt ver."},
+                {"role": "user", "content": prompt}
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.4
         }
-    }
+    else:
+        url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
+        headers = {}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.3,
+                "response_mime_type": "application/json"
+            }
+        }
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-                json=payload
-            )
+            resp = await client.post(url, json=payload, headers=headers)
             
         if resp.status_code != 200:
-            logger.error(f"Gemini API hatası (Diyet): {resp.status_code} - {resp.text}")
+            logger.error(f"AI API hatası (Diyet): {resp.status_code} - {resp.text}")
             return None
 
         data = resp.json()
-        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+        if use_groq:
+            raw_text = data["choices"][0]["message"]["content"]
+        else:
+            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
         
         # JSON temizleme
         cleaned_json = raw_text.strip()

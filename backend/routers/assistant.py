@@ -17,10 +17,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1/models/"
     "gemini-1.5-flash:generateContent"
 )
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 class ChatRequest(BaseModel):
     message: str = Field(description="Kullanıcının yazdığı mesaj (örn: başım ağrıyor, ne yapmalıyım?)")
@@ -82,21 +85,41 @@ async def chat_with_assistant(
         context += f"- Risk Seviyesi: {latest_risk.level_label}\n"
     context += "--------------------------------\n"
 
-    # Kullanıcı mesajını DB'ye kaydet
+    # Sohbet Geçmişini Çek (Hafıza için son 6 mesaj)
+    history = await crud.get_chat_history(db, user, limit=6)
+    history_context = ""
+    groq_messages = [{"role": "system", "content": "Sen AKSA Health sağlık asistanısın. Kullanıcıya sağlık verilerine dayanarak yardımcı ol."}]
+    
+    for m in history:
+        groq_messages.append({"role": m.role, "content": m.content})
+        history_context += f"{m.role}: {m.content}\n"
+
+    # Kullanıcı mesajını DB'ye kaydet (History'den sonra kaydet ki bu istek history'e girmesin)
     await crud.save_chat_message(db, user, role="user", content=req.message)
 
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": PROMPT + context + "\nKullanıcı Sorusu: " + req.message}
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.4
-        },
-    }
+    # ── AI SEÇİMİ (GROQ ÖNCELİKLİ) ──
+    use_groq = bool(GROQ_API_KEY)
+    
+    if use_groq:
+        url = GROQ_URL
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+        # Groq için gerçek mesaj listesi
+        current_messages = groq_messages + [{"role": "user", "content": f"[SAĞLIK VERİLERİM]\n{context}\n\n[SORU]\n{req.message}"}]
+        payload = {
+            "model": "llama-3.1-8b-instant",
+            "messages": current_messages,
+            "temperature": 0.5,
+            "max_tokens": 1024
+        }
+    else:
+        url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
+        headers = {}
+        # Gemini için düz metin (Geçmiş dahil)
+        full_prompt = f"{PROMPT}\n{context}\n\n[GEÇMİŞ]\n{history_context}\n\nKullanıcı: {req.message}"
+        payload = {
+            "contents": [{"parts": [{"text": full_prompt}]}],
+            "generationConfig": {"temperature": 0.4}
+        }
 
     try:
         import asyncio
@@ -104,10 +127,7 @@ async def chat_with_assistant(
         
         for attempt in range(max_retries):
             async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-                    json=payload,
-                )
+                resp = await client.post(url, json=payload, headers=headers)
                 
             if resp.status_code == 200:
                 break
@@ -117,32 +137,15 @@ async def chat_with_assistant(
                 continue
 
         if resp.status_code != 200:
-            error_msg = "Bilinmeyen API hatası"
-            try:
-                data = resp.json()
-                error_msg = data.get("error", {}).get("message", resp.text[:200])
-            except Exception:
-                error_msg = resp.text[:200]
-                
-            logger.error(f"Gemini API Error [{resp.status_code}]: {error_msg}")
-            
-            if resp.status_code == 503:
-                detail = "Google sunucularında aşırı yoğunluk var. Lütfen biraz bekleyip tekrar deneyin."
-            elif resp.status_code == 429:
-                detail = "API kullanım limitinize ulaştınız. (Kota aşıldı veya çok sık istek atıldı)."
-            elif resp.status_code in [401, 403]:
-                detail = "Gemini API Anahtarı (API_KEY) yetkisiz veya hatalı."
-            elif resp.status_code == 404:
-                detail = "Kullanılan yapay zeka modeli bulunamadı."
-            elif resp.status_code == 400:
-                detail = f"Geçersiz istek gönderildi. Detay: {error_msg}"
-            else:
-                detail = f"Gemini API Sunucu Hatası ({resp.status_code}): {error_msg}"
-                
-            raise HTTPException(status_code=502, detail=detail)
+            # Groq/Gemini hata ayıklama
+            logger.error(f"AI API Error [{resp.status_code}]: {resp.text}")
+            raise HTTPException(status_code=502, detail="Yapay zeka servisi şu an yanıt veremiyor.")
 
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-        reply = text.strip()
+        data = resp.json()
+        if use_groq:
+            reply = data["choices"][0]["message"]["content"].strip()
+        else:
+            reply = data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
         # Asistan yanıtını DB'ye kaydet
         await crud.save_chat_message(db, user, role="assistant", content=reply)

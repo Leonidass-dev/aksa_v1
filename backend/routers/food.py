@@ -19,10 +19,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1/models/"
     "gemini-1.5-flash:generateContent"
 )
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # ── RAG BİLGİ TABANI (KNOWLEDGE BASE) ──
 NUTRITION_KNOWLEDGE_BASE = {
@@ -161,35 +164,58 @@ async def analyze_food(
 
     augmented_prompt = f"{PROMPT}\\n\\n[SİSTEM ÖZEL BİLGİSİ / RAG BAĞLAMI]\\nAşağıdaki tıbbi/bağlamsal bilgiye dayanarak 'recommendation' (öneri) kısmını bu kullanıcıya göre hiper-kişiselleştir:\\n{rag_context}"
 
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": augmented_prompt},
-                    {
-                        "inline_data": {
-                            "mime_type": "image/jpeg",
-                            "data": req.image_base64,
+    # ── AI SEÇİMİ (Yemek analizi için Gemini daha stabil olduğu için sabitlendi) ──
+    use_groq = False 
+    
+    if use_groq:
+        url = GROQ_URL
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+        payload = {
+            "model": "llama-3.2-11b-vision-preview",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": augmented_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{req.image_base64}"}
                         }
-                    },
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.2,
-            "responseMimeType": "application/json"
-        },
-    }
+                    ]
+                }
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.2
+        }
+    else:
+        url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
+        headers = {}
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": augmented_prompt},
+                        {
+                            "inline_data": {
+                                "mime_type": "image/jpeg",
+                                "data": req.image_base64,
+                            }
+                        },
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.2,
+                "response_mime_type": "application/json"
+            },
+        }
 
     import asyncio
     max_retries = 3
     
     for attempt in range(max_retries):
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-                json=payload,
-            )
+            resp = await client.post(url, json=payload, headers=headers)
         
         if resp.status_code == 200:
             break
@@ -199,32 +225,15 @@ async def analyze_food(
             continue
             
     if resp.status_code != 200:
-        error_msg = "Bilinmeyen API hatası"
-        try:
-            data = resp.json()
-            error_msg = data.get("error", {}).get("message", resp.text[:200])
-        except Exception:
-            error_msg = resp.text[:200]
-            
-        logger.error(f"Gemini API Error [{resp.status_code}]: {error_msg}")
-        
-        if resp.status_code == 503:
-            detail = "Google sunucularında aşırı yoğunluk var. Lütfen biraz bekleyip tekrar deneyin."
-        elif resp.status_code == 429:
-            detail = "API kullanım limitinize ulaştınız. (Kota aşıldı veya çok sık istek atıldı)."
-        elif resp.status_code in [401, 403]:
-            detail = "Gemini API Anahtarı (API_KEY) yetkisiz veya hatalı."
-        elif resp.status_code == 404:
-            detail = "Kullanılan yapay zeka modeli bulunamadı."
-        elif resp.status_code == 400:
-            detail = f"Geçersiz istek gönderildi. Detay: {error_msg}"
-        else:
-            detail = f"Gemini API Sunucu Hatası ({resp.status_code}): {error_msg}"
-            
-        raise HTTPException(status_code=502, detail=detail)
+        logger.error(f"AI API Error [{resp.status_code}]: {resp.text}")
+        raise HTTPException(status_code=502, detail="Yemek analizi şu an yapılamıyor.")
 
     try:
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        data = resp.json()
+        if use_groq:
+            text = data["choices"][0]["message"]["content"]
+        else:
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
         # Markdown kod bloğu varsa temizle
         text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         data = json.loads(text)
