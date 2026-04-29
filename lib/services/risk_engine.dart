@@ -245,7 +245,8 @@ class RiskEngine {
 
     // ── Platt Scaling benzeri kalibrasyon ─────────────────────────────
     // Ham olasılığı 0–100 skora çevir (tez Modül 3, adım 2)
-    // Sınırlama: ham prob negatif olabilir (iyi sağlık durumu)
+    // prob=0 → score≈0 (sağlıklı, düşük risk)
+    // prob=1 → score≈100 (riskli, yüksek risk)
     final clampedProb = rawProbability.clamp(0.0, 1.0);
     // Sigmoid benzeri yumuşatma → [0, 100]
     final calibratedScore = _calibrate(clampedProb);
@@ -275,13 +276,12 @@ class RiskEngine {
   }
 
   /// Ham olasılığı 0–100 skora kalibre eder.
-  /// Düşük prob → yüksek skor (sağlıklı = yüksek skor mantığı)
+  /// Yüksek prob → yüksek skor (yüksek skor = yüksek risk)
   static double _calibrate(double prob) {
-    // prob=0.0 → score=100, prob=1.0 → score=0
-    // Lineer ters çevirme + yumuşatma
-    final inverted = 1.0 - prob;
-    // Sigmoid ile 0.2–0.8 aralığına sıkıştır, sonra 0–100'e ölçekle
-    final sigmoid = 1.0 / (1.0 + math.exp(-10 * (inverted - 0.5)));
+    // prob=0.0 → score≈0 (düşük risk)
+    // prob=1.0 → score≈100 (yüksek risk)
+    // Sigmoid ile yumuşatma → uç değerleri sıkıştır
+    final sigmoid = 1.0 / (1.0 + math.exp(-10 * (prob - 0.5)));
     return (sigmoid * 100).clamp(0.0, 100.0);
   }
 

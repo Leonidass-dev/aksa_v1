@@ -72,25 +72,32 @@ class HealthEntry {
       'updated_at': FieldValue.serverTimestamp(),
     };
 
-    // Sadece anlamlı (> 0) değerleri yaz, böylece merge:true ile
-    // mevcut Health Connect verileri sıfırlanmaz
-    if (steps > 0) map['steps'] = steps;
-    if (activeCalories > 0) map['active_calories'] = activeCalories;
-    if (totalCalories > 0) map['total_calories'] = totalCalories;
-    if (distanceM > 0) map['distance_m'] = distanceM;
-    if (heartRate > 0) map['heart_rate'] = heartRate;
-    if (restingHeartRate > 0) map['resting_heart_rate'] = restingHeartRate;
-    if (spo2 > 0) map['spo2'] = spo2;
-    if (systolic > 0) map['systolic'] = systolic;
-    if (diastolic > 0) map['diastolic'] = diastolic;
-    if (sleepHours > 0) map['sleep_hours'] = sleepHours;
-    if (sleepDeepMin > 0) map['sleep_deep_min'] = sleepDeepMin;
-    if (sleepLightMin > 0) map['sleep_light_min'] = sleepLightMin;
-    if (sleepRemMin > 0) map['sleep_rem_min'] = sleepRemMin;
-    if (sleepAwakeMin > 0) map['sleep_awake_min'] = sleepAwakeMin;
-    if (stressLevel > 0) map['stress_level'] = stressLevel;
-    if (weight > 0) map['weight'] = weight;
-    if (waterMl > 0) map['water_ml'] = waterMl;
+    // Sensör verisi (health_connect) kaynağından gelen 0 değerler meşrudur
+    // (ör. kullanıcı hiç yürümedi). Manuel girişte ise 0 değerler
+    // mevcut sensör verilerini ezmesin diye atlanır (merge:true).
+    final isDevice = source == 'health_connect';
+
+    void _put(String key, double value) {
+      if (value > 0 || isDevice) map[key] = value;
+    }
+
+    _put('steps', steps);
+    _put('active_calories', activeCalories);
+    _put('total_calories', totalCalories);
+    _put('distance_m', distanceM);
+    _put('heart_rate', heartRate);
+    _put('resting_heart_rate', restingHeartRate);
+    _put('spo2', spo2);
+    _put('systolic', systolic);
+    _put('diastolic', diastolic);
+    _put('sleep_hours', sleepHours);
+    _put('sleep_deep_min', sleepDeepMin);
+    _put('sleep_light_min', sleepLightMin);
+    _put('sleep_rem_min', sleepRemMin);
+    _put('sleep_awake_min', sleepAwakeMin);
+    _put('stress_level', stressLevel);
+    _put('weight', weight);
+    _put('water_ml', waterMl);
 
     return map;
   }

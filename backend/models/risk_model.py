@@ -133,9 +133,10 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
     # Temel kardiyovasküler baz risk eklenir (Min %5)
     score = max(5.0, round(float(final_prob * 100), 1))
 
-    if score < 34:
+    # Tez: 0–33 düşük, 34–66 orta, 67–100 yüksek
+    if score <= 33:
         level = "low"
-    elif score < 67:
+    elif score <= 66:
         level = "medium"
     else:
         level = "high"
@@ -293,9 +294,10 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
 
     score = max(0, min(100, score))
 
-    if score < 35:
+    # Tez: 0–33 düşük, 34–66 orta, 67–100 yüksek
+    if score <= 33:
         level = "low"
-    elif score < 70:
+    elif score <= 66:
         level = "medium"
     else:
         level = "high"
