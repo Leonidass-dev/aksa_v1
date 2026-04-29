@@ -92,7 +92,7 @@ async def get_exercise_plan(
 
         return plan
     except Exception as e:
-        logger.error(f"Egzersiz planı router hatası: {e}")
+        logger.exception("Egzersiz planı router hatası")
         return get_fallback_plan(0)  # En güvenli fallback
 
 
@@ -112,5 +112,5 @@ async def submit_exercise_feedback(
         
         return {"status": "success", "message": "Geri bildiriminiz RNN döngüsüne eklendi."}
     except Exception as e:
-        logger.error(f"Egzersiz feedback hatası: {e}")
+        logger.exception("Egzersiz feedback hatası")
         return {"status": "error", "message": str(e)}

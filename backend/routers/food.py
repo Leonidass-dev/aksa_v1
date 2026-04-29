@@ -20,8 +20,8 @@ router = APIRouter()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash:generateContent"
+    "https://generativelanguage.googleapis.com/v1/models/"
+    "gemini-1.5-flash:generateContent"
 )
 
 # ── RAG BİLGİ TABANI (KNOWLEDGE BASE) ──
@@ -271,7 +271,7 @@ async def analyze_food(
             tags=tags,
         )
     except Exception as e:
-        logger.error(f"JSON Parse Error. Raw Text: {text}")
+        logger.exception(f"JSON Parse Error. Raw Text: {text}")
         raise HTTPException(status_code=500, detail=f"JSON parse hatası: {e}. Raw Text: {text[:150]}")
 
 

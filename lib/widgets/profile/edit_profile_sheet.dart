@@ -26,16 +26,13 @@ class EditProfileSheet extends StatelessWidget {
   });
 
   void show(BuildContext context) {
-    final nameCtrl = TextEditingController(text: fullName);
-    final bioCtrl = TextEditingController(text: bio);
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _EditProfileContent(
-        nameCtrl: nameCtrl,
-        bioCtrl: bioCtrl,
+        initialName: fullName,
+        initialBio: bio,
         age: age,
         gender: gender,
         height: height,
@@ -79,9 +76,9 @@ class ProfileUpdateResult {
   });
 }
 
-class _EditProfileContent extends StatelessWidget {
-  final TextEditingController nameCtrl;
-  final TextEditingController bioCtrl;
+class _EditProfileContent extends StatefulWidget {
+  final String initialName;
+  final String initialBio;
   final int age;
   final String gender;
   final double height;
@@ -89,8 +86,8 @@ class _EditProfileContent extends StatelessWidget {
   final Future<void> Function(String, String, int, String, double, double) onSave;
 
   const _EditProfileContent({
-    required this.nameCtrl,
-    required this.bioCtrl,
+    required this.initialName,
+    required this.initialBio,
     required this.age,
     required this.gender,
     required this.height,
@@ -99,15 +96,43 @@ class _EditProfileContent extends StatelessWidget {
   });
 
   @override
+  State<_EditProfileContent> createState() => _EditProfileContentState();
+}
+
+class _EditProfileContentState extends State<_EditProfileContent> {
+  late TextEditingController nameCtrl;
+  late TextEditingController bioCtrl;
+  late TextEditingController ageCtrl;
+  late TextEditingController heightCtrl;
+  late TextEditingController weightCtrl;
+  late String selectedGender;
+
+  @override
+  void initState() {
+    super.initState();
+    nameCtrl = TextEditingController(text: widget.initialName);
+    bioCtrl = TextEditingController(text: widget.initialBio);
+    ageCtrl = TextEditingController(text: widget.age.toString());
+    heightCtrl = TextEditingController(text: widget.height.toString());
+    weightCtrl = TextEditingController(text: widget.weight.toString());
+    selectedGender = widget.gender;
+  }
+
+  @override
+  void dispose() {
+    nameCtrl.dispose();
+    bioCtrl.dispose();
+    ageCtrl.dispose();
+    heightCtrl.dispose();
+    weightCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final ageCtrl = TextEditingController(text: age.toString());
-    final heightCtrl = TextEditingController(text: height.toString());
-    String selectedGender = gender;
-    double selectedWeight = weight;
 
-    return StatefulBuilder(
-      builder: (context, setInternalState) => Container(
+    return Container(
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -165,9 +190,8 @@ class _EditProfileContent extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               TextField(
-                controller: TextEditingController(text: selectedWeight.toString()),
+                controller: weightCtrl,
                 keyboardType: TextInputType.number,
-                onChanged: (v) => setInternalState(() => selectedWeight = double.tryParse(v) ?? selectedWeight),
                 decoration: InputDecoration(
                   labelText: 'Kilo (kg)',
                   prefixIcon: const Icon(Icons.monitor_weight_outlined),
@@ -188,7 +212,7 @@ class _EditProfileContent extends StatelessWidget {
                   DropdownMenuItem(value: 'F', child: Text('Kadın')),
                 ],
                 onChanged: (v) {
-                  if (v != null) setInternalState(() => selectedGender = v);
+                  if (v != null) setState(() => selectedGender = v);
                 },
               ),
               const SizedBox(height: 16),
@@ -209,7 +233,8 @@ class _EditProfileContent extends StatelessWidget {
                   onPressed: () async {
                     final ageVal = int.tryParse(ageCtrl.text) ?? 30;
                     final heightVal = double.tryParse(heightCtrl.text) ?? 170.0;
-                    await onSave(nameCtrl.text.trim(), bioCtrl.text.trim(), ageVal, selectedGender, heightVal, selectedWeight);
+                    final weightVal = double.tryParse(weightCtrl.text) ?? 75.0;
+                    await widget.onSave(nameCtrl.text.trim(), bioCtrl.text.trim(), ageVal, selectedGender, heightVal, weightVal);
                     if (context.mounted) Navigator.pop(context);
                   },
                   style: FilledButton.styleFrom(
@@ -223,7 +248,6 @@ class _EditProfileContent extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }

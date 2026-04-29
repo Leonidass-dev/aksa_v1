@@ -43,7 +43,11 @@ class RiskFactorResponse(BaseModel):
     description: str
 
 
+from pydantic import BaseModel, ConfigDict
+
 class RiskResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
     score: float
     level: str
     level_label: str
@@ -51,10 +55,10 @@ class RiskResponse(BaseModel):
     recommendations: list[str]
     model_version: str
 
-    model_config = {'protected_namespaces': ()}
-
 
 class RiskHistoryItem(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
     id: int
     score: float
     level: str
@@ -63,8 +67,6 @@ class RiskHistoryItem(BaseModel):
     recommendations: list | None
     model_version: str
     calculated_at: str
-
-    model_config = {'protected_namespaces': ()}
 
 
 LEVEL_LABELS = {

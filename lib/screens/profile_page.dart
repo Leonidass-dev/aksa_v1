@@ -69,7 +69,7 @@ class _ProfilePageState extends State<ProfilePage> {
     _heightCtrl.text = _user!.height.toString();
     _weightCtrl.text = _user!.weight.toString();
     _gender = _user!.gender;
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _pickImage() async {
@@ -82,7 +82,7 @@ class _ProfilePageState extends State<ProfilePage> {
       maxHeight: 400,
     );
     if (xfile == null) return;
-    setState(() => _pickedImage = File(xfile.path));
+    if (mounted) setState(() => _pickedImage = File(xfile.path));
   }
 
   Future<void> _save() async {
@@ -116,10 +116,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
       await UserProfileService.saveProfile(updated);
 
-      setState(() {
-        _user = updated;
-        _pickedImage = null;
-      });
+      if (mounted) {
+        setState(() {
+          _user = updated;
+          _pickedImage = null;
+        });
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

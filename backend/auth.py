@@ -47,10 +47,6 @@ async def get_current_user(
     - Token yoksa veya Firebase başlatılmamışsa → dev mode UID döner.
     - Token geçersizse → 401 Unauthorized.
     """
-    # Firebase başlatılmamışsa dev mode
-    if not _firebase_initialized:
-        return DEV_MODE_UID
-
     # Header yoksa dev mode
     if not authorization:
         return DEV_MODE_UID
@@ -59,6 +55,24 @@ async def get_current_user(
     token = authorization.replace("Bearer ", "").strip()
     if not token:
         return DEV_MODE_UID
+
+    # Firebase başlatılmamışsa dev mode ama token varsa UID'yi token içinden oku
+    if not _firebase_initialized:
+        try:
+            import base64
+            import json
+            # JWT formatı: header.payload.signature
+            payload_b64 = token.split('.')[1]
+            # Base64 padding ekle
+            payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+            payload_json = base64.urlsafe_b64decode(payload_b64).decode('utf-8')
+            decoded_unverified = json.loads(payload_json)
+            # Firebase token'ında uid genelde 'user_id' alanındadır
+            extracted_uid = decoded_unverified.get("user_id", DEV_MODE_UID)
+            return extracted_uid
+        except Exception as e:
+            logger.warning(f"DEV MODE token decode error: {e}")
+            return DEV_MODE_UID
 
     try:
         decoded = firebase_auth.verify_id_token(token)

@@ -68,7 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     });
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(u.uid).get();
-      if (doc.exists) {
+      if (doc.exists && mounted) {
         final data = doc.data()!;
         setState(() {
           _fullName = data['fullName'] ?? _fullName;
@@ -85,7 +85,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
         });
       }
     } catch (_) {}
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _loadGoals() async {
@@ -95,7 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
       final doc = await FirebaseFirestore.instance
           .collection('users').doc(u.uid)
           .collection('settings').doc('health_goals').get();
-      if (doc.exists) {
+      if (doc.exists && mounted) {
         final d = doc.data()!;
         setState(() {
           _targetWeight = (d['targetWeight'] as num?)?.toDouble() ?? 68.0;
@@ -127,21 +127,23 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
         totalSleep += sleep;
       }
 
-      setState(() {
-        _activeDays = count.toString();
-        _dataPoints = (count * 5).toString();
-        if (validDays > 0) {
-          _currentAvgSteps = totalSteps / validDays;
-          _currentAvgSleep = totalSleep / validDays;
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _activeDays = count.toString();
+          _dataPoints = (count * 5).toString();
+          if (validDays > 0) {
+            _currentAvgSteps = totalSteps / validDays;
+            _currentAvgSleep = totalSleep / validDays;
+          }
+        });
+      }
 
       final history = await FirebaseFirestore.instance
           .collection('users').doc(u.uid)
           .collection('risk_history')
           .orderBy('timestamp', descending: true).limit(1).get();
 
-      if (history.docs.isNotEmpty) {
+      if (history.docs.isNotEmpty && mounted) {
         final riskScore = history.docs.first.data()['score'] as num?;
         if (riskScore != null) {
           setState(() => _healthScore = (100 - riskScore.toInt()).toString());

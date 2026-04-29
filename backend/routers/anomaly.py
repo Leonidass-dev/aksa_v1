@@ -36,7 +36,11 @@ class AnomalyItemResponse(BaseModel):
     recommendation: str
 
 
+from pydantic import BaseModel, ConfigDict
+
 class AnomalyCheckResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
     has_anomaly: bool
     anomalies: list[AnomalyItemResponse]
     checked_metrics: int

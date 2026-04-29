@@ -18,8 +18,8 @@ router = APIRouter()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.5-flash:generateContent"
+    "https://generativelanguage.googleapis.com/v1/models/"
+    "gemini-1.5-flash:generateContent"
 )
 
 class ChatRequest(BaseModel):
@@ -152,7 +152,7 @@ async def chat_with_assistant(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Assistant Chat Error: {e}")
+        logger.exception("Assistant Chat Error")
         raise HTTPException(status_code=500, detail="Bir hata oluştu, lütfen tekrar deneyin.")
 
 

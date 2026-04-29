@@ -214,7 +214,7 @@ def _get_shap_contributions(x_t: Any) -> list[tuple[str, float]]:
         return []
 
 def _check_ae_anomaly(today: DailySnapshot, ml_features: list[float] | None = None) -> tuple[bool, float, list[tuple[str, float]]]:
-    """LSTM-AE ile anomali kontrolü. ML yoksa (False, 0, []) döner."""
+    """LSTM-AE ile anomali kontrolü. ML veya M2 verisi yoksa (False, 0, []) döner."""
     if not _HAS_ML:
         return False, 0.0, []
     try:
@@ -222,20 +222,17 @@ def _check_ae_anomaly(today: DailySnapshot, ml_features: list[float] | None = No
         if _ae_model is None:
             return False, 0.0, []
 
-        if ml_features is not None and len(ml_features) == 9:
-            # M2 Pipeline'dan çoktan temizlenmiş gerçek özellikler aktı!
-            features = np.array([ml_features])
-            logger.info("🎯 M7 Anomali Modeli: M2(Data Pipeline)'den gelen 100% temiz veri listesi LSTM-AE ağına besleniyor!")
-        else:
-            # M2 özellikleri henüz hazır değilse sentetik fallback (Eski Yöntem)
-            hr_mean = today.heart_rate if today.heart_rate else 75
-            features = np.array([[
-                hr_mean, hr_mean, hr_mean - 10, hr_mean + 30, 10.0,
-                today.steps if today.steps else 500,
-                max(1, int(today.steps / 100)) if today.steps else 5,
-                50, 0.05
-            ]])
-            logger.info("⚠️ M7 Anomali Modeli: M2 verisi bulunamadı, fallback ortalama özellikleri kullanılıyor!")
+        if ml_features is None or len(ml_features) != 9:
+            # UYARI: Günlük verilerden (örn: 10.000 adım) 1 saatlik model penceresi (max 5000) 
+            # için sentetik veri üretmek modeli patlatıyor (MSE > 50).
+            # M2 verisi yoksa anomali üretme, Z-Skor fallback'e bırak.
+            logger.info("⚠️ M7 Anomali Modeli: M2 verisi bulunamadı. LSTM-AE atlanıyor, Z-skor kullanılacak.")
+            return False, 0.0, []
+
+        # M2 Pipeline'dan çoktan temizlenmiş gerçek özellikler aktı!
+        features = np.array([ml_features])
+        logger.info("🎯 M7 Anomali Modeli: M2(Data Pipeline)'den gelen 100% temiz veri listesi LSTM-AE ağına besleniyor!")
+        
         features_scaled = _ae_scaler.transform(features)
         x_t = torch.tensor(features_scaled, dtype=torch.float32).unsqueeze(1)
         with torch.no_grad():

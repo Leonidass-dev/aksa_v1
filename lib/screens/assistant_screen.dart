@@ -29,6 +29,12 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _loadChatHistory();
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadChatHistory() async {
     setState(() => _isLoading = true);
     final history = await ApiService.fetchChatHistory(limit: 50);

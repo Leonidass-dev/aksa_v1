@@ -72,9 +72,9 @@ class RiskApiResult {
   });
 
   factory RiskApiResult.fromJson(Map<String, dynamic> json) => RiskApiResult(
-    score: (json['score'] as num).toDouble(),
-    level: json['level'] as String,
-    levelLabel: json['level_label'] as String,
+    score: double.tryParse(json['score']?.toString() ?? '0') ?? 0.0,
+    level: json['level'] as String? ?? 'low',
+    levelLabel: json['level_label'] as String? ?? '',
     topFactors: (json['top_factors'] as List)
         .map((e) => RiskApiFactorItem.fromJson(e))
         .toList(),
@@ -96,9 +96,9 @@ class RiskApiFactorItem {
 
   factory RiskApiFactorItem.fromJson(Map<String, dynamic> json) =>
       RiskApiFactorItem(
-        name: json['name'] as String,
-        contribution: (json['contribution'] as num).toDouble(),
-        description: json['description'] as String,
+        name: json['name'] as String? ?? '',
+        contribution: double.tryParse(json['contribution']?.toString() ?? '0') ?? 0.0,
+        description: json['description'] as String? ?? '',
       );
 }
 
@@ -136,12 +136,12 @@ class FoodAnalysisResult {
     return FoodAnalysisResult(
       foodName: json['food_name'] ?? 'Bilinmiyor',
       portion: json['portion'] ?? '-',
-      calories: (n['calories'] ?? 0) as int,
-      proteinG: (n['protein_g'] ?? 0).toDouble(),
-      carbsG: (n['carbs_g'] ?? 0).toDouble(),
-      fatG: (n['fat_g'] ?? 0).toDouble(),
-      fiberG: (n['fiber_g'] ?? 0).toDouble(),
-      healthScore: (json['health_score'] ?? 50) as int,
+      calories: int.tryParse(n['calories']?.toString() ?? '0') ?? 0,
+      proteinG: double.tryParse(n['protein_g']?.toString() ?? '0') ?? 0.0,
+      carbsG: double.tryParse(n['carbs_g']?.toString() ?? '0') ?? 0.0,
+      fatG: double.tryParse(n['fat_g']?.toString() ?? '0') ?? 0.0,
+      fiberG: double.tryParse(n['fiber_g']?.toString() ?? '0') ?? 0.0,
+      healthScore: int.tryParse(json['health_score']?.toString() ?? '50') ?? 50,
       recommendation: json['recommendation'] ?? '',
       tags: List<String>.from(json['tags'] ?? []),
     );
@@ -223,9 +223,9 @@ class AnomalyApiItem {
   factory AnomalyApiItem.fromJson(Map<String, dynamic> json) => AnomalyApiItem(
     metric: json['metric'] ?? '',
     metricLabel: json['metric_label'] ?? '',
-    zScore: (json['z_score'] ?? 0).toDouble(),
-    todayValue: (json['today_value'] ?? 0).toDouble(),
-    avgValue: (json['avg_value'] ?? 0).toDouble(),
+    zScore: double.tryParse(json['z_score']?.toString() ?? '0') ?? 0.0,
+    todayValue: double.tryParse(json['today_value']?.toString() ?? '0') ?? 0.0,
+    avgValue: double.tryParse(json['avg_value']?.toString() ?? '0') ?? 0.0,
     unit: json['unit'] ?? '',
     severity: json['severity'] ?? 'low',
     description: json['description'] ?? '',
@@ -314,9 +314,9 @@ class ExerciseApiItem {
   factory ExerciseApiItem.fromJson(Map<String, dynamic> json) =>
       ExerciseApiItem(
         title: json['title'] ?? 'Egzersiz',
-        durationMinutes: (json['duration_minutes'] ?? 0) as int,
+        durationMinutes: int.tryParse(json['duration_minutes']?.toString() ?? '0') ?? 0,
         intensity: json['intensity'] ?? 'Düşük',
-        calories: (json['calories'] ?? 0) as int,
+        calories: int.tryParse(json['calories']?.toString() ?? '0') ?? 0,
         type: json['type'] ?? 'Genel',
         description: json['description'] ?? '',
       );
@@ -340,8 +340,8 @@ class ExerciseApiResult {
       exercises: (json['exercises'] as List? ?? [])
           .map((e) => ExerciseApiItem.fromJson(e))
           .toList(),
-      totalDurationMinutes: (json['total_duration_minutes'] ?? 0) as int,
-      totalCalories: (json['total_calories'] ?? 0) as int,
+      totalDurationMinutes: int.tryParse(json['total_duration_minutes']?.toString() ?? '0') ?? 0,
+      totalCalories: int.tryParse(json['total_calories']?.toString() ?? '0') ?? 0,
       aiAdvice: json['ai_advice'] ?? '',
     );
   }
@@ -386,9 +386,9 @@ class RiskHistoryItem {
 
   factory RiskHistoryItem.fromJson(Map<String, dynamic> json) =>
       RiskHistoryItem(
-        id: json['id'] as int,
-        score: (json['score'] as num).toDouble(),
-        level: json['level'] as String,
+        id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+        score: double.tryParse(json['score']?.toString() ?? '0') ?? 0.0,
+        level: json['level'] as String? ?? 'low',
         levelLabel: json['level_label'] as String?,
         calculatedAt: json['calculated_at'] as String,
       );
@@ -425,15 +425,15 @@ class MealHistoryItem {
 
   factory MealHistoryItem.fromJson(Map<String, dynamic> json) =>
       MealHistoryItem(
-        id: json['id'] as int,
-        foodName: json['food_name'] as String,
+        id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+        foodName: json['food_name'] as String? ?? 'Bilinmiyor',
         portion: json['portion'] as String?,
-        calories: (json['calories'] ?? 0) as int,
-        proteinG: (json['protein_g'] ?? 0).toDouble(),
-        carbsG: (json['carbs_g'] ?? 0).toDouble(),
-        fatG: (json['fat_g'] ?? 0).toDouble(),
-        fiberG: (json['fiber_g'] ?? 0).toDouble(),
-        healthScore: (json['health_score'] ?? 0) as int,
+        calories: int.tryParse(json['calories']?.toString() ?? '0') ?? 0,
+        proteinG: double.tryParse(json['protein_g']?.toString() ?? '0') ?? 0.0,
+        carbsG: double.tryParse(json['carbs_g']?.toString() ?? '0') ?? 0.0,
+        fatG: double.tryParse(json['fat_g']?.toString() ?? '0') ?? 0.0,
+        fiberG: double.tryParse(json['fiber_g']?.toString() ?? '0') ?? 0.0,
+        healthScore: int.tryParse(json['health_score']?.toString() ?? '0') ?? 0,
         recommendation: json['recommendation'] as String?,
         tags: (json['tags'] as List?)?.map((e) => e.toString()).toList(),
         analyzedAt: json['analyzed_at'] as String,
