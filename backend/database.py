@@ -15,6 +15,14 @@ DATABASE_URL = os.getenv(
     "sqlite+aiosqlite:///./aksa_dev.db",
 )
 
+# Render ve diğer bulut platformları genelde URL'yi "postgres://" olarak verir.
+# SQLAlchemy'nin async çalışabilmesi için "postgresql+asyncpg://" olmalıdır.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+
 # ── Bağlantı Ayarları ──────────────────────────────────────────
 connect_args = {}
 
