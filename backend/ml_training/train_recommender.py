@@ -14,53 +14,76 @@ from ml_models.rnn_recommender import ExerciseRNN
 
 def generate_recommender_data(n_users=500):
     """
-    Kullanıcı bazlı 14 günlük geçmiș simülasyonu.
-    Girdi: 14 * [adim_sayisi, aktif_dk, uyku_saati, günlük_risk] = (14, 4)
-    Çıktı: 5 farklı egzersiz tipi için tamamlama etiketi (1 veya 0)
-    Egzersiz Tipleri:
-    0: Yürüyüş (Düşük Şiddet)
-    1: Yoga/Esneme (Düşük Şiddet)
-    2: Tempolu Koşu (Orta Şiddet)
-    3: Bisiklet (Orta Şiddet)
-    4: HIIT / Ağırlık (Yüksek Şiddet)
+    Kullanıcı bazlı 14 günlük geçmiș simülasyonu (Tez Modül 6 için).
+    Daha gerçekçi davranışsal simülasyon.
     """
     np.random.seed(42)
     X_data = []
     Y_data = []
     
     for _ in range(n_users):
-        # 14 günlük zaman serisi
-        steps = np.random.normal(5000, 2000, 14)
-        active = np.random.normal(30, 15, 14)
-        sleep = np.random.normal(7, 1.5, 14)
-        risk = np.random.randint(0, 3, 14)
+        # Profil belirleme (0: Sedanter/Riskli, 1: Ortalama, 2: Aktif/Fit)
+        profile = np.random.choice([0, 1, 2], p=[0.3, 0.5, 0.2])
         
-        user_x = np.column_stack([steps, active, sleep, risk])
-        X_data.append(user_x)
+        steps, active, sleep, risk = [], [], [], []
         
-        # Etiket üretimi: Eğer risk yüksekse yürüyüş sever, fit ise HIIT sever
+        current_fatigue = 0.0
+        
+        for day in range(14):
+            # Uyku saatleri (profil bazlı)
+            base_sleep = np.random.normal(6.5 if profile == 0 else (7.0 if profile == 1 else 7.5), 1.0)
+            sleep_hours = np.clip(base_sleep - (current_fatigue * 0.5), 4, 10)
+            sleep.append(sleep_hours)
+            
+            # Adım ve aktif süre (uyku azsa ve yorgunsa düşer)
+            fatigue_penalty = current_fatigue * 1000
+            if profile == 0:
+                day_steps = np.clip(np.random.normal(4000, 1000) - fatigue_penalty, 500, 8000)
+                day_risk = np.random.choice([1, 2], p=[0.4, 0.6])
+            elif profile == 1:
+                day_steps = np.clip(np.random.normal(7000, 1500) - fatigue_penalty, 2000, 12000)
+                day_risk = np.random.choice([0, 1], p=[0.7, 0.3])
+            else:
+                day_steps = np.clip(np.random.normal(12000, 3000) - fatigue_penalty, 5000, 20000)
+                day_risk = 0
+                
+            steps.append(day_steps)
+            active.append(day_steps / 150.0) # Yaklaşık aktif dakika
+            risk.append(day_risk)
+            
+            # Aşırı yüksek adımdan sonra yorgunluk birikir
+            if day_steps > 10000:
+                current_fatigue = min(2.0, current_fatigue + 0.5)
+            else:
+                current_fatigue = max(0.0, current_fatigue - 0.5)
+                
+        X_data.append(np.column_stack([steps, active, sleep, risk]))
+        
+        # Etiket üretimi (Hangi egzersizleri sever/tamamlar?)
         avg_risk = np.mean(risk)
         avg_steps = np.mean(steps)
         
+        # 0: Yürüyüş, 1: Yoga, 2: Hafif Koşu, 3: Bisiklet, 4: HIIT/Ağırlık
         labels = [0, 0, 0, 0, 0]
-        if avg_risk > 1.5:
-            # Sağlık riski var, yürüyüş/yoga (0, 1) iyi gelir
-            labels[0] = np.random.choice([0, 1], p=[0.2, 0.8])
-            labels[1] = np.random.choice([0, 1], p=[0.3, 0.7])
-            labels[4] = np.random.choice([0, 1], p=[0.9, 0.1])
-        elif avg_steps > 6000:
-            # Fit insan, koşu, HIIT (2, 4) sever
-            labels[2] = np.random.choice([0, 1], p=[0.2, 0.8])
-            labels[4] = np.random.choice([0, 1], p=[0.3, 0.7])
-            labels[0] = np.random.choice([0, 1], p=[0.8, 0.2])
+        if profile == 0 or avg_risk > 1.5:
+            labels[0] = np.random.choice([0, 1], p=[0.1, 0.9])
+            labels[1] = np.random.choice([0, 1], p=[0.2, 0.8])
+            labels[4] = 0 # Yüksek şiddet riskli
+        elif profile == 2 or avg_steps > 9000:
+            labels[2] = np.random.choice([0, 1], p=[0.3, 0.7])
+            labels[3] = np.random.choice([0, 1], p=[0.4, 0.6])
+            labels[4] = np.random.choice([0, 1], p=[0.2, 0.8])
         else:
-            # Ortalama
-            labels = np.random.randint(0, 2, 5).tolist()
+            labels[0] = np.random.choice([0, 1], p=[0.3, 0.7])
+            labels[1] = np.random.choice([0, 1], p=[0.4, 0.6])
+            labels[2] = np.random.choice([0, 1], p=[0.5, 0.5])
+            labels[3] = np.random.choice([0, 1], p=[0.6, 0.4])
+            labels[4] = np.random.choice([0, 1], p=[0.8, 0.2])
             
         Y_data.append(labels)
         
-    X_arr = np.array(X_data) # (500, 14, 4)
-    Y_arr = np.array(Y_data) # (500, 5)
+    X_arr = np.array(X_data) # (n_users, 14, 4)
+    Y_arr = np.array(Y_data) # (n_users, 5)
     
     return X_arr, Y_arr
 

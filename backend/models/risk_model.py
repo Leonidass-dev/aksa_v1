@@ -3,7 +3,8 @@ M3 — Risk Skoru Modeli
 Hibrit: XGBoost + GRU varsa kullanır, yoksa kural tabanlı fallback.
 """
 
-from dataclasses import dataclass, field
+import datetime
+from dataclasses import dataclass, field, replace
 import numpy as np
 import os
 import sys
@@ -30,12 +31,14 @@ except ImportError as e:
 _xgb_model = None
 _gru_model = None
 _scaler = None
+_models_loaded = False
 
 
 def _load_models():
-    global _xgb_model, _gru_model, _scaler
-    if not _HAS_ML or _xgb_model is not None:
+    global _xgb_model, _gru_model, _scaler, _models_loaded
+    if not _HAS_ML or _models_loaded:
         return
+    _models_loaded = True  # Tekrar denemeyi önle (başarısız yükleme döngüsü)
     try:
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         _xgb_model = joblib.load(os.path.join(base_path, 'ml_models', 'risk_xgboost.pkl'))
@@ -93,6 +96,11 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
     """Hibrit Füzyon: XGBoost + GRU"""
     _load_models()
 
+    # ── Guard Clause: Model veya Scaler yüklenemezse fallback ──
+    if _xgb_model is None or _scaler is None:
+        logger.warning("⚠️ XGBoost veya Scaler yüklenemedi, kural tabanlı fallback'e geçiliyor.")
+        return _compute_risk_rules(snap)
+
     if ml_features is not None and len(ml_features) == 9:
         # M2 Pipeline'dan gelen temizlenmiş gerçek özellikler!
         features = np.array([ml_features])
@@ -118,18 +126,32 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
 
     features_scaled = _scaler.transform(features)
 
+    # ── XGBoost Tahmini ──
     probs_xgb = _xgb_model.predict_proba(features_scaled)[0]
     # WESAD Class 2 (Stres/Yüksek Sapma) tam risk (1.0). Class 1 (Günlük Aktivite) düşük risk (0.2).
     prob_high_xgb = probs_xgb[2] * 1.0 + probs_xgb[1] * 0.2
 
-    features_t = torch.tensor(features_scaled, dtype=torch.float32).unsqueeze(1)
-    with torch.no_grad():
-        out_gru = _gru_model(features_t)
-        probs_gru = torch.softmax(out_gru, dim=1).numpy()[0]
-        prob_high_gru = probs_gru[2] * 1.0 + probs_gru[1] * 0.2
+    # ── GRU Tahmini (seq_len=5 desteği) ──
+    prob_high_gru = 0.0
+    if _gru_model is not None:
+        # Tez M3: "Ardışık pencerelerden oluşan kısa bir geçmiş dizisi"
+        # Eğitim seq_len=5 ile yapıldıysa, inference'da da 5 pencere gerekir.
+        # Geçmiş pencere yoksa mevcut pencereyi tekrarla (zero-shot padding).
+        seq_len = 5
+        features_seq = np.tile(features_scaled, (seq_len, 1))  # (5, 9)
+        features_t = torch.tensor(features_seq, dtype=torch.float32).unsqueeze(0)  # (1, 5, 9)
+        with torch.no_grad():
+            out_gru = _gru_model(features_t)
+            probs_gru = torch.softmax(out_gru, dim=1).numpy()[0]
+            prob_high_gru = probs_gru[2] * 1.0 + probs_gru[1] * 0.2
 
     # XGBoost ve GRU tahminlerinin ağırlıklı ortalaması
     final_prob = (prob_high_xgb * 0.6) + (prob_high_gru * 0.4)
+
+    # Tez M3: Platt-benzeri sigmoid smoothing (kalibrasyon)
+    # Ham olasılığı sigmoid ile yumuşat — aşırı uç değerleri merkeze çek
+    final_prob = 1.0 / (1.0 + np.exp(-5.0 * (final_prob - 0.5)))
+
     # Temel kardiyovasküler baz risk eklenir (Min %5)
     score = max(5.0, round(float(final_prob * 100), 1))
 
@@ -141,14 +163,23 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
     else:
         level = "high"
 
-    # Tez M3: SHAP (Açıklanabilir Yapay Zeka - XAI) Entagrasyonu
+    # Tez M3: SHAP (Açıklanabilir Yapay Zeka - XAI) Entegrasyonu
     factors = []
     try:
         explainer = shap.TreeExplainer(_xgb_model)
         shap_values = explainer.shap_values(features_scaled)
         
         # XGBoost multi-class ise shap_values liste döner. En riskli sınıfın (High Risk) değerlerini alalım.
-        sv = shap_values[2] if isinstance(shap_values, list) else shap_values[0]
+        if isinstance(shap_values, list) and len(shap_values) > 2:
+            sv = shap_values[2]
+        elif isinstance(shap_values, np.ndarray) and shap_values.ndim > 1:
+            sv = shap_values[0]
+        else:
+            sv = shap_values
+        
+        # sv tek boyutlu olmalı
+        if hasattr(sv, 'shape') and sv.ndim > 1:
+            sv = sv[0]
         
         feature_names = [
             "Ortalama Nabız", "Medyan Nabız", "Min Nabız", "Maks Nabız", "Nabız Std",
@@ -156,12 +187,15 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
         ]
         
         # Mutlak değerlerle önem oranlarını (%) bul
-        sv_abs = np.abs(sv)
+        sv_abs = np.abs(sv).flatten()
         total_sv = np.sum(sv_abs) + 1e-9
+        sv_flat = np.array(sv).flatten()
         
-        for i, val in enumerate(sv):
+        for i, val in enumerate(sv_flat):
+            if i >= len(feature_names):
+                break
             pct = (abs(val) / total_sv) * 100
-            if pct > 5.0: # Sadece %5'ten fazla etkisi olanları ekle
+            if pct > 5.0:  # Sadece %5'ten fazla etkisi olanları ekle
                 direction = "Artırıcı" if val > 0 else "Düşürücü"
                 desc = f"Algoritmik SHAP Etkisi ({direction})"
                 factors.append(RiskFactor(feature_names[i], round(float(pct), 1), desc))
@@ -216,7 +250,6 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
 
     # 3. Adım ve Aktivite (Sedanter Yaşam)
     # Tez M3: Zaman duyarlı risk analizi (Sabah saatlerinde düşük adım normaldir)
-    import datetime
     current_hour = datetime.datetime.now().hour
     
     # Saat bazlı beklenen adım: sabah düşük, akşam yüksek
@@ -320,32 +353,35 @@ def _clean_data(snap: HealthSnapshot) -> HealthSnapshot:
     """
     Tez M2: Canlı Veri Ön İşleme (Preprocessing).
     Gelen verileri analiz öncesi temizler, aykırı değerleri (outliers) kırpar.
+    Orijinal dataclass'ı değiştirmez — temiz bir kopya döndürür.
     """
+    updates = {}
+    
     # 1. Kalp Hızı Temizleme [40, 220]
     if snap.heart_rate_avg > 0:
-        snap.heart_rate_avg = max(40.0, min(220.0, snap.heart_rate_avg))
+        updates['heart_rate_avg'] = max(40.0, min(220.0, snap.heart_rate_avg))
     if snap.heart_rate_resting > 0:
-        snap.heart_rate_resting = max(35.0, min(150.0, snap.heart_rate_resting))
+        updates['heart_rate_resting'] = max(35.0, min(150.0, snap.heart_rate_resting))
         
     # 2. SpO2 Temizleme [%70, %100]
     if snap.spo2 > 0:
-        snap.spo2 = max(70.0, min(100.0, snap.spo2))
+        updates['spo2'] = max(70.0, min(100.0, snap.spo2))
         
     # 3. Adım Sayısı (Günde 50k adımı geçen veri muhtemelen hatalıdır)
     if snap.steps > 0:
-        snap.steps = min(50000.0, snap.steps)
+        updates['steps'] = min(50000.0, snap.steps)
         
     # 4. Kilo ve Boy Mantık Kontrolü
     if snap.weight > 0:
-        snap.weight = max(30.0, min(250.0, snap.weight))
+        updates['weight'] = max(30.0, min(250.0, snap.weight))
         
     # 5. Tansiyon Kırpma
     if snap.systolic > 0:
-        snap.systolic = max(70.0, min(220.0, snap.systolic))
+        updates['systolic'] = max(70.0, min(220.0, snap.systolic))
     if snap.diastolic > 0:
-        snap.diastolic = max(40.0, min(130.0, snap.diastolic))
+        updates['diastolic'] = max(40.0, min(130.0, snap.diastolic))
         
-    return snap
+    return replace(snap, **updates)
 
 
 def compute_risk(snap: HealthSnapshot, ml_features: list[float] | None = None) -> RiskResult:
@@ -384,4 +420,4 @@ def _generate_recommendations(factors: list[RiskFactor], level: str) -> list[str
     if not recs:
         recs.append("Tüm göstergeler harika! Mevcut yaşam tarzınızı korumaya devam edin.")
         
-    return list(dict.fromkeys(recs))[:4] # Duplicate'leri temizle
+    return list(dict.fromkeys(recs))[:4]  # Duplicate'leri temizle

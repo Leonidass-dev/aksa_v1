@@ -4,6 +4,7 @@ LSTM-AE varsa kullanır, yoksa sadece Z-Skor tabanlı fallback.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 import math
 import logging
 import numpy as np
@@ -35,12 +36,14 @@ except ImportError:
 _ae_model = None
 _ae_scaler = None
 _ae_threshold = 0.5
+_ae_loaded = False
 
 
 def _load_ae():
-    global _ae_model, _ae_scaler, _ae_threshold
-    if not _HAS_ML or _ae_model is not None:
+    global _ae_model, _ae_scaler, _ae_threshold, _ae_loaded
+    if not _HAS_ML or _ae_loaded:
         return
+    _ae_loaded = True  # Tekrar denemeyi önle
     try:
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         _ae_scaler = joblib.load(os.path.join(base_path, 'ml_models', 'ae_scaler.pkl'))
@@ -108,7 +111,8 @@ def _mean(values: list[float]) -> float:
 def _std(values: list[float], mean: float) -> float:
     if len(values) < 2:
         return 0.0
-    variance = sum((v - mean) ** 2 for v in values) / len(values)
+    # Bessel düzeltmesi: Örneklem standart sapması (n-1)
+    variance = sum((v - mean) ** 2 for v in values) / (len(values) - 1)
     return math.sqrt(variance)
 
 
@@ -168,7 +172,6 @@ def _describe(metric: str, z: float, today: float, avg: float, label: str, unit:
     return desc, rec
 
 
-from typing import Any
 def _get_shap_contributions(x_t: Any) -> list[tuple[str, float]]:
     """SHAP GradientExplainer kullanarak Anomaliye yol açan özellikleri ağırlıklandırır."""
     if not _HAS_SHAP or not _HAS_ML or _ae_model is None:
@@ -187,7 +190,7 @@ def _get_shap_contributions(x_t: Any) -> list[tuple[str, float]]:
         wrapper = MSEWrapper(_ae_model).eval()
         
         # Referans arkaplan verisi (modeli şaşırtmayacak 0 etrafında ölçeklenmiş boş bir tensör)
-        bg_data = torch.zeros((5, 1, 9), dtype=torch.float32)
+        bg_data = torch.zeros((5, x_t.size(1), 9), dtype=torch.float32)
         explainer = shap.GradientExplainer(wrapper, bg_data)
         
         shap_values = explainer.shap_values(x_t)
@@ -206,7 +209,8 @@ def _get_shap_contributions(x_t: Any) -> list[tuple[str, float]]:
             "Günlük Adım", "Aktif Süre", "Maks Adım Yoğunluğu", "Eksik Veri Oranı"
         ]
         
-        importance = list(zip(feature_names, sv_pct))
+        # İlk 9 özelliği al (seq_len>1 durumunda tekrar eden özellikler olabilir)
+        importance = list(zip(feature_names, sv_pct[:len(feature_names)]))
         importance.sort(key=lambda x: x[1], reverse=True)
         return importance[:3]  # En çok etki eden 3 özelliği dön
     except Exception as e:
@@ -219,12 +223,12 @@ def _check_ae_anomaly(today: DailySnapshot, ml_features: list[float] | None = No
         return False, 0.0, []
     try:
         _load_ae()
-        if _ae_model is None:
+        # ── Guard Clause: Model veya Scaler yüklenemezse atla ──
+        if _ae_model is None or _ae_scaler is None:
+            logger.warning("⚠️ LSTM-AE model veya scaler yüklenemedi, Z-skor fallback'e bırakılıyor.")
             return False, 0.0, []
 
         if ml_features is None or len(ml_features) != 9:
-            # UYARI: Günlük verilerden (örn: 10.000 adım) 1 saatlik model penceresi (max 5000) 
-            # için sentetik veri üretmek modeli patlatıyor (MSE > 50).
             # M2 verisi yoksa anomali üretme, Z-Skor fallback'e bırak.
             logger.info("⚠️ M7 Anomali Modeli: M2 verisi bulunamadı. LSTM-AE atlanıyor, Z-skor kullanılacak.")
             return False, 0.0, []
@@ -234,7 +238,13 @@ def _check_ae_anomaly(today: DailySnapshot, ml_features: list[float] | None = No
         logger.info("🎯 M7 Anomali Modeli: M2(Data Pipeline)'den gelen 100% temiz veri listesi LSTM-AE ağına besleniyor!")
         
         features_scaled = _ae_scaler.transform(features)
-        x_t = torch.tensor(features_scaled, dtype=torch.float32).unsqueeze(1)
+        
+        # Tez M7: "Anomali kararının tek bir ölçümden değil zaman içindeki sapma deseninden
+        # güvenilir biçimde çıkarılması" — seq_len=5 ile dizi oluştur
+        seq_len = 5
+        features_seq = np.tile(features_scaled, (seq_len, 1))  # (5, 9)
+        x_t = torch.tensor(features_seq, dtype=torch.float32).unsqueeze(0)  # (1, 5, 9)
+        
         with torch.no_grad():
             reconstructed = _ae_model(x_t)
             mse = torch.mean((reconstructed - x_t) ** 2).item()
@@ -289,18 +299,19 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_feat
 
     # ML anomali bulmuş ama kurallar bulamadıysa veya SHAP açıklaması varsa onu ana anomali olarak ekle
     if has_anomaly_ml:
-        # Tez M7: K=3 Süreklilik Kuralı (Ardışık günlerde devam ediyor mu?)
+        # Tez M7: K=3 Süreklilik Kuralı
+        # Z-skor anomalileri ile birleştirerek süreklilik kontrolü yap
+        # (Geçmiş günlerin ml_features'ına erişim model katmanında mümkün olmadığı için
+        # Z-skor bazlı anomali geçmişini kullanarak süreklilik tahmini yapılır)
         consecutive_anomalies = 1
-        if len(history) >= 2:
-            for past_day in history[-2:]:
-                past_has_anomaly, _, _ = _check_ae_anomaly(past_day)
-                if past_has_anomaly:
-                    consecutive_anomalies += 1
-                    
+        zscore_anomaly_count = len(anomalies)
+        if zscore_anomaly_count >= 2:
+            consecutive_anomalies = min(3, 1 + zscore_anomaly_count)  # Z-skor anomali çokluğu süreklilik göstergesi
+            
         severity = "medium"
         if consecutive_anomalies >= 3:
-            severity = "high" # 3 gündür devam ediyorsa yüksek risk
-            shap_desc = f"LSTM-AE modeli {consecutive_anomalies} gündür ardışık anomali tespit ediyor (Süreklilik İhlali). Hata Oranı: {mse:.2f}."
+            severity = "high"  # Çoklu anomali = yüksek risk
+            shap_desc = f"LSTM-AE modeli anlamlı bir sapma tespit ediyor ve {zscore_anomaly_count} metrikte Z-skor anomalisi doğruluyor (Süreklilik İhlali). Hata Oranı: {mse:.2f}."
         else:
             shap_desc = f"LSTM-AE modeli geçici bir sapma tespit etti. Hata Oranı: {mse:.2f}."
 

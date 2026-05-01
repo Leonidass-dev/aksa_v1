@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.risk_model import HealthSnapshot, compute_risk
 from database import get_db
@@ -43,7 +43,6 @@ class RiskFactorResponse(BaseModel):
     description: str
 
 
-from pydantic import BaseModel, ConfigDict
 
 class RiskResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())

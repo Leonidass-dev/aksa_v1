@@ -90,6 +90,9 @@ async def preprocess_sensor_data(
                         latest_window.get("steps_max", 0),
                         latest_window.get("missing_pct", 0)
                     ]
+                    # Not: hr_rmssd gibi ekstra HRV metrikleri features_list'te mevcuttur 
+                    # ancak M3/M7 modelleri 9 boyutlu input beklediği için 
+                    # ml_features_array'e dahil edilmemiştir (geriye uyumluluk).
                     await crud.save_health_record(db, user, data={"ml_features": ml_features_array})
 
         return PreprocessingResponse(

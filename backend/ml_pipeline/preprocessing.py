@@ -93,6 +93,9 @@ class PreprocessorPipeline:
         df_resampled = df.resample('1min').sum()
         df_resampled['value'] = df_resampled['value'].fillna(0)
         
+        # Tez M2: log(1+x) dönüşümü (Adım verisindeki aşırı sağa çarpıklığı gidermek için)
+        df_resampled['value'] = np.log1p(df_resampled['value'])
+        
         return df_resampled
 
     def create_features(self, df_hr, df_steps):

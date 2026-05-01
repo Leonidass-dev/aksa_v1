@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncSession
 from models.anomaly_model import DailySnapshot, detect_anomalies
+from database import get_db
 from auth import get_current_user
+import crud
 
 router = APIRouter()
 
@@ -36,8 +39,6 @@ class AnomalyItemResponse(BaseModel):
     recommendation: str
 
 
-from pydantic import BaseModel, ConfigDict
-
 class AnomalyCheckResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
     
@@ -59,10 +60,6 @@ def _to_snapshot(r: DailySnapshotRequest) -> DailySnapshot:
         weight=r.weight,
     )
 
-
-from sqlalchemy.ext.asyncio import AsyncSession
-from database import get_db
-import crud
 
 @router.post("/anomaly-check", response_model=AnomalyCheckResponse)
 async def check_anomaly(

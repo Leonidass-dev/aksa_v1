@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import GroupShuffleSplit
 import joblib
 import os
 import sys
@@ -12,37 +13,61 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ml_models.lstm_ae_model import LSTMAutoencoder
 
+def create_ae_sequences(df, seq_len=5):
+    feature_cols = ['hr_mean', 'hr_median', 'hr_min', 'hr_max', 'hr_std', 
+                    'steps_sum', 'steps_active_mins', 'steps_max', 'missing_pct']
+    X, groups = [], []
+    
+    for subj, group in df.groupby('subject_id'):
+        group = group.sort_values('window_idx')
+        vals = group[feature_cols].values
+        anomalies = group['anomaly_label'].values
+        
+        for i in range(len(vals) - seq_len + 1):
+            seq_anomalies = anomalies[i:i+seq_len]
+            # Sadece "Normal" pencerelerden oluşan dizileri al
+            if np.sum(seq_anomalies) == 0:
+                X.append(vals[i:i+seq_len])
+                groups.append(subj)
+                
+    return np.array(X), np.array(groups)
+
 def train_anomaly_ae():
     print("PyTorch LSTM-AE Modeli Eğitimi Başlıyor (Modül 7)...")
     
     # 1. Veri Yükleme
     df = pd.read_csv('ml_training/data/wesad_processed.csv')
-    feature_cols = ['hr_mean', 'hr_median', 'hr_min', 'hr_max', 'hr_std', 
-                    'steps_sum', 'steps_active_mins', 'steps_max', 'missing_pct']
     
-    # LSTM-AE sadece \"Normal\" veri kullanılarak eğitilir. 
-    # Tez: "Normal davranış modellemesi için LSTM tabanlı otokodlayıcı kullanılır."
-    df_normal = df[df['anomaly_label'] == 0]
+    # 2. Sequence Oluşturma (sadece normal verilerden, seq_len=5)
+    seq_len = 5
+    X_seq, groups = create_ae_sequences(df, seq_len=seq_len)
     
-    X_normal = df_normal[feature_cols].values
+    print(f"Oluşturulan toplam 'Normal' dizi (sequence) sayısı: {len(X_seq)}")
     
-    # Normalizasyon
+    # Eğitim için tüm normal verileri kullanacağız, ancak threshold hesabı için 
+    # train test split yapılabilir. AE genelde hepsiyle eğitilip yine hepsiyle threshold belirlenir.
+    # Yine de subject tabanlı validation daha dürüsttür.
+    
+    # 3. Normalizasyon
     scaler = StandardScaler()
-    X_normal_scaled = scaler.fit_transform(X_normal)
+    batch, seq, feats = X_seq.shape
+    X_flat = X_seq.reshape(-1, feats)
+    X_scaled_flat = scaler.fit_transform(X_flat)
+    X_scaled = X_scaled_flat.reshape(batch, seq, feats)
     
-    X_t = torch.tensor(X_normal_scaled, dtype=torch.float32).unsqueeze(1) # (batch, 1, features)
+    X_t = torch.tensor(X_scaled, dtype=torch.float32)
     
-    train_data = TensorDataset(X_t, X_t) # Hedef kendisi (Autoencoder)
+    train_data = TensorDataset(X_t, X_t) # Hedef kendisi
     train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
     
-    # Model Tanımlama
-    input_size = len(feature_cols)
+    # 4. Model Tanımlama
+    input_size = feats
     model = LSTMAutoencoder(input_size=input_size, hidden_size=16)
     
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     
-    # Eğitim
+    # 5. Eğitim
     epochs = 15
     for epoch in range(epochs):
         model.train()
@@ -58,7 +83,7 @@ def train_anomaly_ae():
         epoch_loss = running_loss / len(train_loader.dataset)
         print(f"Epoch {epoch+1}/{epochs} - Train MSE Loss: {epoch_loss:.4f}")
         
-    # Eşik Değerinin Hesaplanması (Threshold)
+    # 6. Eşik Değerinin Hesaplanması (Threshold)
     model.eval()
     with torch.no_grad():
         reconstructed = model(X_t)
@@ -68,12 +93,11 @@ def train_anomaly_ae():
     threshold = np.percentile(mses, 95)
     print(f"Hesaplanan Anomali Eşiği (Threshold): {threshold:.4f}")
     
-    # Kaydetme
+    # 7. Kaydetme
     os.makedirs('ml_models', exist_ok=True)
     torch.save(model.state_dict(), 'ml_models/lstm_ae.pt')
     joblib.dump(scaler, 'ml_models/ae_scaler.pkl')
     
-    # Eşik değerini de metin veya config olarak kaydedelim
     with open('ml_models/ae_threshold.txt', 'w') as f:
         f.write(str(threshold))
         
