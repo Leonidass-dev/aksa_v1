@@ -1,0 +1,28 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest
+.pytest_cache/
+
+# Local databases (we will use Postgres in Docker Compose)
+*.db
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+
+# IDEs
+.idea/
+.vscode/
+
+# Ignore old/duplicate models folder if any leftover exists
+# ml_training data is usually large and not needed for inference
+ml_training/data/
