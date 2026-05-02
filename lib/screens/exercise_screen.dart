@@ -252,12 +252,14 @@ class _ExerciseScreenState extends State<ExerciseScreen>
 
   Widget _buildTodayStatusCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final riskLevel = _apiResult != null ? _apiResult!.aiAdvice.toLowerCase() : '';
+    final riskLevel = _apiResult != null ? _apiResult!.aiAdvice : '';
     
-    String statusTitle = 'Analiz Tamamlandı';
-    String statusDesc = 'Güncel sağlık verilerinize göre size özel bir program oluşturuldu.';
-    IconData statusIcon = Icons.analytics_outlined;
-    Color statusColor = AppColors.primary;
+    String statusTitle = _apiResult != null ? 'Kişisel Analiz Hazır' : 'Analiz Ediliyor';
+    String statusDesc = _apiResult != null 
+        ? 'Sağlık verileriniz ve risk profiliniz Gemini AI tarafından işlendi.'
+        : 'Verileriniz ML Pipeline üzerinden analiz ediliyor...';
+    IconData statusIcon = _apiResult != null ? Icons.verified_user_rounded : Icons.analytics_outlined;
+    Color statusColor = _apiResult != null ? AppColors.secondary : AppColors.primary;
 
     return AppCard(
       child: Column(

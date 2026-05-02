@@ -48,12 +48,42 @@ class WeeklyTrendCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 80,
-            child: CustomPaint(
-              size: const Size(double.infinity, 80),
-              painter: AppLineChartPainter(data: weeklyData, color: AppColors.primary),
-            ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                height: 80,
+                child: CustomPaint(
+                  size: const Size(double.infinity, 80),
+                  painter: AppLineChartPainter(
+                    data: weeklyData,
+                    color: weeklyData.every((v) => v == 0) 
+                        ? cs.outlineVariant.withValues(alpha: 0.3)
+                        : AppColors.primary,
+                  ),
+                ),
+              ),
+              if (weeklyData.every((v) => v == 0))
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: cs.surface.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.query_stats_rounded, size: 14, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Analiz için yeterli veri toplanıyor...',
+                        style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ],
       ),

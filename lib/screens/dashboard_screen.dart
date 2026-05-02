@@ -363,7 +363,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                     const SizedBox(height: 12),
                     _buildSectionTitle(context, 'Günlük Metrikler', Icons.insights_rounded),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 0), // Boşluk daraltıldı (M2 Feedback)
                     DashboardMetricsGrid(
                       todayEntry: _todayEntry,
                       onBPTap: () => BPEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
@@ -385,11 +385,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                         _loadTodayData();
                       },
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     _buildSectionTitle(context, 'Hızlı Keşfet', Icons.explore_outlined),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 4),
                     const DiscoverGrid(),
                     const SizedBox(height: 24),
+                    _buildSectionTitle(context, 'Haftalık Risk Trendi', Icons.trending_up_rounded),
+                    const SizedBox(height: 4),
                     WeeklyTrendCard(weeklyData: _weeklyData),
                   ],
                 ),
