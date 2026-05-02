@@ -312,14 +312,14 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_feat
         # Z-skor anomalileri ile birleştirerek süreklilik kontrolü yap
         # (Geçmiş günlerin ml_features'ına erişim model katmanında mümkün olmadığı için
         # Z-skor bazlı anomali geçmişini kullanarak süreklilik tahmini yapılır)
-        consecutive_anomalies = 1
+        anomaly_complexity = 1
         zscore_anomaly_count = len(anomalies)
         if zscore_anomaly_count >= 2:
-            consecutive_anomalies = min(3, 1 + zscore_anomaly_count)  # Z-skor anomali çokluğu süreklilik göstergesi
+            anomaly_complexity = min(3, 1 + zscore_anomaly_count)  # Anomali yaygınlığı (birçok metrikte sapma)
             
         severity = "medium"
-        if consecutive_anomalies >= 3:
-            severity = "high"  # Çoklu anomali = yüksek risk
+        if anomaly_complexity >= 3:
+            severity = "high"  # Çoklu anomali yaygınlığı = yüksek risk
             shap_desc = "Sağlık göstergelerinizde belirgin bir sapma fark edildi, bugün dinlenmeniz önerilir."
         else:
             shap_desc = "Vücut verilerinizde bugün olağan dışı bir hareketlilik tespit edildi."

@@ -132,7 +132,7 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
         missing_pct = 0.0
 
         latest_vector = np.array([[
-            hr_mean, hr_mean, hr_min, hr_max, hr_std,
+            hr_mean, hr_mean, hr_min, hr_max, hr_std,  # Medyan yerine ortalama (fallback)
             steps_window, steps_active, steps_max, missing_pct
         ]])
         raw_sequence = latest_vector.tolist()

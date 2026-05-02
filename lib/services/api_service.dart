@@ -16,7 +16,7 @@ class ApiServiceImpl implements IApiService {
   final String _baseUrl = const String.fromEnvironment(
 
     'API_BASE_URL',
-    defaultValue: 'https://aksa-backend-8slk.onrender.com/api',
+    defaultValue: 'http://10.0.2.2:8000/api',
   );
 
   // ── Firebase Token Helper ─────────────────────────────────────
