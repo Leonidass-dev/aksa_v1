@@ -78,6 +78,7 @@ class HealthServiceImpl implements IHealthService {
       HealthDataType.SLEEP_LIGHT,
       HealthDataType.SLEEP_REM,
       HealthDataType.DISTANCE_DELTA,
+      HealthDataType.HEART_RATE_VARIABILITY_SDNN,
     ];
 
     final permissions = types.map((e) => HealthDataAccess.READ).toList();
@@ -129,6 +130,7 @@ class HealthServiceImpl implements IHealthService {
         HealthDataType.SLEEP_LIGHT,
         HealthDataType.SLEEP_REM,
         HealthDataType.DISTANCE_DELTA,
+        HealthDataType.HEART_RATE_VARIABILITY_SDNN,
       ];
 
       List<HealthDataPoint> healthData = await _healthFactory
@@ -164,6 +166,7 @@ class HealthServiceImpl implements IHealthService {
         heartRate: parsedData.heartRate,
         restingHeartRate: parsedData.restingHeartRate,
         spo2: parsedData.spo2,
+        stressLevel: parsedData.hrv > 0 ? parsedData.hrv : (todayEntry?.stressLevel ?? 0),
         systolic: parsedData.systolic,
         diastolic: parsedData.diastolic,
         sleepHours: parsedData.sleepHours,
@@ -174,9 +177,8 @@ class HealthServiceImpl implements IHealthService {
         activeCalories: parsedData.activeCalories,
         totalCalories: parsedData.totalCalories,
         distanceM: parsedData.distanceM,
-        stressLevel: todayEntry?.stressLevel ?? 0,
-        waterMl: todayEntry?.waterMl ?? 0, // Önceki manuel girişi koru
-        mood: todayEntry?.mood ?? 'neutral', // Önceki manuel girişi koru
+        waterMl: todayEntry?.waterMl ?? 0,
+        mood: todayEntry?.mood ?? 'neutral',
         source: 'health_connect',
       );
 
