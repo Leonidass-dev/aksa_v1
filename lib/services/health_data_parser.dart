@@ -18,10 +18,11 @@ class HealthDataParser {
     required DateTime midnight,
     required HealthEntry? todayEntry,
   }) {
-    double avgHeartRate = 0, avgRestingHr = 0, avgSpo2 = 0;
-    double avgSystolic = 0, avgDiastolic = 0;
+    double latestHeartRate = 0, latestRestingHr = 0, latestSpo2 = 0;
+    double latestSystolic = 0, latestDiastolic = 0;
+    DateTime? hrTime, rhrTime, spo2Time, sysTime, diaTime;
+    
     double totalSleepMin = 0, sleepDeepMin = 0, sleepLightMin = 0, sleepRemMin = 0;
-    int hrCount = 0, restHrCount = 0, spo2Count = 0, sysCount = 0, diaCount = 0;
 
     // Kümülatif metrikler için kaynak bazlı toplam
     final Map<String, double> stepsBySrc = {};
@@ -47,6 +48,7 @@ class HealthDataParser {
           ? point.dateTo.difference(point.dateFrom).inMinutes.toDouble()
           : _numericValue(point);
       final src = point.sourceName;
+      final time = point.dateFrom;
 
       switch (point.type) {
         case HealthDataType.STEPS:
@@ -58,15 +60,25 @@ class HealthDataParser {
         case HealthDataType.DISTANCE_DELTA:
           distanceBySrc[src] = (distanceBySrc[src] ?? 0) + val;
         case HealthDataType.HEART_RATE:
-          avgHeartRate += val; hrCount++;
+          if (hrTime == null || time.isAfter(hrTime)) {
+            latestHeartRate = val; hrTime = time;
+          }
         case HealthDataType.RESTING_HEART_RATE:
-          avgRestingHr += val; restHrCount++;
+          if (rhrTime == null || time.isAfter(rhrTime)) {
+            latestRestingHr = val; rhrTime = time;
+          }
         case HealthDataType.BLOOD_OXYGEN:
-          avgSpo2 += val; spo2Count++;
+          if (spo2Time == null || time.isAfter(spo2Time)) {
+            latestSpo2 = val; spo2Time = time;
+          }
         case HealthDataType.BLOOD_PRESSURE_SYSTOLIC:
-          avgSystolic += val; sysCount++;
+          if (sysTime == null || time.isAfter(sysTime)) {
+            latestSystolic = val; sysTime = time;
+          }
         case HealthDataType.BLOOD_PRESSURE_DIASTOLIC:
-          avgDiastolic += val; diaCount++;
+          if (diaTime == null || time.isAfter(diaTime)) {
+            latestDiastolic = val; diaTime = time;
+          }
         case HealthDataType.SLEEP_ASLEEP:
           totalSleepMin += val;
         case HealthDataType.SLEEP_DEEP:
@@ -90,13 +102,6 @@ class HealthDataParser {
       debugPrint("Adım kaynakları: $stepsBySrc → Seçilen: $totalSteps");
     }
 
-    // ── Ortalamalar ────
-    if (hrCount > 0) avgHeartRate /= hrCount;
-    if (restHrCount > 0) avgRestingHr /= restHrCount;
-    if (spo2Count > 0) avgSpo2 /= spo2Count;
-    if (sysCount > 0) avgSystolic /= sysCount;
-    if (diaCount > 0) avgDiastolic /= diaCount;
-
     final sleepHrs = totalSleepMin > 0
         ? totalSleepMin / 60.0
         : (sleepDeepMin + sleepLightMin + sleepRemMin) / 60.0;
@@ -104,11 +109,11 @@ class HealthDataParser {
     // ── Sıfır koruma: Cihazdan 0 gelirse mevcut veriyi koru ────
     return ParsedHealthData(
       steps: totalSteps > 0 ? totalSteps : (todayEntry?.steps ?? 0),
-      heartRate: avgHeartRate > 0 ? avgHeartRate : (todayEntry?.heartRate ?? 0),
-      restingHeartRate: avgRestingHr > 0 ? avgRestingHr : (todayEntry?.restingHeartRate ?? 0),
-      spo2: avgSpo2 > 0 ? avgSpo2 : (todayEntry?.spo2 ?? 0),
-      systolic: avgSystolic > 0 ? avgSystolic : (todayEntry?.systolic ?? 0),
-      diastolic: avgDiastolic > 0 ? avgDiastolic : (todayEntry?.diastolic ?? 0),
+      heartRate: latestHeartRate > 0 ? latestHeartRate : (todayEntry?.heartRate ?? 0),
+      restingHeartRate: latestRestingHr > 0 ? latestRestingHr : (todayEntry?.restingHeartRate ?? 0),
+      spo2: latestSpo2 > 0 ? latestSpo2 : (todayEntry?.spo2 ?? 0),
+      systolic: latestSystolic > 0 ? latestSystolic : (todayEntry?.systolic ?? 0),
+      diastolic: latestDiastolic > 0 ? latestDiastolic : (todayEntry?.diastolic ?? 0),
       sleepHours: sleepHrs > 0 ? sleepHrs : (todayEntry?.sleepHours ?? 0),
       sleepDeepMin: sleepDeepMin,
       sleepLightMin: sleepLightMin,
