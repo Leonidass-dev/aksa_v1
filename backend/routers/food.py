@@ -206,7 +206,7 @@ async def analyze_food(
             ],
             "generationConfig": {
                 "temperature": 0.2,
-                "responseMimeType": "application/json"
+                "response_mime_type": "application/json"
             },
         }
 

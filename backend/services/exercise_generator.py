@@ -44,21 +44,21 @@ KRİTİK KURALLAR:
 4. Liste formatında değil, sadece o an yapılacak tek bir idman seansı gibi düşün.
 
 JSON FORMATI:
-{
+{{
   "exercises": [
-    {
+    {{
       "title": "Doğrudan Egzersiz Adı",
       "duration_minutes": 20,
       "intensity": "Düşük/Orta/Yüksek",
       "calories": 100,
       "type": "Kardiyo/Yoga/Güç",
       "description": "Yapılış özeti"
-    }
+    }}
   ],
   "total_duration_minutes": 20,
   "total_calories": 100,
   "ai_advice": "Neden bu egzersizi seçtiğine dair not..."
-}
+}}
 """
 
 async def generate_dynamic_plan(
@@ -111,7 +111,7 @@ async def generate_dynamic_plan(
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.7,
-                "responseMimeType": "application/json"
+                "response_mime_type": "application/json"
             }
         }
 
