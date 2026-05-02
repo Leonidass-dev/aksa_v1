@@ -178,8 +178,12 @@ class AuthServiceImpl implements IAuthService {
       // Ancak burada temel kullanıcı dokümanını siliyoruz.
       // await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
 
-      // 2. Firebase Auth hesabını sil
+      // 1. Firebase Auth hesabını sil
       await user.delete();
+      
+      // 2. Oturumu kapat (Google vb. temizliği için)
+      await signOut();
+
       return AuthResult.successMessage('Hesabınız başarıyla silindi.');
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {

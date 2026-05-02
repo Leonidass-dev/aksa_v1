@@ -320,16 +320,16 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_feat
         severity = "medium"
         if consecutive_anomalies >= 3:
             severity = "high"  # Çoklu anomali = yüksek risk
-            shap_desc = f"LSTM-AE modeli anlamlı bir sapma tespit ediyor ve {zscore_anomaly_count} metrikte Z-skor anomalisi doğruluyor (Süreklilik İhlali). Hata Oranı: {mse:.2f}."
+            shap_desc = "Sağlık göstergelerinizde belirgin bir sapma fark edildi, bugün dinlenmeniz önerilir."
         else:
-            shap_desc = f"LSTM-AE modeli geçici bir sapma tespit etti. Hata Oranı: {mse:.2f}."
+            shap_desc = "Vücut verilerinizde bugün olağan dışı bir hareketlilik tespit edildi."
 
         if shap_factors:
-            factors_text = ", ".join([f"%{f[1]:.0f} {f[0]}" for f in shap_factors])
-            shap_desc += f" En çok etkileyen faktörler: {factors_text}"
+            factors_text = ", ".join([f"{f[0]}" for f in shap_factors])
+            shap_desc += f" Öne çıkan değişimler: {factors_text}"
             
         anomalies.insert(0, AnomalyItem(
-            metric="lstm_ae_fusion", metric_label="Yapay Zeka Anomali Tespiti",
+            metric="lstm_ae_fusion", metric_label="Sağlık Durumu Analizi",
             z_score=round(mse * 10, 2), today_value=0, avg_value=0, unit="",
             severity=severity,
             description=shap_desc,

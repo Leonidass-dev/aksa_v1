@@ -208,10 +208,14 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
       setState(() => _loading = false);
 
       if (result.isSuccess) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Hesabınız başarıyla silindi.')),
         );
+        // Kullanıcıyı giriş ekranına yönlendir ve stack'i temizle
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result.errorMessage!), backgroundColor: AppColors.destructive),
         );

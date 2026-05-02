@@ -60,11 +60,12 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
     
     _analyzedDate = todayEntry.date;
 
-    if (historyEntries.length < 3) {
+    // Not: Eskiden burada 'en az 3 gün veri' şartı vardı. 
+    // Backend kendi geçmiş verisine sahip olabileceği için yerel kontrolü esnetiyoruz.
+    if (historyEntries.isEmpty && todayEntry.steps == 0 && todayEntry.heartRate == 0) {
       setState(() {
         _loading = false;
-        _errorMsg =
-            'Anomali tespiti için en az 3 günlük veri gerekiyor.\n${historyEntries.length} gün mevcut.';
+        _errorMsg = 'Analiz edilecek veri bulunamadı. Lütfen saat verilerinizi güncelleyin.';
       });
       return;
     }
@@ -157,7 +158,7 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
 
     return AppHeader(
       title: 'Sağlık Uyarıları',
-      subtitle: 'Yapay Zeka Uyarı Analizi',
+      subtitle: 'Sağlık Analiz Detayları',
       gradientColors: [headerColor, headerColor.withValues(alpha: 0.7)],
       trailing: AppRefreshButton(
         onTap: _loading ? null : _runAnomalyCheck,
@@ -363,11 +364,11 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    'z=${a.zScore.toStringAsFixed(1)}',
+                    'Sapma: ${a.zScore.toStringAsFixed(1)}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 11,
+                      fontSize: 10,
                     ),
                   ),
                 ),
