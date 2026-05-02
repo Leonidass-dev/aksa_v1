@@ -6,6 +6,8 @@ import '../services/api_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/theme_aware_state.dart';
+import 'dart:async';
+import 'dart:convert';
 
 class RiskScoreScreen extends StatefulWidget {
   const RiskScoreScreen({super.key});
@@ -33,67 +35,88 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
   }
 
   Future<void> _loadFromApi() async {
+    if (!mounted) return;
     setState(() => _loading = true);
 
-    // 1 �?" Profil verisini çek (Ya�Y, Boy, Cinsiyet)
-    final profile = await UserProfileService.getProfile();
-    final pAge = profile?.age ?? 30;
-    final pHeight = profile?.height ?? 170.0;
-    final pGender = profile?.gender ?? 'M';
+    try {
+      // 1 — Profil verisini çek (Yaş, Boy, Kilo, Cinsiyet)
+      final profile = await UserProfileService.getProfile();
+      final pAge = profile?.age ?? 30;
+      final pHeight = profile?.height ?? 170.0;
+      final pWeight = profile?.weight ?? 70.0;
+      final pGender = profile?.gender ?? 'M';
 
-    // 2 �?" Firestore'dan bugünün verisini çek
-    final entry = await HealthService.getTodayEntry();
+      // 2 — Firestore'dan bugünün verisini çek
+      final entry = await HealthService.getTodayEntry();
 
-    if (entry != null) {
-      // 3 �?" FastAPI'ye gönder
-      final apiResult = await ApiService.fetchRiskScore(
-        RiskApiRequest(
-          age: pAge,
-          gender: pGender,
-          height: pHeight,
-          steps: entry.steps,
-          sleepHours: entry.sleepHours,
-          systolic: entry.systolic,
-          diastolic: entry.diastolic,
-          weight: entry.weight,
-          heartRateResting: entry.restingHeartRate > 0
-              ? entry.restingHeartRate
-              : entry.heartRate, // Dinlenik yoksa ortalamayı kullan
-          heartRateAvg: entry.heartRate,
-          spo2: entry.spo2,
-          stressLevel: entry.stressLevel,
-        ),
-      );
+      // 3 — Beslenme verilerini çek (Dashboard ile senkronizasyon için)
+      final mealHistory = await ApiService.fetchMealHistory(limit: 20);
+      final now = DateTime.now();
+      final todayMeals = mealHistory.where((m) {
+        final d = DateTime.parse(m.analyzedAt).toLocal();
+        return d.year == now.year && d.month == now.month && d.day == now.day;
+      }).toList();
 
-      if (apiResult != null && mounted) {
-        setState(() {
-          _result = RiskResult(
-            score: apiResult.score,
-            level: _levelFromString(apiResult.level),
-            topFactors: apiResult.topFactors
-                .map(
-                  (f) => RiskFactor(
-                    name: f.name,
-                    contribution: f.contribution,
-                    description: f.description,
-                  ),
-                )
-                .toList(),
-            modelVersion: apiResult.modelVersion,
-            windowEnd: DateTime.now(),
-          );
-          _hasData = true;
-        });
+      final consumedCals = todayMeals.fold(0.0, (s, m) => s + m.calories);
+      final avgNutriScore = todayMeals.isEmpty 
+          ? 70.0 
+          : todayMeals.fold(0.0, (s, m) => s + m.healthScore) / todayMeals.length;
+
+      if (entry != null) {
+        // 4 — FastAPI'ye gönder
+        final apiResult = await ApiService.fetchRiskScore(
+          RiskApiRequest(
+            age: pAge,
+            gender: pGender,
+            height: pHeight,
+            weight: pWeight,
+            steps: entry.steps,
+            sleepHours: entry.sleepHours,
+            systolic: entry.systolic,
+            diastolic: entry.diastolic,
+            heartRateResting: entry.restingHeartRate > 0
+                ? entry.restingHeartRate
+                : entry.heartRate,
+            heartRateAvg: entry.heartRate,
+            spo2: entry.spo2,
+            stressLevel: entry.stressLevel,
+            consumedCalories: consumedCals,
+            nutritionScore: avgNutriScore,
+          ),
+        );
+
+        if (apiResult != null && mounted) {
+          setState(() {
+            _result = RiskResult(
+              score: apiResult.score,
+              level: _levelFromString(apiResult.level),
+              topFactors: apiResult.topFactors
+                  .map(
+                    (f) => RiskFactor(
+                      name: f.name,
+                      contribution: f.contribution,
+                      description: f.description,
+                    ),
+                  )
+                  .toList(),
+              modelVersion: apiResult.modelVersion,
+              windowEnd: DateTime.now(),
+            );
+            _hasData = true;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _hasData = false;
+          });
+        }
       }
-    } else {
-      if (mounted) {
-        setState(() {
-          _hasData = false;
-        });
-      }
+    } catch (e) {
+      debugPrint("RiskScoreScreen Hata: $e");
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-
-    if (mounted) setState(() => _loading = false);
   }
 
   RiskLevel _levelFromString(String level) => RiskLevelExtension.fromString(level);
@@ -106,52 +129,56 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeader(context),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              child: Column(
-                children: [
-                  if (_loading || !_hasData)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 48),
-                      child: Column(
-                        children: [
-                          if (_loading)
-                            const CircularProgressIndicator(
-                              color: AppColors.primary,
+      body: RefreshIndicator(
+        onRefresh: _loadFromApi,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Column(
+                  children: [
+                    if (_loading || !_hasData)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
+                        child: Column(
+                          children: [
+                            if (_loading)
+                              const CircularProgressIndicator(
+                                color: AppColors.primary,
+                              ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _loading
+                                  ? 'Risk skorunuz hesaplanıyor...'
+                                  : 'Risk skorunuzu görebilmek için "Sağlık Veri Girişi" ekranından bugünün sağlık verilerini (adım, uyku, nabız) kaydetmelisiniz.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _loading
-                                ? 'Risk skorunuz hesaplanıyor...'
-                                : 'Risk skorunuzu görebilmek için "Sağlık Veri Girişi" ekranından bugünün sağlık verilerini (adım, uyku, nabız) kaydetmelisiniz.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else ...[
-                    _buildScoreCard(context),
-                    const SizedBox(height: 16),
-                    _buildAiInsight(context),
-                    const SizedBox(height: 16),
-                    _buildTopFactors(context),
-                    const SizedBox(height: 16),
-                    _buildRecommendations(context),
+                          ],
+                        ),
+                      )
+                    else ...[
+                      _buildScoreCard(context),
+                      const SizedBox(height: 16),
+                      _buildAiInsight(context),
+                      const SizedBox(height: 16),
+                      _buildTopFactors(context),
+                      const SizedBox(height: 16),
+                      _buildRecommendations(context),
+                    ],
+                    const SizedBox(height: 80),
                   ],
-                  const SizedBox(height: 80),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -352,14 +379,11 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
   String _levelDescription() {
     switch (_result.level) {
       case RiskLevel.low:
-        return 'Sağlık göstergeleriniz iyi durumda. '
-            'Mevcut alışkanlıklarınızı sürdürün.';
+        return 'Sağlık göstergeleriniz iyi durumda. Mevcut alışkanlıklarınızı sürdürün.';
       case RiskLevel.medium:
-        return 'Bazı göstergeler dikkat gerektiriyor. '
-            'Önerileri inceleyip adımlar atmanız önerilir.';
+        return 'Bazı göstergeler dikkat gerektiriyor. Önerileri inceleyip adımlar atmanız önerilir.';
       case RiskLevel.high:
-        return 'Sağlık göstergelerinizde önemli sapmalar var. '
-            'Bir sağlık profesyoneline danışmanız önerilir.';
+        return 'Sağlık göstergelerinizde önemli sapmalar var. Bir sağlık profesyoneline danışmanız önerilir.';
     }
   }
 
@@ -406,8 +430,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Güncelleme: '
-                  '${_formatDateTime(_result.windowEnd)}',
+                  'Güncelleme: ${_formatDateTime(_result.windowEnd)}',
                   style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
@@ -442,8 +465,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
       text += '${positives.join(', ')} değerleriniz olumlu katkı sağlıyor. ';
     }
     if (negatives.isNotEmpty) {
-      text +=
-          '${negatives.join(', ')} alanlarında iyileştirme riski artırıyor. ';
+      text += '${negatives.join(', ')} alanlarında iyileştirme riski artırıyor. ';
     }
     if (text.isEmpty) {
       text = 'Tüm göstergeler dengeli. Skor hesaplama tamamlandı.';
@@ -614,7 +636,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
           _Rec(
             AppColors.primary,
             Icons.directions_walk_outlined,
-            'Günlük 10.000 adım hedefine ula�Ymak için kısa yürüyü�Yler planlayın.',
+            'Günlük 10.000 adım hedefine ulaşmak için kısa yürüyüşler planlayın.',
           ),
         );
       } else if (f.name.contains('Uyku Süresi')) {
@@ -638,7 +660,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
           _Rec(
             AppColors.destructive,
             Icons.favorite_outline,
-            'Nabız de�Yerlerinizi izlemeye devam edin. Anormal yükseklik için doktora danı�Yın.',
+            'Nabız değerlerinizi izlemeye devam edin. Anormal yükseklik için doktora danışın.',
           ),
         );
       } else if (f.name.contains('Oksijen')) {
@@ -646,7 +668,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
           _Rec(
             AppColors.destructive,
             Icons.air_outlined,
-            'SpO2 de�Yerleriniz dü�Yük. Derin nefes egzersizleri ve doktor kontrolü önerilir.',
+            'SpO2 değerleriniz düşük. Derin nefes egzersizleri ve doktor kontrolü önerilir.',
           ),
         );
       } else if (f.name.contains('Stres')) {
@@ -662,7 +684,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
           _Rec(
             AppColors.primary,
             Icons.fitness_center_outlined,
-            'Günde en az 20-30 dakika orta yo�Yunlukta aktivite hedefleyin.',
+            'Günde en az 20-30 dakika orta yoğunlukta aktivite hedefleyin.',
           ),
         );
       }

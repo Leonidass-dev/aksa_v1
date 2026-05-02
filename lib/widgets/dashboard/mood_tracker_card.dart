@@ -72,10 +72,10 @@ class MoodTrackerCard extends StatelessWidget {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: isSelected
-                                ? AppColors.accent.withValues(alpha: 0.4)
-                                : Colors.transparent,
-                            blurRadius: isSelected ? 12 : 0,
+                            color: AppColors.accent.withValues(
+                              alpha: isSelected ? 0.4 : 0.0,
+                            ),
+                            blurRadius: isSelected ? 12.0 : 0.0,
                             offset: isSelected ? const Offset(0, 4) : Offset.zero,
                           )
                         ],

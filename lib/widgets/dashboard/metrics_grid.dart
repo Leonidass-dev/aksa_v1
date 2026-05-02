@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../services/health_service.dart';
-import '../../widgets/common_widgets.dart';
 import '../../constants/app_constants.dart';
 
 /// Dashboard'daki 6'lı sağlık metrik grid'i.
@@ -28,6 +27,10 @@ class DashboardMetricsGrid extends StatelessWidget {
     final spo2 = entry?.spo2 ?? 0;
     final stress = entry?.stressLevel ?? 0;
 
+    final hrTime = entry?.heartRateTime;
+    final isHRStale = hrTime != null && DateTime.now().difference(hrTime).inMinutes > 20;
+    final hrStaleMsg = isHRStale ? '${DateTime.now().difference(hrTime!).inMinutes}dk önce' : '';
+
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 12,
@@ -53,6 +56,8 @@ class DashboardMetricsGrid extends StatelessWidget {
           sub: hr > 0 ? 'bpm' : '',
           progress: hr > 0 ? ((hr - 40) / 160).clamp(0.0, 1.0) : 0,
           progressColor: hr > 100 ? AppColors.destructive : AppColors.secondary,
+          isStale: isHRStale,
+          staleMessage: hrStaleMsg,
         ),
         MetricTile(
           icon: Icons.bloodtype_rounded,
@@ -115,6 +120,8 @@ class MetricTile extends StatelessWidget {
   final double progress;
   final Color? progressColor;
   final VoidCallback? onTap;
+  final bool isStale;
+  final String staleMessage;
 
   const MetricTile({
     super.key,
@@ -126,6 +133,8 @@ class MetricTile extends StatelessWidget {
     required this.progress,
     this.progressColor,
     this.onTap,
+    this.isStale = false,
+    this.staleMessage = '',
   });
 
   @override
@@ -141,115 +150,143 @@ class MetricTile extends StatelessWidget {
           color: cs.surface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: color.withValues(alpha: 0.1),
-            width: 1.5,
+            color: isStale ? AppColors.stressYellow.withValues(alpha: 0.3) : color.withValues(alpha: 0.1),
+            width: isStale ? 2.0 : 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.08),
+              color: isStale ? AppColors.stressYellow.withValues(alpha: 0.1) : color.withValues(alpha: 0.08),
               blurRadius: 24,
               offset: const Offset(0, 8),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            // İkon ve Etiket
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
+            if (isStale)
+              Positioned(
+                top: -8,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.2),
-                        blurRadius: 10,
-                        spreadRadius: -2,
+                    color: AppColors.stressYellow.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.history_rounded, size: 12, color: AppColors.stressYellow),
+                      const SizedBox(width: 2),
+                      Text(
+                        staleMessage,
+                        style: const TextStyle(fontSize: 9, color: AppColors.stressYellow, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
-                  child: Icon(icon, color: color, size: 18),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            // Değer ve Birim
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: cs.onSurface,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    sub,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Modern Pill Progress
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Stack(
+                // İkon ve Etiket
+                Row(
                   children: [
                     Container(
-                      height: 6,
-                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: cs.outlineVariant.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 1000),
-                      height: 6,
-                      width: constraints.maxWidth * progress.clamp(0.0, 1.0),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [pColor, pColor.withValues(alpha: 0.6)],
-                        ),
-                        borderRadius: BorderRadius.circular(3),
+                        color: color.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: pColor.withValues(alpha: 0.3),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
+                            color: color.withValues(alpha: 0.2),
+                            blurRadius: 10,
+                            spreadRadius: -2,
                           ),
                         ],
                       ),
+                      child: Icon(icon, color: color, size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
                     ),
                   ],
-                );
-              }
+                ),
+                const Spacer(),
+                // Değer ve Birim
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: cs.onSurface,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        sub,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Modern Pill Progress
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Stack(
+                      children: [
+                        Container(
+                          height: 6,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: cs.outlineVariant.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 1000),
+                          height: 6,
+                          width: constraints.maxWidth * progress.clamp(0.0, 1.0),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [pColor, pColor.withValues(alpha: 0.6)],
+                            ),
+                            borderRadius: BorderRadius.circular(3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: pColor.withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),

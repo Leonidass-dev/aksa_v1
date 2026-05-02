@@ -164,7 +164,8 @@ class HealthServiceImpl implements IHealthService {
         else if (source.contains("fitness")) source = "📱 G-FIT";
         else if (source.contains("android")) source = "🤖 SYSTEM";
 
-        debugPrint("$emoji [${p.typeString.padRight(15)}] | Değer: ${valText.padRight(6)} | Kaynak: $source");
+        final timeStr = "${p.dateFrom.hour.toString().padLeft(2, '0')}:${p.dateFrom.minute.toString().padLeft(2, '0')}";
+        debugPrint("$emoji [${p.typeString.padRight(15)}] | Değer: ${valText.padRight(6)} | Zaman: $timeStr | Kaynak: $source");
       }
 
       final todayEntry = await getTodayEntry();
@@ -181,6 +182,7 @@ class HealthServiceImpl implements IHealthService {
         weight: todayEntry?.weight ?? 0,
         steps: parsedData.steps,
         heartRate: parsedData.heartRate,
+        heartRateTime: parsedData.heartRateTime,
         restingHeartRate: parsedData.restingHeartRate,
         spo2: parsedData.spo2,
         stressLevel: todayEntry?.stressLevel ?? 0,
@@ -201,13 +203,13 @@ class HealthServiceImpl implements IHealthService {
 
       await saveHealthEntry(newEntry);
       
-      debugPrint("\n╔════════ SAĞLIK ÖZETİ ════════╗");
-      debugPrint("║ 👣 Adım    : ${parsedData.steps.toInt().toString().padRight(16)} ║");
-      debugPrint("║ ❤️ Nabız   : ${parsedData.heartRate.toInt().toString().padRight(16)} ║");
-      debugPrint("║ 🩸 Oksijen : %${parsedData.spo2.toInt().toString().padRight(15)} ║");
-      debugPrint("║ 🔥 Kalori  : ${parsedData.activeCalories.toInt().toString().padRight(16)} ║");
-      debugPrint("║ 📏 Mesafe  : ${parsedData.distanceM.toInt().toString()}m".padRight(31) + "║");
-      debugPrint("╚══════════════════════════════╝\n");
+      debugPrint("\n╔══════════ SAĞLIK ÖZETİ ══════════╗");
+      debugPrint("║ 👣 Adım    : ${parsedData.steps.toInt().toString().padRight(18)} ║");
+      debugPrint("║ \u2764\ufe0f Nabız   : ${parsedData.heartRate.toInt().toString().padRight(18)} ║");
+      debugPrint("║ \ud83e\ude78 Oksijen : %${parsedData.spo2.toInt().toString().padRight(17)} ║");
+      debugPrint("║ \ud83d\udd25 Kalori  : ${parsedData.activeCalories.toInt().toString().padRight(18)} ║");
+      debugPrint("║ \ud83d\udccf Mesafe  : ${parsedData.distanceM.toInt().toString()}m".padRight(35) + "║");
+      debugPrint("╚══════════════════════════════════╝\n");
       
       // ── Tez Modül 2: Ham Verileri Pipeline'a Gönder ──────────────
       final hrPoints = healthData

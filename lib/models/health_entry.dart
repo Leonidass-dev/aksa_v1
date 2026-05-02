@@ -38,6 +38,8 @@ class HealthEntry {
   final double waterMl;
   final String mood;
 
+  final DateTime? heartRateTime;
+
   // Meta
   final String source; // "manual" | "health_connect"
 
@@ -48,6 +50,7 @@ class HealthEntry {
     this.totalCalories = 0,
     this.distanceM = 0,
     this.heartRate = 0,
+    this.heartRateTime,
     this.restingHeartRate = 0,
     this.spo2 = 0,
     this.systolic = 0,
@@ -71,6 +74,10 @@ class HealthEntry {
       'source': source,
       'updated_at': FieldValue.serverTimestamp(),
     };
+
+    if (heartRateTime != null) {
+      map['heart_rate_time'] = heartRateTime!.toIso8601String();
+    }
 
     // Sensör verisi (health_connect) kaynağından gelen 0 değerler meşrudur
     // (ör. kullanıcı hiç yürümedi). Manuel girişte ise 0 değerler
@@ -109,6 +116,9 @@ class HealthEntry {
     totalCalories: (json['total_calories'] ?? 0).toDouble(),
     distanceM: (json['distance_m'] ?? 0).toDouble(),
     heartRate: (json['heart_rate'] ?? 0).toDouble(),
+    heartRateTime: json['heart_rate_time'] != null 
+        ? DateTime.tryParse(json['heart_rate_time']) 
+        : null,
     restingHeartRate: (json['resting_heart_rate'] ?? 0).toDouble(),
     spo2: (json['spo2'] ?? 0).toDouble(),
     systolic: (json['systolic'] ?? 0).toDouble(),
@@ -132,6 +142,7 @@ class HealthEntry {
     double? totalCalories,
     double? distanceM,
     double? heartRate,
+    DateTime? heartRateTime,
     double? restingHeartRate,
     double? spo2,
     double? systolic,
@@ -154,6 +165,7 @@ class HealthEntry {
       totalCalories: totalCalories ?? this.totalCalories,
       distanceM: distanceM ?? this.distanceM,
       heartRate: heartRate ?? this.heartRate,
+      heartRateTime: heartRateTime ?? this.heartRateTime,
       restingHeartRate: restingHeartRate ?? this.restingHeartRate,
       spo2: spo2 ?? this.spo2,
       systolic: systolic ?? this.systolic,

@@ -179,7 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (entry != null) {
         setState(() {
           _todayEntry = entry;
-          _isDataMissing = (entry.steps == 0 && entry.heartRate == 0);
+          _isDataMissing = false;
         });
       } else {
         setState(() {

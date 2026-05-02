@@ -18,9 +18,12 @@ class HealthDataParser {
     required DateTime midnight,
     required HealthEntry? todayEntry,
   }) {
-    double latestHeartRate = 0, latestRestingHr = 0, latestSpo2 = 0;
-    double latestSystolic = 0, latestDiastolic = 0;
-    DateTime? hrTime, rhrTime, spo2Time, sysTime, diaTime;
+    // Anlık metrikler için kaynak bazlı saklama
+    final Map<String, (double, DateTime)> hrBySrc = {};
+    final Map<String, (double, DateTime)> rhrBySrc = {};
+    final Map<String, (double, DateTime)> spo2BySrc = {};
+    final Map<String, (double, DateTime)> sysBySrc = {};
+    final Map<String, (double, DateTime)> diaBySrc = {};
     
     double totalSleepMin = 0, sleepDeepMin = 0, sleepLightMin = 0, sleepRemMin = 0;
 
@@ -55,38 +58,50 @@ class HealthDataParser {
           break; // Yukarıda ayrıca işlendi
         case HealthDataType.ACTIVE_ENERGY_BURNED:
           activeCalBySrc[src] = (activeCalBySrc[src] ?? 0) + val;
+          break;
         case HealthDataType.TOTAL_CALORIES_BURNED:
           totalCalBySrc[src] = (totalCalBySrc[src] ?? 0) + val;
+          break;
         case HealthDataType.DISTANCE_DELTA:
           distanceBySrc[src] = (distanceBySrc[src] ?? 0) + val;
+          break;
         case HealthDataType.HEART_RATE:
-          if (hrTime == null || time.isAfter(hrTime)) {
-            latestHeartRate = val; hrTime = time;
+          if (hrBySrc[src] == null || time.isAfter(hrBySrc[src]!.$2)) {
+            hrBySrc[src] = (val, time);
           }
+          break;
         case HealthDataType.RESTING_HEART_RATE:
-          if (rhrTime == null || time.isAfter(rhrTime)) {
-            latestRestingHr = val; rhrTime = time;
+          if (rhrBySrc[src] == null || time.isAfter(rhrBySrc[src]!.$2)) {
+            rhrBySrc[src] = (val, time);
           }
+          break;
         case HealthDataType.BLOOD_OXYGEN:
-          if (spo2Time == null || time.isAfter(spo2Time)) {
-            latestSpo2 = val; spo2Time = time;
+          if (spo2BySrc[src] == null || time.isAfter(spo2BySrc[src]!.$2)) {
+            spo2BySrc[src] = (val, time);
           }
+          break;
         case HealthDataType.BLOOD_PRESSURE_SYSTOLIC:
-          if (sysTime == null || time.isAfter(sysTime)) {
-            latestSystolic = val; sysTime = time;
+          if (sysBySrc[src] == null || time.isAfter(sysBySrc[src]!.$2)) {
+            sysBySrc[src] = (val, time);
           }
+          break;
         case HealthDataType.BLOOD_PRESSURE_DIASTOLIC:
-          if (diaTime == null || time.isAfter(diaTime)) {
-            latestDiastolic = val; diaTime = time;
+          if (diaBySrc[src] == null || time.isAfter(diaBySrc[src]!.$2)) {
+            diaBySrc[src] = (val, time);
           }
+          break;
         case HealthDataType.SLEEP_ASLEEP:
           totalSleepMin += val;
+          break;
         case HealthDataType.SLEEP_DEEP:
           sleepDeepMin += val;
+          break;
         case HealthDataType.SLEEP_LIGHT:
           sleepLightMin += val;
+          break;
         case HealthDataType.SLEEP_REM:
           sleepRemMin += val;
+          break;
         default:
           break;
       }
@@ -98,6 +113,13 @@ class HealthDataParser {
     final totalCalories = _resolveSourceValue(totalCalBySrc, useMax: true);
     final distanceM = _resolveSourceValue(distanceBySrc, useMax: true);
 
+    // Anlık metrikler için giyilebilir öncelikli son değer seçimi
+    final latestHeartRate = _resolveLatestValue(hrBySrc);
+    final latestRestingHr = _resolveLatestValue(rhrBySrc);
+    final latestSpo2 = _resolveLatestValue(spo2BySrc);
+    final latestSystolic = _resolveLatestValue(sysBySrc);
+    final latestDiastolic = _resolveLatestValue(diaBySrc);
+
     if (stepsBySrc.isNotEmpty) {
       debugPrint("Adım kaynakları: $stepsBySrc → Seçilen: $totalSteps");
     }
@@ -106,10 +128,24 @@ class HealthDataParser {
         ? totalSleepMin / 60.0
         : (sleepDeepMin + sleepLightMin + sleepRemMin) / 60.0;
 
-    // ── Sıfır koruma: Cihazdan 0 gelirse mevcut veriyi koru ────
+    // ── Nabız Seçim Mantığı ──
+    double finalHR = latestHeartRate;
+    DateTime? finalHRTime = hrBySrc.values.isNotEmpty 
+        ? hrBySrc.values.map((v) => v.$2).reduce((a, b) => a.isAfter(b) ? a : b)
+        : null;
+
+    if (finalHR <= 0 && todayEntry != null) {
+      finalHR = todayEntry.heartRate;
+      finalHRTime = todayEntry.heartRateTime;
+      debugPrint("ℹ️ [HealthParser] Cihazdan yeni nabız gelmedi, eski veri korunuyor: $finalHR (Zaman: $finalHRTime)");
+    } else if (finalHR > 0) {
+      debugPrint("✅ [HealthParser] Cihazdan taze nabız alındı: $finalHR (Zaman: $finalHRTime)");
+    }
+
     return ParsedHealthData(
       steps: totalSteps > 0 ? totalSteps : (todayEntry?.steps ?? 0),
-      heartRate: latestHeartRate > 0 ? latestHeartRate : (todayEntry?.heartRate ?? 0),
+      heartRate: finalHR,
+      heartRateTime: finalHRTime,
       restingHeartRate: latestRestingHr > 0 ? latestRestingHr : (todayEntry?.restingHeartRate ?? 0),
       spo2: latestSpo2 > 0 ? latestSpo2 : (todayEntry?.spo2 ?? 0),
       stressLevel: todayEntry?.stressLevel ?? 0,
@@ -139,6 +175,33 @@ class HealthDataParser {
       return (point.value as NumericHealthValue).numericValue.toDouble();
     }
     return double.tryParse(point.value.toString()) ?? 0;
+  }
+
+  /// Kaynaklar arasından en güncel değeri seçer, giyilebilir cihazlara öncelik verir.
+  static double _resolveLatestValue(Map<String, (double, DateTime)> bySource) {
+    if (bySource.isEmpty) return 0;
+
+    const wearableKeywords = [
+      'xiaomi', 'wearable', 'mi.fitness', 'zepp', 'garmin', 
+      'fitbit', 'samsung.health', 'polar', 'suunto', 'huawei', 'watch'
+    ];
+
+    // Giyilebilir cihaz kaynaklarını ayıkla
+    final wearableEntries = bySource.entries.where((e) {
+      final src = e.key.toLowerCase();
+      return wearableKeywords.any((k) => src.contains(k));
+    }).toList();
+
+    if (wearableEntries.isNotEmpty) {
+      // Giyilebilir cihazlar içinden en güncel olanı seç
+      wearableEntries.sort((a, b) => b.value.$2.compareTo(a.value.$2));
+      return wearableEntries.first.value.$1;
+    }
+
+    // Giyilebilir cihaz yoksa tüm kaynaklar içinden en güncelini al
+    final allEntries = bySource.entries.toList();
+    allEntries.sort((a, b) => b.value.$2.compareTo(a.value.$2));
+    return allEntries.first.value.$1;
   }
 
   /// Kaynak değerleri arasından en güvenilir olanı seçer.
@@ -181,12 +244,14 @@ class HealthDataParser {
 /// `HealthDataParser.parse()` sonucu — tüm sensör verileri.
 class ParsedHealthData {
   final double steps, heartRate, restingHeartRate, spo2, stressLevel;
+  final DateTime? heartRateTime;
   final double systolic, diastolic, sleepHours;
   final double sleepDeepMin, sleepLightMin, sleepRemMin;
   final double activeCalories, totalCalories, distanceM;
 
   const ParsedHealthData({
     required this.steps, required this.heartRate, required this.restingHeartRate,
+    this.heartRateTime,
     required this.spo2, required this.stressLevel, required this.systolic, required this.diastolic,
     required this.sleepHours, required this.sleepDeepMin, required this.sleepLightMin,
     required this.sleepRemMin, required this.activeCalories, required this.totalCalories,
