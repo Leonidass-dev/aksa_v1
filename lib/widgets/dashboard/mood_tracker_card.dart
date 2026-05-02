@@ -75,7 +75,7 @@ class MoodTrackerCard extends StatelessWidget {
                             color: AppColors.accent.withValues(
                               alpha: isSelected ? 0.4 : 0.0,
                             ),
-                            blurRadius: isSelected ? 12.0 : 0.0,
+                            blurRadius: isSelected ? 12.0 : 0.1,
                             offset: isSelected ? const Offset(0, 4) : Offset.zero,
                           )
                         ],

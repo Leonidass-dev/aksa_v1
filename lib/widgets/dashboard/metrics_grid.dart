@@ -212,6 +212,8 @@ class MetricTile extends StatelessWidget {
                     Expanded(
                       child: Text(
                         label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12,
                           color: cs.onSurfaceVariant,
@@ -241,6 +243,8 @@ class MetricTile extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Text(
                         sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 10,
                           color: cs.onSurfaceVariant,
