@@ -53,49 +53,44 @@ def main():
             stderr=subprocess.DEVNULL
         )
 
-    # ── 1. Backend başlat ────────────────────────────────────
-    python_exe = os.path.join(backend_dir, "venv", "Scripts", "python.exe")
-    if not os.path.exists(python_exe):
-        print("[!] Backend venv bulunamadi!")
-        print("    Cozum: cd backend && python -m venv venv && venv\\Scripts\\pip install -r requirements.txt")
-        sys.exit(1)
-
-    backend_cmd = [python_exe, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-    print("[1/2] Backend baslatiliyor...")
-    backend_process = subprocess.Popen(
-        backend_cmd,
-        cwd=backend_dir,
-        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0,
-    )
-
-    if check_backend_ready():
-        print("[OK]  Backend hazir!")
+    # Kullanıcı python run_app.py --release derse release moduna geç
+    is_release = "--release" in sys.argv
+    is_cloud = "--cloud" in sys.argv
+    
+    if is_cloud:
+        api_url = "https://aksa-backend-8slk.onrender.com/api"
+        print("[*] CLOUD modunda baslatiliyor: " + api_url)
     else:
-        print("[!!]  Backend yavash basladi, devam ediliyor...")
+        api_url = f"http://{local_ip}:8000/api"
 
-    print()
-    print(f"  Backend:   http://localhost:8000")
-    print(f"  API Docs:  http://localhost:8000/docs")
-    print(f"  Lokal IP:  {local_ip}")
-    print()
-    print("=" * 55)
-    print(f"  Flutter baslatirken bu komutu kullanin:")
-    print(f"  flutter run --dart-define=API_BASE_URL=http://{local_ip}:8000/api")
-    print("=" * 55)
-    print()
+    # ── 1. Backend başlat (Cloud değilse) ─────────────────────
+    backend_process = None
+    if not is_cloud:
+        python_exe = os.path.join(backend_dir, "venv", "Scripts", "python.exe")
+        if not os.path.exists(python_exe):
+            print("[!] Backend venv bulunamadi!")
+            sys.exit(1)
+
+        backend_cmd = [python_exe, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+        print("[1/2] Lokal Backend baslatiliyor...")
+        backend_process = subprocess.Popen(
+            backend_cmd,
+            cwd=backend_dir,
+            creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0,
+        )
+        if check_backend_ready():
+            print("[OK]  Backend hazir!")
+        else:
+            print("[!!]  Backend yavash basladi...")
 
     # ── 2. Flutter başlat ────────────────────────────────────
     print("[2/2] Flutter baslatiliyor...")
-    
-    # Kullanıcı python run_app.py --release derse release moduna geç
-    is_release = "--release" in sys.argv
-    mode_text = "RELEASE (Yuksek Performans)" if is_release else "DEBUG (Gelistirici)"
+    mode_text = "RELEASE" if is_release else "DEBUG"
     print(f"[*] Flutter {mode_text} modunda derleniyor...")
     
     flutter_cmd = [
         "flutter", "run",
-        f"--dart-define=API_BASE_URL=http://{local_ip}:8000/api",
+        f"--dart-define=API_BASE_URL={api_url}",
     ]
     if is_release:
         flutter_cmd.append("--release")
@@ -105,29 +100,25 @@ def main():
     # ── Temiz kapatma ────────────────────────────────────────
     def force_kill(pid):
         try:
-            subprocess.run(
-                ["taskkill", "/F", "/T", "/PID", str(pid)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-        except Exception:
-            pass
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except: pass
 
     def signal_handler(sig, frame):
         print("\n[*] Kapatiliyor...")
-        force_kill(flutter_process.pid)
-        force_kill(backend_process.pid)
+        if flutter_process: force_kill(flutter_process.pid)
+        if backend_process: force_kill(backend_process.pid)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
 
     try:
         flutter_process.wait()
-        print("Flutter kapandi. Backend durduruluyor...")
     except KeyboardInterrupt:
         pass
     finally:
-        force_kill(flutter_process.pid)
-        force_kill(backend_process.pid)
+        if flutter_process: force_kill(flutter_process.pid)
+        if backend_process: force_kill(backend_process.pid)
+
         print("[*] Gorusmek uzere!")
 
 
