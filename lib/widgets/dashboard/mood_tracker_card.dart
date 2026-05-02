@@ -58,38 +58,47 @@ class MoodTrackerCard extends StatelessWidget {
               final isSelected = currentMood == m['val'];
               return GestureDetector(
                 onTap: () => onMoodSelected(m['val']!),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.accent.withValues(alpha: 0.1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                    border: isSelected
-                        ? Border.all(color: AppColors.accent.withValues(alpha: 0.3))
-                        : null,
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        m['emoji']!,
-                        style: TextStyle(
-                          fontSize: 24,
-                          color: isSelected ? null : Colors.grey.withValues(alpha: 0.4),
+                child: Column(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutBack,
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.accent
+                            : AppColors.accent.withValues(alpha: 0.05),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: isSelected
+                                ? AppColors.accent.withValues(alpha: 0.4)
+                                : Colors.transparent,
+                            blurRadius: isSelected ? 12 : 0,
+                            offset: isSelected ? const Offset(0, 4) : Offset.zero,
+                          )
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          m['emoji']!,
+                          style: TextStyle(
+                            fontSize: isSelected ? 28 : 22,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        m['label']!,
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                          color: isSelected ? AppColors.accent : cs.onSurfaceVariant,
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      m['label']!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? AppColors.accent : cs.onSurfaceVariant,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             }).toList(),

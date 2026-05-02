@@ -17,68 +17,25 @@ class HealthGaugeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final risk = riskResult;
+    final cs = Theme.of(context).colorScheme;
+    final scoreColor = risk?.level.color ?? AppColors.primary;
+
     return AppCard(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).cardColor,
-            Theme.of(context).cardColor.withValues(alpha: 0.8),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
+      padding: const EdgeInsets.all(20),
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Expanded(
-                child: Text(
-                  'Genel Sağlık Durumu',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: (risk?.level.color ?? AppColors.primary).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  risk?.level.label ?? 'Hesaplanıyor...',
-                  style: TextStyle(
-                    color: risk?.level.color ?? AppColors.primary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+          // Sol: Küçük Dairesel Gösterge
           Stack(
             alignment: Alignment.center,
             children: [
               SizedBox(
-                width: 180,
-                height: 180,
+                width: 90,
+                height: 90,
                 child: CircularProgressIndicator(
                   value: (risk?.score ?? 0) / 100,
-                  strokeWidth: 16,
-                  backgroundColor: Colors.grey.withValues(alpha: 0.1),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    risk?.level.color ?? AppColors.primary,
-                  ),
+                  strokeWidth: 10,
+                  backgroundColor: cs.outlineVariant.withValues(alpha: 0.2),
+                  valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
                   strokeCap: StrokeCap.round,
                 ),
               ),
@@ -87,29 +44,81 @@ class HealthGaugeCard extends StatelessWidget {
                 children: [
                   Text(
                     risk != null ? '${risk.score.toInt()}' : '--',
-                    style: const TextStyle(
-                      fontSize: 48,
+                    style: TextStyle(
+                      fontSize: 28,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: -2,
+                      color: cs.onSurface,
+                      height: 1,
                     ),
                   ),
                   const Text(
-                    'Risk Skoru',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    'Skor',
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          Text(
-            factorSummary,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.4),
+          const SizedBox(width: 20),
+          // Sağ: Detaylar
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Sağlık Durumu',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: scoreColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        risk?.level.label ?? '...',
+                        style: TextStyle(
+                          color: scoreColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  factorSummary,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: cs.onSurfaceVariant,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // İnce bir ilerleme göstergesi veya trend simgesi eklenebilir
+                Row(
+                  children: [
+                    Icon(Icons.auto_awesome, size: 14, color: scoreColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Yapay Zeka Analizi',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: scoreColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),

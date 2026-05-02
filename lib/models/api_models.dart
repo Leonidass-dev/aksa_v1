@@ -36,7 +36,12 @@ class RiskApiRequest {
     this.age = 30,
     this.gender = 'M',
     this.height = 170,
+    this.consumedCalories = 0,
+    this.nutritionScore = 70,
   });
+
+  final double consumedCalories;
+  final double nutritionScore;
 
   Map<String, dynamic> toJson() => {
     'steps': steps,
@@ -51,6 +56,8 @@ class RiskApiRequest {
     'age': age,
     'gender': gender,
     'height': height,
+    'consumed_calories': consumedCalories,
+    'nutrition_score': nutritionScore,
   };
 }
 
@@ -270,6 +277,7 @@ class ExerciseApiRequest {
   final double? systolicBp;
   final double? diastolicBp;
   final double? heartRate;
+  final bool forceRefresh;
 
   const ExerciseApiRequest({
     required this.age,
@@ -280,6 +288,7 @@ class ExerciseApiRequest {
     this.systolicBp,
     this.diastolicBp,
     this.heartRate,
+    this.forceRefresh = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -288,6 +297,7 @@ class ExerciseApiRequest {
     'height': height,
     'gender': gender,
     'risk_level': riskLevel,
+    'force_refresh': forceRefresh,
     if (systolicBp != null) 'systolic_bp': systolicBp,
     if (diastolicBp != null) 'diastolic_bp': diastolicBp,
     if (heartRate != null) 'heart_rate': heartRate,

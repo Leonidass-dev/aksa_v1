@@ -167,12 +167,25 @@ class _DashboardScreenState extends State<DashboardScreen>
         });
       }
 
+      // BESLENME ENTEGRASYONU (Tez Modül 5)
+      final mealHistory = await ApiService.fetchMealHistory(limit: 20);
+      final now = DateTime.now();
+      final todayMeals = mealHistory.where((m) {
+        final d = DateTime.parse(m.analyzedAt).toLocal();
+        return d.year == now.year && d.month == now.month && d.day == now.day;
+      }).toList();
+
+      final consumedCals = todayMeals.fold(0.0, (s, m) => s + m.calories);
+      final avgNutriScore = todayMeals.isEmpty 
+          ? 70.0 
+          : todayMeals.fold(0.0, (s, m) => s + m.healthScore) / todayMeals.length;
+
       final result = await ApiService.fetchRiskScore(
         RiskApiRequest(
           age: pAge,
           gender: pGender,
           height: pHeight,
-          weight: profile?.weight ?? 70.0,
+          weight: pWeight,
           steps: todayData.steps,
           sleepHours: todayData.sleepHours,
           systolic: todayData.systolic,
@@ -183,6 +196,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           heartRateAvg: todayData.heartRate,
           spo2: todayData.spo2,
           stressLevel: todayData.stressLevel,
+          consumedCalories: consumedCals,
+          nutritionScore: avgNutriScore,
         ),
       );
 
@@ -232,22 +247,18 @@ class _DashboardScreenState extends State<DashboardScreen>
         });
       }
 
-      // Haftalık risk geçmişi
+      // Haftalık risk geçmişi (Backend API'den çek)
       try {
-        final historyDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(FirebaseAuth.instance.currentUser!.uid)
-            .collection('risk_history')
-            .orderBy('timestamp', descending: true)
-            .limit(7)
-            .get();
-        final latestScores = <double>[];
-        for (var doc in historyDoc.docs) {
-          final s = doc.data()['score'] as num?;
-          if (s != null) latestScores.add(s.toDouble());
+        final history = await ApiService.fetchRiskHistory(limit: 7);
+        final latestScores = history.map((e) => e.score).toList();
+        
+        while (latestScores.length < 7) {
+          latestScores.add(0.0);
         }
-        while (latestScores.length < 7) latestScores.add(0.0);
-        if (mounted) setState(() => _weeklyData = latestScores.reversed.toList());
+        
+        if (mounted) {
+          setState(() => _weeklyData = latestScores.reversed.toList());
+        }
       } catch (e) {
         debugPrint('Haftalık risk geçmişi hatası: $e');
       }
@@ -350,9 +361,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       riskResult: _riskResult,
                       factorSummary: _topFactorSummary(),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
                     _buildSectionTitle(context, 'Günlük Metrikler', Icons.insights_rounded),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 4),
                     DashboardMetricsGrid(
                       todayEntry: _todayEntry,
                       onBPTap: () => BPEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
@@ -417,9 +428,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _greeting,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w400),
+                  Row(
+                    children: [
+                      Text(
+                        _greeting,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w400),
+                      ),
+                      if (_riskResult != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 6, height: 6,
+                          decoration: BoxDecoration(
+                            color: _riskResult!.level.color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   Text(
                     _userName,
@@ -471,9 +496,21 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildSectionTitle(BuildContext context, String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: AppColors.primary.withValues(alpha: 0.7)),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.5,
+          ),
+        ),
         const SizedBox(width: 8),
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+        Expanded(
+          child: Divider(
+            color: AppColors.primary.withValues(alpha: 0.1),
+            thickness: 1,
+          ),
+        ),
       ],
     );
   }

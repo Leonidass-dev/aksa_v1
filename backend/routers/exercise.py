@@ -63,8 +63,8 @@ async def get_exercise_plan(
         else:
             health_context += "Veri henüz yok."
 
-        # 2.5 SMART CACHE: Eğer son 24 saatte üretilmiş bir plan varsa onu kullan
-        if last_plan and last_plan.created_at > (datetime.utcnow() - timedelta(hours=24)):
+        # 2.5 SMART CACHE: Eğer son 24 saatte üretilmiş bir plan varsa onu kullan (force_refresh değilse)
+        if not req.force_refresh and last_plan and last_plan.created_at > (datetime.utcnow() - timedelta(hours=24)):
             logger.info(f"♻️ SMART CACHE: Son 24 saat içinde üretilmiş plan bulundu (ID: {last_plan.id}), Gemini atlanıyor.")
             return ExercisePlanResponse(
                 exercises=[ExerciseItem(**e) for e in last_plan.exercises],

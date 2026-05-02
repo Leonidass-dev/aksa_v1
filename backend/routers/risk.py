@@ -35,6 +35,8 @@ class RiskRequest(BaseModel):
     age: int = Field(default=30, ge=1, le=120)
     gender: str = Field(default="M")
     height: float = Field(default=170.0, ge=50, le=280)
+    consumed_calories: float = Field(default=0, ge=0)
+    nutrition_score: float = Field(default=70, ge=0, le=100)
 
 
 class RiskFactorResponse(BaseModel):
@@ -102,6 +104,8 @@ async def calculate_risk(
         age=req.age,
         gender=req.gender,
         height=req.height,
+        consumed_calories=req.consumed_calories,
+        nutrition_score=req.nutrition_score,
     )
 
     # Veritabanından bugünün M2 pipeline temizlik sonuçlarını çek

@@ -68,6 +68,9 @@ class HealthSnapshot:
     age: int = 30
     gender: str = "M"
     height: float = 170.0
+    # Beslenme Entegrasyonu (Tez Modül 5)
+    consumed_calories: float = 0.0
+    nutrition_score: float = 70.0  # Ortalama sağlıklı beslenme skoru
 
 
 @dataclass
@@ -169,17 +172,26 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
         explainer = shap.TreeExplainer(_xgb_model)
         shap_values = explainer.shap_values(features_scaled)
         
-        # XGBoost multi-class ise shap_values liste döner. En riskli sınıfın (High Risk) değerlerini alalım.
-        if isinstance(shap_values, list) and len(shap_values) > 2:
-            sv = shap_values[2]
-        elif isinstance(shap_values, np.ndarray) and shap_values.ndim > 1:
-            sv = shap_values[0]
-        else:
-            sv = shap_values
-        
-        # sv tek boyutlu olmalı
-        if hasattr(sv, 'shape') and sv.ndim > 1:
-            sv = sv[0]
+        # SHAP değerlerini al
+        # XGBoost multi-class çıktısı sürüme göre liste veya 3D array dönebilir
+        sv = None
+        if isinstance(shap_values, list):
+            # Liste ise her eleman bir sınıfa aittir. High Risk (index 2) al.
+            sv = shap_values[2] if len(shap_values) > 2 else shap_values[-1]
+        elif isinstance(shap_values, np.ndarray):
+            if shap_values.ndim == 3:
+                # (samples, features, classes) -> (1, 9, 3)
+                sv = shap_values[0, :, 2]
+            elif shap_values.ndim == 2:
+                # (samples, features)
+                sv = shap_values[0]
+            else:
+                sv = shap_values
+
+        # sv'nin sayısal olduğundan ve tek boyutlu (features,) olduğundan emin ol
+        if sv is not None:
+            sv = np.array(sv, dtype=float).flatten()
+            if sv.ndim > 1: sv = sv[0]
         
         feature_names = [
             "Ortalama Nabız", "Medyan Nabız", "Min Nabız", "Maks Nabız", "Nabız Std",
@@ -317,8 +329,30 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         stress_risk = _normalize(snap.stress_level, 65, 100) * 10
         score += stress_risk
         factors.append(RiskFactor("Otonom Stres", stress_risk, f"Yüksek stres: {snap.stress_level:.0f}/100"))
+    
+    # 9. Beslenme Mantığı (Tez M5 Entegrasyonu)
+    if snap.weight > 0 and snap.height > 100:
+        # Bazal Metabolizma (Mifflin-St Jeor)
+        if snap.gender == 'M':
+            bmr = 10 * snap.weight + 6.25 * snap.height - 5 * snap.age + 5
+        else:
+            bmr = 10 * snap.weight + 6.25 * snap.height - 5 * snap.age - 161
+            
+        # Dinamik Limit: BMR + Hareket (Dakika başına ~4 kalori varsayımı veya direkt steps/20)
+        daily_limit = bmr + (snap.steps / 20.0) 
+        
+        if snap.consumed_calories > (daily_limit + 300):
+            surplus = snap.consumed_calories - daily_limit
+            nutrition_penalty = min(15, (surplus / 100) * 2)
+            score += nutrition_penalty
+            factors.append(RiskFactor("Kalori Aşımı", nutrition_penalty, f"Limitin {int(surplus)} kalori üzerinde tüketim"))
+        
+        if snap.nutrition_score < 50:
+            quality_penalty = (50 - snap.nutrition_score) * 0.2
+            score += quality_penalty
+            factors.append(RiskFactor("Düşük Besin Kalitesi", quality_penalty, "İşlenmiş veya düşük skorlu gıda tüketimi"))
 
-    # 9. SINERJİ (Birden fazla yüksek riskin çarpan etkisi)
+    # 10. SINERJİ (Birden fazla yüksek riskin çarpan etkisi)
     # Tez M3: Kritik vakaların birleşimi daha dengeli hesaplanmalı
     high_risks = len([f for f in factors if f.contribution >= 18])
     if high_risks >= 2:

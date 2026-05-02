@@ -166,6 +166,8 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
+                    _buildWeeklySummaryCard(context),
+                    const SizedBox(height: 20),
                     if (_labels.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
@@ -390,6 +392,7 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
 
     return AppCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -402,10 +405,11 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: cs.onSurface,
+                      fontSize: 16,
                     ),
                   ),
                   Text(
-                    _timeframe == 'month' ? 'Son 30 gün' : 'Son 7 gün',
+                    _timeframe == 'month' ? 'Son 30 günün özeti' : 'Son 7 günün özeti',
                     style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                   ),
                 ],
@@ -413,20 +417,138 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
               _buildTrendIndicator(data),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           SizedBox(
-            height: 160,
-            child: CustomPaint(
-              size: const Size(double.infinity, 160),
-              painter: AppLineChartPainter(
-                data: data,
-                color: color,
+            height: 200,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: _getInterval(_activeTab, data),
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: cs.outlineVariant.withValues(alpha: 0.5),
+                    strokeWidth: 1,
+                    dashArray: [5, 5],
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      interval: _timeframe == 'month' ? 5 : 1,
+                      getTitlesWidget: (value, meta) {
+                        if (value.toInt() >= 0 && value.toInt() < _labels.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              _labels[value.toInt()],
+                              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: _getInterval(_activeTab, data),
+                      reservedSize: 42,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          value.toInt().toString(),
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
+                          textAlign: TextAlign.right,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: (data.length - 1).toDouble(),
+                minY: _getMinY(_activeTab, data),
+                maxY: _getMaxY(_activeTab, data),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
+                    isCurved: true,
+                    gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.7)]),
+                    barWidth: 4,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: data.length < 15,
+                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                        radius: 4,
+                        color: Colors.white,
+                        strokeWidth: 3,
+                        strokeColor: color,
+                      ),
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [color.withValues(alpha: 0.2), color.withValues(alpha: 0.0)],
+                      ),
+                    ),
+                  ),
+                ],
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (spot) => cs.surfaceContainerHighest,
+                    tooltipRoundedRadius: 12,
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((s) {
+                        return LineTooltipItem(
+                          '${s.y.toInt()}${_getUnit(_activeTab)}',
+                          TextStyle(color: cs.onSurface, fontWeight: FontWeight.bold),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  double _getInterval(String tab, List<double> data) {
+    if (tab == 'steps') return 2500;
+    if (tab == 'heart_rate') return 20;
+    if (tab == 'sleep') return 2;
+    return 20;
+  }
+
+  double _getMinY(String tab, List<double> data) {
+    if (tab == 'steps') return 0;
+    if (tab == 'heart_rate') return 40;
+    if (tab == 'sleep') return 0;
+    return 0;
+  }
+
+  double _getMaxY(String tab, List<double> data) {
+    if (data.isEmpty) return 100;
+    final max = data.reduce((a, b) => a > b ? a : b);
+    if (tab == 'steps') return max < 10000 ? 12000 : max * 1.2;
+    return max * 1.2;
+  }
+
+  String _getUnit(String tab) {
+    if (tab == 'steps') return ' adım';
+    if (tab == 'heart_rate') return ' bpm';
+    if (tab == 'sleep') return ' sa';
+    return '';
   }
 
   Widget _buildRadarChart(BuildContext context) {
@@ -730,6 +852,91 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
       ),
     );
   }
+  Widget _buildWeeklySummaryCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Haftalık Özet',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _summaryItem(
+                'Genel Skor',
+                '${_overallScore.toInt()}%',
+                Icons.analytics_outlined,
+              ),
+              Container(width: 1, height: 40, color: Colors.white24),
+              _summaryItem(
+                'En İyi Alan',
+                _bestCategory,
+                Icons.star_outline,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Son 7 günde sağlık dengeniz ${_overallScore > 70 ? "gayet iyi" : "geliştirilebilir"} durumda. ${_bestCategory} verileriniz bu haftanın yıldızı oldu!',
+            style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryItem(String label, String value, IconData icon) {
+    return Expanded(
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white70, size: 24),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTrendIndicator(List<double> data) {
     if (data.length < 2) {
       return const SizedBox.shrink();

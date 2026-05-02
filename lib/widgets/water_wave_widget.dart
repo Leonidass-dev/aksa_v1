@@ -45,8 +45,23 @@ class _WaterWaveWidgetState extends State<WaterWaveWidget>
       height: 120,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.primary.withValues(alpha: 0.05),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1), width: 2),
+        color: AppColors.card,
+        border: Border.all(color: Colors.white, width: 4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowColor,
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 6),
+          ),
+          // İç gölge efekti (Neumorphism için beyaz parlama)
+          BoxShadow(
+            color: Colors.white,
+            blurRadius: 10,
+            spreadRadius: -2,
+            offset: const Offset(-4, -4),
+          ),
+        ],
       ),
       child: ClipOval(
         child: Stack(
@@ -103,7 +118,7 @@ class _WavePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.primaryLight.withValues(alpha: 0.8)
+      ..color = AppColors.waterBlue.withValues(alpha: 0.8)
       ..style = PaintingStyle.fill;
 
     final path = Path();
@@ -130,7 +145,7 @@ class _WavePainter extends CustomPainter {
     
     // Draw a second wave with slight offset and color
     final paint2 = Paint()
-      ..color = AppColors.secondary.withValues(alpha: 0.4)
+      ..color = AppColors.waterBlue.withValues(alpha: 0.4)
       ..style = PaintingStyle.fill;
       
     final path2 = Path();

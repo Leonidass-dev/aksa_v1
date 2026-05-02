@@ -15,8 +15,8 @@ class BPEntrySheet extends StatelessWidget {
 
   void show(BuildContext context) {
     final entry = todayEntry;
-    double sys = entry?.systolic ?? 120;
-    double dia = entry?.diastolic ?? 80;
+    double sys = (entry?.systolic ?? 0) > 80 ? entry!.systolic : 120;
+    double dia = (entry?.diastolic ?? 0) > 40 ? entry!.diastolic : 80;
 
     showModalBottomSheet(
       context: context,
@@ -78,10 +78,10 @@ class BPEntrySheet extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
-                _buildSliderRow(ctx, 'Sistolik (büyük)', sys, 80, 200, AppColors.destructive,
+                _buildSliderRow(ctx, 'Sistolik (büyük)', sys, 80, 200, AppColors.primary,
                     (v) => setLocal(() => sys = v.roundToDouble())),
                 const SizedBox(height: 8),
-                _buildSliderRow(ctx, 'Diastolik (küçük)', dia, 40, 130, AppColors.accent,
+                _buildSliderRow(ctx, 'Diastolik (küçük)', dia, 40, 130, AppColors.primary,
                     (v) => setLocal(() => dia = v.roundToDouble())),
                 const SizedBox(height: 16),
                 SizedBox(

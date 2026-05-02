@@ -21,16 +21,6 @@ class _ExerciseScreenState extends State<ExerciseScreen>
   String? _errorMsg;
   int _completedToday = 0;
 
-  List<_Day> get _schedule {
-    final now = DateTime.now();
-    final todayIndex = (now.weekday - 1) % 7; // 0=Pzt, 6=Paz
-    const dayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-    return List.generate(7, (i) {
-      final isPast = i < todayIndex;
-      final isToday = i == todayIndex;
-      return _Day(dayNames[i], isPast || isToday, isPast);
-    });
-  }
 
   @override
   void initState() {
@@ -38,7 +28,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
     _loadExercisePlan();
   }
 
-  Future<void> _loadExercisePlan() async {
+  Future<void> _loadExercisePlan({bool force = false}) async {
     setState(() {
       _loading = true;
       _errorMsg = null;
@@ -85,6 +75,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
         systolicBp: today?.systolic,
         diastolicBp: today?.diastolic,
         heartRate: today?.heartRate,
+        forceRefresh: force,
       );
 
       final result = await ApiService.fetchExercisePlan(req);
@@ -176,7 +167,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
 
     return Column(
       children: [
-        _buildSchedule(context),
+        _buildTodayStatusCard(context),
         const SizedBox(height: 20),
         if (_apiResult != null && _apiResult!.exercises.isNotEmpty)
           _buildExerciseList(context, _apiResult!.exercises)
@@ -199,7 +190,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
       title: 'Egzersiz Planı',
       subtitle: 'Yapay Zeka Destekli',
       trailing: AppRefreshButton(
-        onTap: _loading ? null : _loadExercisePlan,
+        onTap: _loading ? null : () => _loadExercisePlan(force: true),
         isLoading: _loading,
       ),
       bottomContent: Row(
@@ -259,76 +250,89 @@ class _ExerciseScreenState extends State<ExerciseScreen>
     );
   }
 
-  Widget _buildSchedule(BuildContext context) {
+  Widget _buildTodayStatusCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final riskLevel = _apiResult != null ? _apiResult!.aiAdvice.toLowerCase() : '';
+    
+    String statusTitle = 'Analiz Tamamlandı';
+    String statusDesc = 'Güncel sağlık verilerinize göre size özel bir program oluşturuldu.';
+    IconData statusIcon = Icons.analytics_outlined;
+    Color statusColor = AppColors.primary;
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.calendar_today_outlined,
-                color: AppColors.primary,
-                size: 18,
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(statusIcon, color: statusColor, size: 20),
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Haftalık Program',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      statusTitle,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    Text(
+                      statusDesc,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+          Divider(color: cs.outlineVariant.withValues(alpha: 0.5)),
+          const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: _schedule.map((item) {
-              Color bgColor;
-              Color textColor;
-              if (item.completed) {
-                bgColor = AppColors.secondary;
-                textColor = Colors.white;
-              } else if (item.active) {
-                bgColor = AppColors.primary;
-                textColor = Colors.white;
-              } else {
-                bgColor = cs.surfaceContainerHighest;
-                textColor = cs.onSurfaceVariant;
-              }
-              return Column(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        item.day[0],
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item.day,
-                    style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
-                  ),
-                ],
-              );
-            }).toList(),
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _statusDetail(Icons.favorite_border, 'Risk', _apiResult != null ? 'Hesaplandı' : '-'),
+              _statusDetail(Icons.speed, 'Efor', 'Kişiselleştirildi'),
+              _statusDetail(Icons.calendar_today_outlined, 'Tarih', 'Bugün'),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _statusDetail(IconData icon, String label, String value) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Icon(icon, size: 16, color: cs.onSurfaceVariant),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: cs.onSurface,
+          ),
+        ),
+      ],
     );
   }
 
@@ -343,14 +347,14 @@ class _ExerciseScreenState extends State<ExerciseScreen>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Bugünkü Antrenman',
+              'Size Özel Günlük Öneriler',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: cs.onSurface,
               ),
             ),
             TextButton(
-              onPressed: _loadExercisePlan,
+              onPressed: () => _loadExercisePlan(force: true),
               child: const Text(
                 'Yeni Plan Üret',
                 style: TextStyle(color: AppColors.primary, fontSize: 13),
@@ -669,11 +673,6 @@ class _ExerciseScreenState extends State<ExerciseScreen>
 
 }
 
-class _Day {
-  final String day;
-  final bool active, completed;
-  const _Day(this.day, this.active, this.completed);
-}
 
 // ── Egzersiz Zamanlayıcı Dialog ──────────────────────────────────
 class _ExerciseTimerDialog extends StatefulWidget {

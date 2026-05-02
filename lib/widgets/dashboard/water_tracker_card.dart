@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/common_widgets.dart';
+import '../water_wave_widget.dart';
 
 /// Su tüketimi takip kartı — ilerleme çubuğu ve hızlı ekleme butonları.
 class WaterTrackerCard extends StatelessWidget {
@@ -24,106 +25,60 @@ class WaterTrackerCard extends StatelessWidget {
 
     return AppCard(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: _waterColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.water_drop_rounded, color: _waterColor, size: 16),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Su Takibi',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                '${currentMl.toInt()} / ${targetMl.toInt()} ml',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _waterColor,
+          // Sol: Dalga Animasyonlu Daire
+          WaterWaveWidget(currentMl: currentMl, targetMl: targetMl),
+          const SizedBox(width: 24),
+          // Sağ: Bilgiler ve Butonlar
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Su Tüketimi',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Progress bar
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: pct,
-                  minHeight: 10,
-                  backgroundColor: _waterColor.withValues(alpha: 0.1),
-                  valueColor: AlwaysStoppedAnimation<Color>(_waterColor),
+                Text(
+                  'Hedef: ${targetMl.toInt()} ml',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
-              ),
-              Positioned.fill(
-                child: Center(
-                  child: Text(
-                    '${(pct * 100).toInt()}%',
-                    style: TextStyle(
-                      fontSize: 7,
-                      fontWeight: FontWeight.bold,
-                      color: pct > 0.4 ? Colors.white : _waterColor,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          // Quick add buttons
-          Row(
-            children: _quickAddAmounts.map((amount) {
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: amount == _quickAddAmounts.last ? 0 : 8),
-                  child: InkWell(
-                    onTap: () => onAddWater(amount.toDouble()),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _waterColor.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _waterColor.withValues(alpha: 0.15)),
-                      ),
-                      child: Column(
-                        children: [
-                          Icon(Icons.add_rounded, color: _waterColor, size: 16),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${amount}ml',
-                            style: TextStyle(
-                              color: _waterColor,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 11,
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _quickAddAmounts.map((amount) {
+                    return InkWell(
+                      onTap: () => onAddWater(amount.toDouble()),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _waterColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _waterColor.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add, size: 14, color: _waterColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${amount}ml',
+                              style: const TextStyle(
+                                color: _waterColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  }).toList(),
                 ),
-              );
-            }).toList(),
+              ],
+            ),
           ),
         ],
       ),

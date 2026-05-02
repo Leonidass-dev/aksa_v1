@@ -35,27 +35,30 @@ GİRDİ VERİLERİ:
 - Son Sağlık Verileri: {health_context}
 
 GÖREVİN:
-Bu verilere dayanarak kullanıcının risk seviyesine uygun 3 ila 5 günlük bir HAFTALIK EGZERSİZ DÖNGÜSÜ (Weekly Plan) üret.
-Planı MUTLAKA aşağıdaki JSON formatında döndür. Egzersiz isimlerinin başına gün bilgisini ekle (Örn: "1. Gün: Tempolu Yürüyüş").
+Bu verilere dayanarak kullanıcının risk seviyesine uygun SADECE BUGÜN YAPILMASI GEREKEN kişiselleştirilmiş bir GÜNLÜK EGZERSİZ PLANI üret. 
 
-JSON FORMATI ÖRNEĞİ:
-{{
+KRİTİK KURALLAR:
+1. Sadece bugün için 1-3 egzersiz öner. 
+2. ASLA "1. Gün", "2. Gün" veya "Pazartesi" gibi ifadeler kullanma.
+3. Egzersiz başlıkları doğrudan egzersizin adı olmalı (Örn: "Düşük Tempolu Yürüyüş", "Güneşe Selam Serisi").
+4. Liste formatında değil, sadece o an yapılacak tek bir idman seansı gibi düşün.
+
+JSON FORMATI:
+{
   "exercises": [
-    {{
-      "title": "Egzersiz Adı",
+    {
+      "title": "Doğrudan Egzersiz Adı",
       "duration_minutes": 20,
       "intensity": "Düşük/Orta/Yüksek",
       "calories": 100,
       "type": "Kardiyo/Yoga/Güç",
       "description": "Yapılış özeti"
-    }}
+    }
   ],
-  "total_duration_minutes": 150,
-  "total_calories": 800,
-  "ai_advice": "Haftalık hedefleriniz: İlk 3 gün kardiyo, sonraki günler aktif dinlenme. Unutmayın..."
-}}
-
-Sadece JSON çıktısı ver, başka açıklama ekleme.
+  "total_duration_minutes": 20,
+  "total_calories": 100,
+  "ai_advice": "Neden bu egzersizi seçtiğine dair not..."
+}
 """
 
 async def generate_dynamic_plan(
@@ -68,6 +71,13 @@ async def generate_dynamic_plan(
         logger.warning("GEMINI_API_KEY bulunamadı, dinamik plan iptal.")
         return None
 
+    # Bugünün tarihini ve gününü al
+    from datetime import datetime
+    tr_days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+    now = datetime.now()
+    day_name = tr_days[now.weekday()]
+    current_date_str = f"{now.strftime('%d.%m.%Y')} {day_name}"
+
     prompt = EXERCISE_PROMPT.format(
         age=req.age,
         gender=req.gender,
@@ -75,7 +85,8 @@ async def generate_dynamic_plan(
         weight=req.weight,
         class_id=class_id,
         risk_level=req.risk_level,
-        health_context=health_context
+        health_context=health_context,
+        current_date=current_date_str
     )
 
     # ── AI SEÇİMİ ──
@@ -87,7 +98,7 @@ async def generate_dynamic_plan(
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": "Sen uzman bir spor fizyoloğu ve diyetisyensin. Sadece JSON formatında yanıt ver."},
+                {"role": "system", "content": "Sen uzman bir spor fizyoloğu ve diyetisyensin. Sadece JSON formatında yanıt ver. ASLA '1. Gün' gibi ifadeler kullanma."},
                 {"role": "user", "content": prompt}
             ],
             "response_format": {"type": "json_object"},
@@ -100,7 +111,7 @@ async def generate_dynamic_plan(
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.7,
-                "response_mime_type": "application/json"
+                "responseMimeType": "application/json"
             }
         }
 

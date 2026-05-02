@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
+import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/theme_aware_state.dart';
 import 'diet_plan_screen.dart';
@@ -30,7 +31,6 @@ class _NutritionScreenState extends State<NutritionScreen>
     super.initState();
     _loadProfileAndHistory();
   }
-
   Future<void> _loadProfileAndHistory() async {
     // Kalori hedefini profilden hesapla (Mifflin-St Jeor)
     final profile = await UserProfileService.getProfile();
@@ -39,34 +39,47 @@ class _NutritionScreenState extends State<NutritionScreen>
       if (profile.gender == 'M') {
         bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
       } else {
-        bmr =
-            10 * profile.weight + 6.25 * profile.height - 5 * profile.age - 161;
+        bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age - 161;
       }
-      // Hafif aktivite çarpanı (1.375)
-      if (mounted) setState(() => _calorieGoal = (bmr * 1.375).round());
+
+      // Dinamik Hedef: BMR + Yakılan Aktif Kalori (Tez Modül 5 Entegrasyonu)
+      final todayHealth = await HealthService.getTodayEntry();
+      final activeCals = todayHealth?.activeCalories ?? 0.0;
+
+      if (mounted) {
+        setState(() {
+          // Bazal metabolizmaya o gün yakılan kaloriyi ekleyerek hedefi güncelliyoruz
+          _calorieGoal = (bmr + activeCals).round();
+        });
+      }
     }
 
     // Geçmiş öğünleri backend'den yükle
-    final history = await ApiService.fetchMealHistory(limit: 10);
-    if (mounted && history.isNotEmpty) {
-      setState(() {
-        _meals.addAll(history.map((h) => _MealEntry(
-              image: null, // Geriye dönük fotoğrafları DB'de saklamıyoruz
-              result: FoodAnalysisResult(
-                foodName: h.foodName,
-                portion: h.portion ?? '-',
-                calories: h.calories,
-                proteinG: h.proteinG,
-                carbsG: h.carbsG,
-                fatG: h.fatG,
-                fiberG: h.fiberG,
-                healthScore: h.healthScore,
-                recommendation: h.recommendation ?? '',
-                tags: List<String>.from(h.tags ?? []),
-              ),
-              dateTime: DateTime.parse(h.analyzedAt).toLocal(),
-            )));
-      });
+    try {
+      final history = await ApiService.fetchMealHistory(limit: 10);
+      if (mounted && history.isNotEmpty) {
+        setState(() {
+          _meals.clear();
+          _meals.addAll(history.map((h) => _MealEntry(
+                image: null,
+                result: FoodAnalysisResult(
+                  foodName: h.foodName,
+                  portion: h.portion ?? '-',
+                  calories: h.calories,
+                  proteinG: h.proteinG,
+                  carbsG: h.carbsG,
+                  fatG: h.fatG,
+                  fiberG: h.fiberG,
+                  healthScore: h.healthScore,
+                  recommendation: h.recommendation ?? '',
+                  tags: List<String>.from(h.tags ?? []),
+                ),
+                dateTime: DateTime.parse(h.analyzedAt).toLocal(),
+              )));
+        });
+      }
+    } catch (e) {
+      debugPrint("Öğün geçmişi yükleme hatası: $e");
     }
   }
 

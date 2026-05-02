@@ -35,12 +35,14 @@ class AppCard extends StatelessWidget {
       decoration: decoration ?? BoxDecoration(
         color: backgroundColor ?? cs.surface,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: border ?? Border.all(color: cs.outlineVariant),
+        // Sınır çizgilerini tamamen kaldırarak daha temiz bir görünüm elde edildi
+        border: border, 
         boxShadow: boxShadow ?? [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: AppColors.shadowColor,
+            blurRadius: 24, // Çok daha geniş ve yumuşak bir blur (Ferahlık hissi)
+            spreadRadius: 0,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -84,9 +86,16 @@ class AppHeader extends StatelessWidget {
           colors: gradientColors,
         ),
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(AppConstants.headerRadius),
-          bottomRight: Radius.circular(AppConstants.headerRadius),
+          bottomLeft: Radius.circular(AppConstants.headerRadius + 8), // Biraz daha yuvarlak
+          bottomRight: Radius.circular(AppConstants.headerRadius + 8),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.first.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: SafeArea(
         bottom: false,

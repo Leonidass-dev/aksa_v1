@@ -56,6 +56,7 @@ class ExerciseRequest(BaseModel):
     systolic_bp: Optional[float] = None
     diastolic_bp: Optional[float] = None
     heart_rate: Optional[float] = None
+    force_refresh: bool = False
 
 
 class ExerciseItem(BaseModel):
