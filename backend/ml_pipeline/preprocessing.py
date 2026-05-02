@@ -93,9 +93,7 @@ class PreprocessorPipeline:
         df_resampled = df.resample('1min').sum()
         df_resampled['value'] = df_resampled['value'].fillna(0)
         
-        # Tez M2: log(1+x) dönüşümü (Adım verisindeki aşırı sağa çarpıklığı gidermek için)
-        df_resampled['value'] = np.log1p(df_resampled['value'])
-        
+        # NOT: log1p dönüşümü pencere bazında toplama yapıldıktan sonra uygulanmalı (M2 Düzeltme)
         return df_resampled
 
     def create_features(self, df_hr, df_steps):
@@ -149,7 +147,7 @@ class PreprocessorPipeline:
                     'hr_q25': hr_clean.quantile(0.25),      # Yeni: Alt çeyreklik
                     'hr_q75': hr_clean.quantile(0.75),      # Yeni: Üst çeyreklik
                     'hr_skewness': hr_clean.skew(),         # Yeni: Çarpıklık
-                    'steps_sum': steps_series.sum(),
+                    'steps_sum': steps_series.sum(),        # M2: Toplam adım hacmi
                     'steps_active_mins': (steps_series > 0).sum(),
                     'steps_max': steps_series.max(),
                     'missing_pct': 1.0 - valid_pct

@@ -228,26 +228,35 @@ def _check_ae_anomaly(today: DailySnapshot, ml_features: list[float] | None = No
             logger.warning("⚠️ LSTM-AE model veya scaler yüklenemedi, Z-skor fallback'e bırakılıyor.")
             return False, 0.0, []
 
-        if ml_features is None or len(ml_features) != 9:
-            # M2 verisi yoksa anomali üretme, Z-Skor fallback'e bırak.
-            logger.info("⚠️ M7 Anomali Modeli: M2 verisi bulunamadı. LSTM-AE atlanıyor, Z-skor kullanılacak.")
-            return False, 0.0, []
+        is_sequence = ml_features and len(ml_features) > 0 and isinstance(ml_features[0], list)
 
-        # M2 Pipeline'dan çoktan temizlenmiş gerçek özellikler aktı!
-        features = np.array([ml_features])
-        logger.info("🎯 M7 Anomali Modeli: M2(Data Pipeline)'den gelen 100% temiz veri listesi LSTM-AE ağına besleniyor!")
+        if is_sequence:
+            # M2 Pipeline'dan gelen gerçek zaman dizisi (Sequence)
+            raw_sequence = ml_features
+            logger.info(f"🎯 M7 Anomali Modeli: {len(raw_sequence)} pencerelik GERÇEK dizi LSTM-AE ağına besleniyor!")
+        elif ml_features and len(ml_features) == 9:
+            # Tekil veri (Geriye uyumluluk)
+            raw_sequence = [ml_features]
+            logger.info("⚠️ M7 Anomali Modeli: Tekil M2 verisi diziye dönüştürüldü.")
+        else:
+            return False, 0.0, []
         
-        features_scaled = _ae_scaler.transform(features)
+        # Tüm diziyi ölçekle
+        seq_scaled = _ae_scaler.transform(raw_sequence)
         
-        # Tez M7: "Anomali kararının tek bir ölçümden değil zaman içindeki sapma deseninden
-        # güvenilir biçimde çıkarılması" — seq_len=5 ile dizi oluştur
-        seq_len = 5
-        features_seq = np.tile(features_scaled, (seq_len, 1))  # (5, 9)
-        x_t = torch.tensor(features_seq, dtype=torch.float32).unsqueeze(0)  # (1, 5, 9)
+        # LSTM-AE seq_len=5 bekler. Eksikse pad et, fazlaysa son 5'i al.
+        if len(seq_scaled) < 5:
+            padding = np.tile(seq_scaled[0], (5 - len(seq_scaled), 1))
+            seq_final = np.vstack([padding, seq_scaled])
+        else:
+            seq_final = seq_scaled[-5:]
+            
+        x_t = torch.tensor(seq_final, dtype=torch.float32).unsqueeze(0)  # (1, 5, 9)
         
         with torch.no_grad():
             reconstructed = _ae_model(x_t)
             mse = torch.mean((reconstructed - x_t) ** 2).item()
+        
         is_anomaly = bool(mse > _ae_threshold)
         shap_factors = []
         if is_anomaly:

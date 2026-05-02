@@ -78,8 +78,13 @@ async def preprocess_sensor_data(
                 # Özelliklerin ortalamasını alıp kaydetmek M7 LSTM-AE için tutarlı bir data yapısı sağlar
                 # features_list icerisindeki son pencerenin degerlerini M7 modeli icin kaydet
                 if len(features_list) > 0:
+                    # Mevcut kayıtları çek (Sequence oluşturmak için)
+                    today_record = await crud.get_today_health(db, user)
+                    existing_features = today_record.ml_features if today_record and today_record.ml_features else []
+
+                    # Yeni pencereyi hazırla (9 Boyutlu standart WESAD vektörü)
                     latest_window = features_list[-1]
-                    ml_features_array = [
+                    new_vector = [
                         latest_window.get("hr_mean", 0),
                         latest_window.get("hr_median", 0),
                         latest_window.get("hr_min", 0),
@@ -90,10 +95,19 @@ async def preprocess_sensor_data(
                         latest_window.get("steps_max", 0),
                         latest_window.get("missing_pct", 0)
                     ]
-                    # Not: hr_rmssd gibi ekstra HRV metrikleri features_list'te mevcuttur 
-                    # ancak M3/M7 modelleri 9 boyutlu input beklediği için 
-                    # ml_features_array'e dahil edilmemiştir (geriye uyumluluk).
-                    await crud.save_health_record(db, user, data={"ml_features": ml_features_array})
+
+                    # Sequence (Zaman Serisi) Mantığı: Son 5 pencereyi biriktir
+                    if existing_features and isinstance(existing_features, list):
+                        if len(existing_features) > 0 and isinstance(existing_features[0], list):
+                            # Zaten bir matris ise sonuna ekle
+                            new_sequence = (existing_features + [new_vector])[-5:]
+                        else:
+                            # Eski tekil veri formatı kalmışsa matrise çevir
+                            new_sequence = [new_vector]
+                    else:
+                        new_sequence = [new_vector]
+
+                    await crud.save_health_record(db, user, data={"ml_features": new_sequence})
 
         return PreprocessingResponse(
             status="success",

@@ -104,45 +104,60 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
         logger.warning("⚠️ XGBoost veya Scaler yüklenemedi, kural tabanlı fallback'e geçiliyor.")
         return _compute_risk_rules(snap)
 
-    if ml_features is not None and len(ml_features) == 9:
-        # M2 Pipeline'dan gelen temizlenmiş gerçek özellikler!
-        features = np.array([ml_features])
-        logger.info("🎯 M3 Risk Modeli: M2(Data Pipeline) temiz verileri XGBoost+GRU'ya besleniyor!")
-        hr_mean = ml_features[0]  # Faktör analizi için
+    # ── M2 Pipeline verisini işle ──
+    is_sequence = ml_features and len(ml_features) > 0 and isinstance(ml_features[0], list)
+    
+    if is_sequence:
+        # Gerçek zaman dizisi geldi! (M2 Düzeltme)
+        raw_sequence = ml_features
+        latest_vector = np.array([raw_sequence[-1]])
+        hr_mean = raw_sequence[-1][0]
+        steps_window = raw_sequence[-1][5]
+        logger.info(f"🎯 M3 Risk Modeli: {len(raw_sequence)} pencerelik GERÇEK zaman serisi işleniyor.")
+    elif ml_features and len(ml_features) == 9:
+        # Eski 1D format veya tekil veri
+        latest_vector = np.array([ml_features])
+        hr_mean = ml_features[0]
         steps_window = ml_features[5]
+        raw_sequence = [ml_features]
     else:
-        # M2 henüz hazır değilse WESAD sağlıklı dinlenme baseline'ı kullanılır (Düşük Risk)
+        # Fallback (WESAD dinlenme baseline)
         hr_mean = snap.heart_rate_avg if snap.heart_rate_avg else 72.0
         hr_min = snap.heart_rate_resting if snap.heart_rate_resting else 60.0
         hr_max = hr_mean + 15.0
-        hr_std = 5.0  # Düzenli, sağlıklı kalp değişkenliği
+        hr_std = 5.0
         steps_window = snap.steps / 16 if snap.steps else 200.0
         steps_active = max(1, int(snap.active_minutes / 16)) if snap.active_minutes else 2
         steps_max = 20.0
         missing_pct = 0.0
 
-        features = np.array([[
+        latest_vector = np.array([[
             hr_mean, hr_mean, hr_min, hr_max, hr_std,
             steps_window, steps_active, steps_max, missing_pct
         ]])
-        logger.info("⚠️ M3 Risk Modeli: M2 verisi bulunamadı, fallback özellikler kullanılıyor.")
+        raw_sequence = latest_vector.tolist()
+        logger.info("⚠️ M3 Risk Modeli: M2 verisi bulunamadı, fallback kullanılıyor.")
 
-    features_scaled = _scaler.transform(features)
+    features_scaled = _scaler.transform(latest_vector)
 
     # ── XGBoost Tahmini ──
     probs_xgb = _xgb_model.predict_proba(features_scaled)[0]
-    # WESAD Class 2 (Stres/Yüksek Sapma) tam risk (1.0). Class 1 (Günlük Aktivite) düşük risk (0.2).
     prob_high_xgb = probs_xgb[2] * 1.0 + probs_xgb[1] * 0.2
 
     # ── GRU Tahmini (seq_len=5 desteği) ──
     prob_high_gru = 0.0
     if _gru_model is not None:
-        # Tez M3: "Ardışık pencerelerden oluşan kısa bir geçmiş dizisi"
-        # Eğitim seq_len=5 ile yapıldıysa, inference'da da 5 pencere gerekir.
-        # Geçmiş pencere yoksa mevcut pencereyi tekrarla (zero-shot padding).
-        seq_len = 5
-        features_seq = np.tile(features_scaled, (seq_len, 1))  # (5, 9)
-        features_t = torch.tensor(features_seq, dtype=torch.float32).unsqueeze(0)  # (1, 5, 9)
+        # Tüm diziyi ölçekle
+        seq_scaled = _scaler.transform(raw_sequence)
+        
+        # Eğer dizi 5'ten kısaysa başını son elemanla pad et (sıcak başlangıç)
+        if len(seq_scaled) < 5:
+            padding = np.tile(seq_scaled[0], (5 - len(seq_scaled), 1))
+            seq_final = np.vstack([padding, seq_scaled])
+        else:
+            seq_final = seq_scaled[-5:]
+            
+        features_t = torch.tensor(seq_final, dtype=torch.float32).unsqueeze(0)  # (1, 5, 9)
         with torch.no_grad():
             out_gru = _gru_model(features_t)
             probs_gru = torch.softmax(out_gru, dim=1).numpy()[0]
