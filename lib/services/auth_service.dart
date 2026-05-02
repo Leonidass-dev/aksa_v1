@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -101,6 +102,14 @@ class AuthServiceImpl implements IAuthService {
           AppleIDAuthorizationScopes.fullName,
         ],
         nonce: nonce,
+        webAuthenticationOptions: WebAuthenticationOptions(
+          // NOT: Bu değerlerin Apple Developer Portal'dan alınması gerekir.
+          // Android'de Apple Login'in çalışması için bu yapılandırma şarttır.
+          clientId: 'com.aksa.health.service', 
+          redirectUri: Uri.parse(
+            'https://aksa-health.firebaseapp.com/__/auth/handler',
+          ),
+        ),
       );
 
       final oauthCredential = OAuthProvider(

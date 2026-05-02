@@ -80,14 +80,14 @@ class HealthDataParser {
       }
     }
 
-    // ── Kaynak kümeleme: Adım→Medyan, Kalori/Mesafe→Max ────
-    final totalSteps = _median(stepsBySrc);
-    final activeCalories = _max(activeCalBySrc);
-    final totalCalories = _max(totalCalBySrc);
-    final distanceM = _max(distanceBySrc);
+    // ── Kaynak kümeleme: Giyilebilir cihaz öncelikli çözümleme ────
+    final totalSteps = _resolveSourceValue(stepsBySrc);
+    final activeCalories = _resolveSourceValue(activeCalBySrc, useMax: true);
+    final totalCalories = _resolveSourceValue(totalCalBySrc, useMax: true);
+    final distanceM = _resolveSourceValue(distanceBySrc, useMax: true);
 
     if (stepsBySrc.isNotEmpty) {
-      debugPrint("Adım kaynakları: $stepsBySrc → Medyan seçildi: $totalSteps");
+      debugPrint("Adım kaynakları: $stepsBySrc → Seçilen: $totalSteps");
     }
 
     // ── Ortalamalar ────
@@ -135,17 +135,40 @@ class HealthDataParser {
     return double.tryParse(point.value.toString()) ?? 0;
   }
 
-  /// Kaynak değerlerinin alt medyanını döndürür (aykırı değer dayanıklı).
-  static double _median(Map<String, double> bySource) {
+  /// Kaynak değerleri arasından en güvenilir olanı seçer.
+  /// Giyilebilir cihaz kaynaklarına (Xiaomi, Garmin vb.) öncelik verir.
+  static double _resolveSourceValue(Map<String, double> bySource, {bool useMax = false}) {
     if (bySource.isEmpty) return 0;
-    final sorted = bySource.values.toList()..sort();
-    return sorted[(sorted.length - 1) ~/ 2];
-  }
 
-  /// Kaynak değerlerinin maksimumunu döndürür.
-  static double _max(Map<String, double> bySource) {
-    if (bySource.isEmpty) return 0;
-    return bySource.values.reduce((a, b) => a > b ? a : b);
+    // Giyilebilir cihaz anahtar kelimeleri
+    const wearableKeywords = [
+      'xiaomi', 'wearable', 'mi.fitness', 'zepp', 'garmin', 
+      'fitbit', 'samsung.health', 'polar', 'suunto', 'huawei', 'watch'
+    ];
+
+    final wearableSources = bySource.entries.where((e) {
+      final src = e.key.toLowerCase();
+      return wearableKeywords.any((k) => src.contains(k));
+    }).toList();
+
+    // Eğer giyilebilir cihaz verisi varsa, öncelikle onu kullan
+    if (wearableSources.isNotEmpty) {
+      if (useMax) {
+        return wearableSources.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+      } else {
+        // Wearable kaynakların medyanını al (birden fazla saat bağlıysa)
+        final values = wearableSources.map((e) => e.value).toList()..sort();
+        return values[(values.length - 1) ~/ 2];
+      }
+    }
+
+    // Giyilebilir cihaz yoksa standart medyan/maksimum mantığına dön
+    if (useMax) {
+      return bySource.values.reduce((a, b) => a > b ? a : b);
+    } else {
+      final values = bySource.values.toList()..sort();
+      return values[(values.length - 1) ~/ 2];
+    }
   }
 }
 
