@@ -223,8 +223,8 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
                 break
             pct = (abs(val) / total_sv) * 100
             if pct > 5.0:  # Sadece %5'ten fazla etkisi olanları ekle
-                direction = "Artırıcı" if val > 0 else "Düşürücü"
-                desc = f"Algoritmik SHAP Etkisi ({direction})"
+                direction = "Artış" if val > 0 else "Azalış"
+                desc = f"Sağlık verilerinizdeki {direction} yönlü değişim"
                 factors.append(RiskFactor(feature_names[i], round(float(pct), 1), desc))
                 
         factors.sort(key=lambda x: x.contribution, reverse=True)
@@ -243,7 +243,7 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
         score=score, level=level,
         top_factors=factors[:5],
         recommendations=_generate_recommendations(factors, level),
-        model_version="xgb-gru-hybrid-v1",
+        model_version="v1.2",
     )
 
 
@@ -394,7 +394,7 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         score=round(score, 1), level=level,
         top_factors=factors[:5],
         recommendations=_generate_recommendations(factors, level),
-        model_version="expert-v1.2",
+        model_version="v1.2",
     )
 
 

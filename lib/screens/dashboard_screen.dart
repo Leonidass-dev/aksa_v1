@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -41,6 +42,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isDataMissing = false;
   AnomalyApiResult? _anomalyResult; // Modül 7: Anomali Sonuçları
   bool _isAnomalyDismissed = false;
+  StreamSubscription? _syncSubscription;
+  Timer? _refreshTimer;
 
   String get _greeting {
     final hour = DateTime.now().hour;
@@ -57,6 +60,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     WidgetsBinding.instance.addObserver(this);
     _loadUserName();
     _silentSyncAndLoad();
+    
+    // Canlı veri güncellemelerini dinle
+    _syncSubscription = HealthService.syncUpdates.listen((event) {
+      if (mounted) {
+        debugPrint("📡 Dashboard: Yeni veri algılandı, güncelleniyor...");
+        _loadTodayData();
+      }
+    });
+
+    // Her 3 dakikada bir otomatik senkronizasyon yap
+    _refreshTimer = Timer.periodic(const Duration(minutes: 3), (timer) {
+      if (mounted && !_isSyncing) {
+        _silentSyncAndLoad();
+      }
+    });
     
     // Uygulama yüklendikten sonra (frame render edildikten sonra) disclaimer kontrolü yap
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -102,6 +120,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _syncSubscription?.cancel();
+    _refreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -233,7 +253,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         debugPrint("Anomali kontrol hatası: $e");
       }
 
-      if (result != null) {
+      if (result != null && mounted) {
         setState(() {
           _riskResult = RiskResult(
             score: result.score,

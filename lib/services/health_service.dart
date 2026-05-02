@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,10 @@ class HealthServiceImpl implements IHealthService {
   // Akıllı Sınırlandırma (Cooldown) için değişkenler
   DateTime? _lastSyncTime;
   final Duration _syncCooldown = const Duration(minutes: 1);
+
+  static final _syncUpdateController = StreamController<bool>.broadcast();
+  Stream<bool> get syncUpdates => _syncUpdateController.stream;
+  static void notifySync() => _syncUpdateController.add(true);
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
@@ -230,11 +235,18 @@ class HealthServiceImpl implements IHealthService {
           heartRateData: hrPoints,
           stepsData: stepsPoints,
         );
-        if (success) debugPrint("Pipeline Veri İşleme Başarılı.");
+        if (success) {
+          debugPrint("Pipeline Veri İşleme Başarılı. Analizler tetikleniyor...");
+          // Veri işlendiği anda anomali kontrolünü arka planda başlatabiliriz
+          // Dashboard listener'ı varsa o da tetiklenecek
+        }
       }
 
       // Başarılı senkronizasyon zamanını kaydet
       _lastSyncTime = DateTime.now();
+      
+      // UI'ı bilgilendir (Stream veya Notify)
+      _syncUpdateController.add(true); 
 
       return true;
     } catch (e) {
@@ -323,4 +335,11 @@ class HealthService {
   static Future<void> updateWater(double ml) => _instance.updateWater(ml);
   static Future<void> updateMood(String mood) => _instance.updateMood(mood);
   static double calculateWaterTarget(double weight, double activeCalories) => _instance.calculateWaterTarget(weight, activeCalories);
+  
+  static Stream<bool> get syncUpdates {
+    if (_instance is HealthServiceImpl) {
+      return (_instance as HealthServiceImpl).syncUpdates;
+    }
+    return const Stream.empty();
+  }
 }

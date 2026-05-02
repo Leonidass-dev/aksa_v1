@@ -146,8 +146,6 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
                     _buildTopFactors(context),
                     const SizedBox(height: 16),
                     _buildRecommendations(context),
-                    const SizedBox(height: 16),
-                    _buildModelInfo(context),
                   ],
                   const SizedBox(height: 80),
                 ],
@@ -165,7 +163,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
       subtitle: _loading
           ? 'Hesaplanıyor...'
           : _hasData
-          ? 'Yapay Zeka & Gerçek Verileriniz'
+          ? 'Verileriniz ve Akıllı Analiz'
           : 'Bugün henüz sağlık verisi girmediniz.',
       height: 160,
       trailing: AppRefreshButton(
@@ -400,7 +398,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Yapay Zeka Yorumu',
+                  'Analiz Özeti',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface,
@@ -681,42 +679,6 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
     return recs.take(4).toList();
   }
 
-  Widget _buildModelInfo(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: cs.onSurfaceVariant, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Sürüm: ${_result.modelVersion}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: cs.onSurface,
-                  ),
-                ),
-                Text(
-                  'Skor hesaplama yapay zeka hatasız çalıştı. Gerçek veriniz yoksa örnek veri gösterilir.',
-                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   String _formatDateTime(DateTime dt) {
     return '${dt.day.toString().padLeft(2, '0')}.'
