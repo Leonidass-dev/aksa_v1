@@ -18,9 +18,9 @@ class HealthDataParser {
     required DateTime midnight,
     required HealthEntry? todayEntry,
   }) {
-    double latestHeartRate = 0, latestRestingHr = 0, latestSpo2 = 0, latestHrv = 0;
+    double latestHeartRate = 0, latestRestingHr = 0, latestSpo2 = 0;
     double latestSystolic = 0, latestDiastolic = 0;
-    DateTime? hrTime, rhrTime, spo2Time, sysTime, diaTime, hrvTime;
+    DateTime? hrTime, rhrTime, spo2Time, sysTime, diaTime;
     
     double totalSleepMin = 0, sleepDeepMin = 0, sleepLightMin = 0, sleepRemMin = 0;
 
@@ -79,10 +79,6 @@ class HealthDataParser {
           if (diaTime == null || time.isAfter(diaTime)) {
             latestDiastolic = val; diaTime = time;
           }
-        case HealthDataType.HEART_RATE_VARIABILITY_SDNN:
-          if (hrvTime == null || time.isAfter(hrvTime)) {
-            latestHrv = val; hrvTime = time;
-          }
         case HealthDataType.SLEEP_ASLEEP:
           totalSleepMin += val;
         case HealthDataType.SLEEP_DEEP:
@@ -116,7 +112,7 @@ class HealthDataParser {
       heartRate: latestHeartRate > 0 ? latestHeartRate : (todayEntry?.heartRate ?? 0),
       restingHeartRate: latestRestingHr > 0 ? latestRestingHr : (todayEntry?.restingHeartRate ?? 0),
       spo2: latestSpo2 > 0 ? latestSpo2 : (todayEntry?.spo2 ?? 0),
-      hrv: latestHrv > 0 ? latestHrv : (todayEntry?.stressLevel ?? 0),
+      stressLevel: todayEntry?.stressLevel ?? 0,
       systolic: latestSystolic > 0 ? latestSystolic : (todayEntry?.systolic ?? 0),
       diastolic: latestDiastolic > 0 ? latestDiastolic : (todayEntry?.diastolic ?? 0),
       sleepHours: sleepHrs > 0 ? sleepHrs : (todayEntry?.sleepHours ?? 0),
@@ -184,14 +180,14 @@ class HealthDataParser {
 
 /// `HealthDataParser.parse()` sonucu — tüm sensör verileri.
 class ParsedHealthData {
-  final double steps, heartRate, restingHeartRate, spo2, hrv;
+  final double steps, heartRate, restingHeartRate, spo2, stressLevel;
   final double systolic, diastolic, sleepHours;
   final double sleepDeepMin, sleepLightMin, sleepRemMin;
   final double activeCalories, totalCalories, distanceM;
 
   const ParsedHealthData({
     required this.steps, required this.heartRate, required this.restingHeartRate,
-    required this.spo2, required this.hrv, required this.systolic, required this.diastolic,
+    required this.spo2, required this.stressLevel, required this.systolic, required this.diastolic,
     required this.sleepHours, required this.sleepDeepMin, required this.sleepLightMin,
     required this.sleepRemMin, required this.activeCalories, required this.totalCalories,
     required this.distanceM,

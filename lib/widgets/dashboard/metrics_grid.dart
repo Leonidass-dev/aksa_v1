@@ -8,11 +8,13 @@ import '../../constants/app_constants.dart';
 class DashboardMetricsGrid extends StatelessWidget {
   final HealthEntry? todayEntry;
   final VoidCallback onBPTap;
+  final VoidCallback onStressTap;
 
   const DashboardMetricsGrid({
     super.key,
     required this.todayEntry,
     required this.onBPTap,
+    required this.onStressTap,
   });
 
   @override
@@ -72,6 +74,7 @@ class DashboardMetricsGrid extends StatelessWidget {
               : stress > 40
                   ? AppColors.stressYellow
                   : AppColors.secondary,
+          onTap: onStressTap,
         ),
         MetricTile(
           icon: Icons.bedtime_rounded,

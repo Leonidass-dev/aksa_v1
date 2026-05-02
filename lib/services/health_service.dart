@@ -19,7 +19,7 @@ class HealthServiceImpl implements IHealthService {
 
   // Akıllı Sınırlandırma (Cooldown) için değişkenler
   DateTime? _lastSyncTime;
-  final Duration _syncCooldown = const Duration(minutes: 15);
+  final Duration _syncCooldown = const Duration(minutes: 1);
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
@@ -75,10 +75,8 @@ class HealthServiceImpl implements IHealthService {
       HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
       HealthDataType.SLEEP_ASLEEP,
       HealthDataType.SLEEP_DEEP,
-      HealthDataType.SLEEP_LIGHT,
       HealthDataType.SLEEP_REM,
       HealthDataType.DISTANCE_DELTA,
-      HealthDataType.HEART_RATE_VARIABILITY_SDNN,
     ];
 
     final permissions = types.map((e) => HealthDataAccess.READ).toList();
@@ -111,7 +109,7 @@ class HealthServiceImpl implements IHealthService {
             startTime: midnight,    // Kesinlikle bugünün gece yarısından itibaren
             endTime: endTime,
             types: [HealthDataType.STEPS],
-          );
+          ).timeout(const Duration(seconds: 10));
       stepsData = Health().removeDuplicates(stepsData);
 
       // ── DİĞER VERİLER: Uyku için dün öğleden itibaren çekme ────────
@@ -127,10 +125,8 @@ class HealthServiceImpl implements IHealthService {
         HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
         HealthDataType.SLEEP_ASLEEP,
         HealthDataType.SLEEP_DEEP,
-        HealthDataType.SLEEP_LIGHT,
         HealthDataType.SLEEP_REM,
         HealthDataType.DISTANCE_DELTA,
-        HealthDataType.HEART_RATE_VARIABILITY_SDNN,
       ];
 
       List<HealthDataPoint> healthData = await _healthFactory
@@ -138,16 +134,32 @@ class HealthServiceImpl implements IHealthService {
             startTime: yesterdayNoon,
             endTime: endTime,
             types: remainingTypes,
-          );
+          ).timeout(const Duration(seconds: 10));
       healthData = Health().removeDuplicates(healthData);
 
-      debugPrint("[HEALTH DIAGNOSTIC] Toplam Ham Veri Sayısı: ${healthData.length + stepsData.length}");
+      debugPrint("\n🚀 [AKSA HEALTH] SENKRONİZASYON BAŞLADI");
+      debugPrint("📊 Toplam Ham Veri: ${healthData.length + stepsData.length} nokta");
+      
       for (var p in [...stepsData, ...healthData]) {
         String valText = p.value.toString();
         if (p.value is NumericHealthValue) {
-          valText = (p.value as NumericHealthValue).numericValue.toString();
+          valText = (p.value as NumericHealthValue).numericValue.toStringAsFixed(1);
         }
-        debugPrint("[HEALTH DIAGNOSTIC] Tür: ${p.typeString} | Değer: $valText | Kaynak: ${p.sourceName} | Tarih: ${p.dateFrom}");
+        
+        String emoji = "🔹";
+        if (p.typeString.contains("STEPS")) emoji = "👣";
+        else if (p.typeString.contains("HEART")) emoji = "❤️";
+        else if (p.typeString.contains("OXYGEN")) emoji = "🩸";
+        else if (p.typeString.contains("ENERGY")) emoji = "🔥";
+        else if (p.typeString.contains("SLEEP")) emoji = "🌙";
+        else if (p.typeString.contains("PRESSURE")) emoji = "⚖️";
+
+        String source = p.sourceName;
+        if (source.contains("xiaomi")) source = "⌚ XIAOMI";
+        else if (source.contains("fitness")) source = "📱 G-FIT";
+        else if (source.contains("android")) source = "🤖 SYSTEM";
+
+        debugPrint("$emoji [${p.typeString.padRight(15)}] | Değer: ${valText.padRight(6)} | Kaynak: $source");
       }
 
       final todayEntry = await getTodayEntry();
@@ -166,7 +178,7 @@ class HealthServiceImpl implements IHealthService {
         heartRate: parsedData.heartRate,
         restingHeartRate: parsedData.restingHeartRate,
         spo2: parsedData.spo2,
-        stressLevel: parsedData.hrv > 0 ? parsedData.hrv : (todayEntry?.stressLevel ?? 0),
+        stressLevel: todayEntry?.stressLevel ?? 0,
         systolic: parsedData.systolic,
         diastolic: parsedData.diastolic,
         sleepHours: parsedData.sleepHours,
@@ -184,13 +196,13 @@ class HealthServiceImpl implements IHealthService {
 
       await saveHealthEntry(newEntry);
       
-      debugPrint("--- SAĞLIK SENKRONİZASYONU ÖZETİ ---");
-      debugPrint("İşlenen Veri Noktası: ${healthData.length}");
-      debugPrint("Toplam Adım (medyan kaynak): ${parsedData.steps}");
-      debugPrint("Yakılan Kalori (max source): ${parsedData.activeCalories}");
-      debugPrint("Ortalama Nabız: ${parsedData.heartRate}");
-      debugPrint("Mesafe: ${parsedData.distanceM.toStringAsFixed(0)}m");
-      debugPrint("-----------------------------------");
+      debugPrint("\n╔════════ SAĞLIK ÖZETİ ════════╗");
+      debugPrint("║ 👣 Adım    : ${parsedData.steps.toInt().toString().padRight(16)} ║");
+      debugPrint("║ ❤️ Nabız   : ${parsedData.heartRate.toInt().toString().padRight(16)} ║");
+      debugPrint("║ 🩸 Oksijen : %${parsedData.spo2.toInt().toString().padRight(15)} ║");
+      debugPrint("║ 🔥 Kalori  : ${parsedData.activeCalories.toInt().toString().padRight(16)} ║");
+      debugPrint("║ 📏 Mesafe  : ${parsedData.distanceM.toInt().toString()}m".padRight(31) + "║");
+      debugPrint("╚══════════════════════════════╝\n");
       
       // ── Tez Modül 2: Ham Verileri Pipeline'a Gönder ──────────────
       final hrPoints = healthData

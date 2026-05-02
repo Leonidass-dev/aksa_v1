@@ -18,6 +18,7 @@ import '../widgets/dashboard/weekly_trend_card.dart';
 import '../widgets/dashboard/anomaly_banner.dart';
 import '../widgets/dashboard/discover_grid.dart';
 import '../widgets/dashboard/bp_entry_sheet.dart';
+import '../widgets/dashboard/stress_entry_sheet.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -119,7 +120,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     _isSyncing = true;
 
     try {
-      await Future.delayed(const Duration(milliseconds: 800));
       await HealthService.syncFromDevice();
       if (mounted) await _loadTodayData();
     } catch (e) {
@@ -367,6 +367,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     DashboardMetricsGrid(
                       todayEntry: _todayEntry,
                       onBPTap: () => BPEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
+                      onStressTap: () => StressEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
                     ),
                     const SizedBox(height: 24),
                     WaterTrackerCard(
