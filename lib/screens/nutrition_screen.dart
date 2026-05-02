@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/theme_aware_state.dart';
+import '../widgets/common_widgets.dart';
 import 'diet_plan_screen.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -480,40 +481,11 @@ class _NutritionScreenState extends State<NutritionScreen>
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.add_a_photo_outlined,
-              color: AppColors.secondary,
-              size: 40,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Henüz öğün eklenmedi',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Aşağıdaki butona basarak yemek fotoğrafı çek\nGemini AI besin değerlerini analiz etsin',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
+    return AppEmptyState(
+      icon: Icons.add_a_photo_outlined,
+      color: AppColors.secondary,
+      title: 'Henüz öğün eklenmedi',
+      subtitle: 'Aşağıdaki butona basarak yemek fotoğrafı çek\nGemini AI besin değerlerini analiz etsin',
     );
   }
 

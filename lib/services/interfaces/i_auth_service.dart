@@ -20,4 +20,5 @@ abstract class IAuthService {
   Future<AuthResult> signInWithApple();
   Future<AuthResult> sendPasswordReset(String email);
   Future<void> signOut();
+  Future<AuthResult> deleteAccount();
 }

@@ -80,6 +80,48 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signInWithApple() async {
+    // Android üzerinde Apple Sign-in bazen kafa karıştırıcı olabiliyor
+    if (Theme.of(context).platform == TargetPlatform.android) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.apple, color: AppColors.foreground),
+              SizedBox(width: 10),
+              Text('Apple ID uyarısı'),
+            ],
+          ),
+          content: const Text(
+            'Android cihazlarda Google ile giriş yapmanız daha hızlı ve güvenli bir deneyim sunar. Apple hesabınızı kullanmaya devam etmek istiyor musunuz?',
+            style: TextStyle(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Vazgeç', style: TextStyle(color: AppColors.mutedForeground)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _performAppleSignIn();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.foreground,
+                minimumSize: const Size(100, 40),
+              ),
+              child: const Text('Devam Et'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    _performAppleSignIn();
+  }
+
+  Future<void> _performAppleSignIn() async {
     setState(() => _loading = true);
     final result = await AuthService.signInWithApple();
     if (!mounted) return;

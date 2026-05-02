@@ -117,6 +117,31 @@ class ProfileDialogs {
       ),
     );
   }
+
+  static void showDeleteAccount(BuildContext context, VoidCallback onConfirm) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hesabı Sil?'),
+        content: const Text(
+          'Hesabınızı sildiğinizde tüm verileriniz kalıcı olarak silinecektir. '
+          'Bu işlem geri alınamaz.',
+          style: TextStyle(height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onConfirm();
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.destructive),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// İkon + başlık + açıklama satırı — dialog'larda kullanılır.

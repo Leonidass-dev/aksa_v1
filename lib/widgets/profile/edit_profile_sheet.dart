@@ -235,7 +235,16 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                     final heightVal = double.tryParse(heightCtrl.text) ?? 170.0;
                     final weightVal = double.tryParse(weightCtrl.text) ?? 75.0;
                     await widget.onSave(nameCtrl.text.trim(), bioCtrl.text.trim(), ageVal, selectedGender, heightVal, weightVal);
-                    if (context.mounted) Navigator.pop(context);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Profil güncellendi. Planlarınız yeni verilerle optimize edilecek.'),
+                          backgroundColor: AppColors.secondary,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      Navigator.pop(context);
+                    }
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary,

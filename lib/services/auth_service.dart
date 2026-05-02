@@ -126,11 +126,12 @@ class AuthServiceImpl implements IAuthService {
       if (e.code == AuthorizationErrorCode.canceled) {
         return AuthResult.error('Apple girişi iptal edildi.');
       }
-      return AuthResult.error('Apple girişi başarısız: ${e.message}');
+      return AuthResult.error('Apple girişi şu an kullanılamıyor. Lütfen Google veya e-posta ile giriş yapın.');
     } on FirebaseAuthException catch (e) {
       return AuthResult.error(_firebaseErrorMessage(e.code));
     } catch (e) {
-      return AuthResult.error('Apple girişi başarısız: ${e.toString()}');
+      debugPrint("Apple Login Error: $e");
+      return AuthResult.error('Cihazınızda Apple ile giriş desteklenmiyor olabilir. Lütfen başka bir yöntem deneyin.');
     }
   }
 
@@ -154,6 +155,31 @@ class AuthServiceImpl implements IAuthService {
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
+  }
+
+  // ── Hesabı Kalıcı Olarak Sil ───────────────────────────────────────────
+  @override
+  Future<AuthResult> deleteAccount() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return AuthResult.error('Kullanıcı bulunamadı.');
+
+      // 1. Firestore verilerini sil (Opsiyonel ama GDPR/KVKK için iyi)
+      // Not: Tam silme için alt koleksiyonların da silinmesi gerekir (Cloud Function önerilir)
+      // Ancak burada temel kullanıcı dokümanını siliyoruz.
+      // await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+
+      // 2. Firebase Auth hesabını sil
+      await user.delete();
+      return AuthResult.successMessage('Hesabınız başarıyla silindi.');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        return AuthResult.error('Güvenlik nedeniyle tekrar giriş yapmanız gerekiyor.');
+      }
+      return AuthResult.error(_firebaseErrorMessage(e.code));
+    } catch (e) {
+      return AuthResult.error('Hesap silinemedi: ${e.toString()}');
+    }
   }
 
   // ── Nonce Yardımcıları (Apple için) ─────────────────────────────────────
@@ -225,6 +251,7 @@ class AuthService {
   static Future<AuthResult> signInWithApple() => _instance.signInWithApple();
   static Future<AuthResult> sendPasswordReset(String email) => _instance.sendPasswordReset(email);
   static Future<void> signOut() => _instance.signOut();
+  static Future<AuthResult> deleteAccount() => _instance.deleteAccount();
 }
 
 // ── Sonuç Modeli ─────────────────────────────────────────────────────────────

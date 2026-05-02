@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../utils/image_utils.dart';
 import '../utils/bmi_utils.dart';
 import '../widgets/theme_aware_state.dart';
+import 'package:aksa_v1/services/auth_service.dart';
 import '../widgets/profile/quick_stats_card.dart';
 import '../widgets/profile/body_metrics_card.dart';
 import '../widgets/profile/health_goals_card.dart';
@@ -199,6 +200,25 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     ).then((_) => _loadGoals());
   }
 
+  Future<void> _deleteAccount() async {
+    ProfileDialogs.showDeleteAccount(context, () async {
+      setState(() => _loading = true);
+      final result = await AuthService.deleteAccount();
+      if (!mounted) return;
+      setState(() => _loading = false);
+
+      if (result.isSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Hesabınız başarıyla silindi.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.errorMessage!), backgroundColor: AppColors.destructive),
+        );
+      }
+    });
+  }
+
   // ── UI Build ─────────────────────────────────────────────────────
 
   @override
@@ -258,8 +278,16 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           onTermsTap: () => ProfileDialogs.showTerms(context),
                           onPrivacyPolicyTap: () => ProfileDialogs.showPrivacyPolicy(context),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
                         const SignOutButton(),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _deleteAccount,
+                          child: const Text(
+                            'Hesabımı Kalıcı Olarak Sil',
+                            style: TextStyle(color: AppColors.destructive, fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ),
                       ],
                     ),
                   ),

@@ -172,7 +172,11 @@ class _ExerciseScreenState extends State<ExerciseScreen>
         if (_apiResult != null && _apiResult!.exercises.isNotEmpty)
           _buildExerciseList(context, _apiResult!.exercises)
         else
-          const Text('Bugün için egzersiz bulunamadı.'),
+          AppEmptyState(
+            icon: Icons.fitness_center_outlined,
+            title: 'Plan Bulunamadı',
+            subtitle: 'Şu anki sağlık verilerinize göre bir plan üretilemedi. Lütfen daha sonra tekrar deneyin.',
+          ),
         const SizedBox(height: 20),
         _buildStats(context),
         const SizedBox(height: 20),
