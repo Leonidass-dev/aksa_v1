@@ -181,8 +181,8 @@ async def analyze_food(
         )
 
     try:
-        # Markdown kod bloğu varsa temizle
-        text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        from services.ai_service import clean_json_string
+        text = clean_json_string(text)
         data = json.loads(text)
         nutrients = data.get("nutrients", {})
 

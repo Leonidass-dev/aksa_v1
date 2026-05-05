@@ -21,14 +21,21 @@ OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "llava")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+import re
+
 def clean_json_string(raw_text: str) -> str:
-    """Markdown kod bloklarını temizler ve saf JSON döner."""
-    cleaned = raw_text.strip()
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[7:-3].strip()
-    elif cleaned.startswith("```"):
-        cleaned = cleaned[3:-3].strip()
-    return cleaned
+    """Metin içindeki JSON bloğunu güvenle çıkarır ve Markdown temizler."""
+    # Markdown json bloğunu bul
+    match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
+    if match:
+        return match.group(1).strip()
+    
+    # Süslü veya köşeli parantez içini bul (Fallback)
+    match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', raw_text)
+    if match:
+        return match.group(1).strip()
+        
+    return raw_text.strip()
 
 async def ask_text(prompt: str, system_prompt: str = "Sen uzman bir sağlık asistanısın. Yanıtlarını SADECE Türkçe olarak ver. Teknik terimlerin doğrudan Türkçe karşılıklarını kullan. Asla İngilizce kelime karıştırma.", history: List[Dict] = None, json_mode: bool = False) -> Optional[str]:
     """

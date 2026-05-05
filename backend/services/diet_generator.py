@@ -81,11 +81,8 @@ async def generate_diet_plan(
 
     try:
         # JSON temizleme
-        cleaned_json = raw_text.strip()
-        if cleaned_json.startswith("```json"):
-            cleaned_json = cleaned_json[7:-3].strip()
-        elif cleaned_json.startswith("```"):
-            cleaned_json = cleaned_json[3:-3].strip()
+        from services.ai_service import clean_json_string
+        cleaned_json = clean_json_string(raw_text)
             
         json_data = json.loads(cleaned_json)
         return DietPlanResponse(**json_data)

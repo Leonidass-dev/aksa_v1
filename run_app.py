@@ -55,17 +55,12 @@ def main():
 
     # Kullanıcı python run_app.py --release derse release moduna geç
     is_release = "--release" in sys.argv
-    is_cloud = "--cloud" in sys.argv
     
-    if is_cloud:
-        api_url = "https://aksa-backend-8slk.onrender.com/api"
-        print("[*] CLOUD modunda baslatiliyor: " + api_url)
-    else:
-        api_url = f"http://{local_ip}:8000/api"
+    api_url = f"http://{local_ip}:8000/api"
 
-    # ── 1. Backend başlat (Cloud değilse) ─────────────────────
+    # ── 1. Backend başlat ─────────────────────
     backend_process = None
-    if not is_cloud:
+    if True:
         python_exe = os.path.join(backend_dir, "venv", "Scripts", "python.exe")
         if not os.path.exists(python_exe):
             print("[!] Backend venv bulunamadi!")

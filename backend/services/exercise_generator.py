@@ -74,7 +74,7 @@ async def generate_dynamic_plan(
     class_id: int, 
     health_context: str
 ) -> Optional[ExercisePlanResponse]:
-    """Gemini AI kullanarak dinamik ve kişiselleştirilmiş egzersiz planı üretir."""
+    """Yapay zeka kullanarak dinamik ve kişiselleştirilmiş egzersiz planı üretir."""
 
     # Bugünün tarihini ve gününü al
     from datetime import datetime
@@ -106,11 +106,8 @@ async def generate_dynamic_plan(
 
     try:
         # JSON temizleme
-        cleaned_json = raw_text.strip()
-        if cleaned_json.startswith("```json"):
-            cleaned_json = cleaned_json[7:-3].strip()
-        elif cleaned_json.startswith("```"):
-            cleaned_json = cleaned_json[3:-3].strip()
+        from services.ai_service import clean_json_string
+        cleaned_json = clean_json_string(raw_text)
             
         json_data = json.loads(cleaned_json)
         return ExercisePlanResponse(**json_data)

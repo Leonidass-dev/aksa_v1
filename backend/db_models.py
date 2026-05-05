@@ -3,13 +3,18 @@ AKSA Backend — SQLAlchemy ORM Modelleri
 Redmi Watch 4 tüm sensör verileri dahil.
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from sqlalchemy import (
     Column, Integer, Float, String, Boolean, Text, Date,
     DateTime, ForeignKey, JSON,
 )
 from sqlalchemy.orm import relationship
 from database import Base
+
+
+# Türkiye (UTC+3) saati yardımcısı
+def get_turkey_time():
+    return datetime.now(timezone(timedelta(hours=3)))
 
 
 class User(Base):
@@ -25,8 +30,8 @@ class User(Base):
     weight = Column(Float, nullable=True)       # kg
     gender = Column(String(10), nullable=True)  # M / F / O
     photo_url = Column(String(500), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=get_turkey_time)
+    updated_at = Column(DateTime(timezone=True), default=get_turkey_time, onupdate=get_turkey_time)
 
     # İlişkiler
     health_records = relationship("HealthRecord", back_populates="user", cascade="all, delete-orphan")
@@ -83,8 +88,8 @@ class HealthRecord(Base):
 
     # ── Meta ──────────────────────────────────────────────────
     source = Column(String(50), default="manual")        # "health_connect" | "manual"
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=get_turkey_time)
+    updated_at = Column(DateTime(timezone=True), default=get_turkey_time, onupdate=get_turkey_time)
 
     user = relationship("User", back_populates="health_records")
 
@@ -97,11 +102,11 @@ class RiskScore(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     score = Column(Float, nullable=False)
     level = Column(String(20), nullable=False)           # low / medium / high
-    level_label = Column(String(50), nullable=True)
+    level_label = Column(Text, nullable=True)            # Değişti: TEXT
     top_factors = Column(JSON, nullable=True)            # [{name, contribution, description}]
     recommendations = Column(JSON, nullable=True)        # [str]
     model_version = Column(String(30), default="rule-v1")
-    calculated_at = Column(DateTime, default=datetime.utcnow)
+    calculated_at = Column(DateTime(timezone=True), default=get_turkey_time)
 
     user = relationship("User", back_populates="risk_scores")
 
@@ -112,8 +117,8 @@ class MealRecord(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    food_name = Column(String(255), nullable=False)
-    portion = Column(String(100), nullable=True)
+    food_name = Column(Text, nullable=False)
+    portion = Column(Text, nullable=True)
     calories = Column(Integer, default=0)
     protein_g = Column(Float, default=0)
     carbs_g = Column(Float, default=0)
@@ -122,7 +127,7 @@ class MealRecord(Base):
     health_score = Column(Integer, default=0)
     recommendation = Column(Text, nullable=True)
     tags = Column(JSON, nullable=True)                   # ["yüksek protein", ...]
-    analyzed_at = Column(DateTime, default=datetime.utcnow)
+    analyzed_at = Column(DateTime(timezone=True), default=get_turkey_time)
 
     user = relationship("User", back_populates="meal_records")
 
@@ -137,8 +142,8 @@ class ExercisePlan(Base):
     total_duration_minutes = Column(Integer, default=0)
     total_calories = Column(Integer, default=0)
     ai_advice = Column(Text, nullable=True)
-    feedback = Column(String(50), nullable=True)         # "too_hard", "too_easy", "perfect"
-    created_at = Column(DateTime, default=datetime.utcnow)
+    feedback = Column(Text, nullable=True)               # Değişti: TEXT
+    created_at = Column(DateTime(timezone=True), default=get_turkey_time)
 
     user = relationship("User", back_populates="exercise_plans")
 
@@ -149,10 +154,10 @@ class ChatMessage(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    role = Column(String(20), nullable=False)            # "user" | "assistant"
+    role = Column(String(50), nullable=False)            # Değişti: 20'den 50'ye çıkardık garantilemek için.
     content = Column(Text, nullable=False)
     is_safe = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=get_turkey_time)
 
     user = relationship("User", back_populates="chat_messages")
 
@@ -165,6 +170,6 @@ class DailyDietPlan(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     plan_date = Column(Date, nullable=False, index=True)
     plan_data = Column(JSON, nullable=False)  # DietPlanResponse içeriği (JSON)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=get_turkey_time)
 
     user = relationship("User", back_populates="daily_diet_plans")
