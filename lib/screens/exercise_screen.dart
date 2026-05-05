@@ -256,7 +256,6 @@ class _ExerciseScreenState extends State<ExerciseScreen>
 
   Widget _buildTodayStatusCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final riskLevel = _apiResult != null ? _apiResult!.aiAdvice : '';
     
     String statusTitle = _apiResult != null ? 'Kişisel Analiz Hazır' : 'Analiz Ediliyor';
     String statusDesc = _apiResult != null 

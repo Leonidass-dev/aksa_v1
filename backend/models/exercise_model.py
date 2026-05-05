@@ -160,9 +160,18 @@ def _pick_plan_rnn(req: ExerciseRequest, records: list = None, ml_features: list
         r = record_dict.get(target_date)
         
         # Bugünün kaydı ve M2 özellikleri varsa, temiz verileri kullan
-        if target_date == today and ml_features is not None and len(ml_features) == 9:
-            steps = float(ml_features[5])  # steps_rolling_sum
-            active_mins = float(ml_features[6])  # steps_active_time
+        # ml_features formatı: [[9], [9], ...] (matris) veya [9] (flat)
+        ml_vec = None
+        if target_date == today and ml_features is not None:
+            if isinstance(ml_features, list) and len(ml_features) > 0:
+                if isinstance(ml_features[0], list):
+                    ml_vec = ml_features[-1]  # Son pencereyi al
+                elif len(ml_features) == 9:
+                    ml_vec = ml_features
+
+        if ml_vec and len(ml_vec) == 9:
+            steps = float(ml_vec[5])  # steps_rolling_sum
+            active_mins = float(ml_vec[6])  # steps_active_time
             sleep = float(r.sleep_hours or 5.0) if r else 5.0
         elif r:
             steps = float(r.steps or 0)

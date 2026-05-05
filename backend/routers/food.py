@@ -1,31 +1,19 @@
-import os
 from datetime import date
 import json
-import httpx
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from auth import get_current_user
 import crud
-
-load_dotenv()
+from services.ai_service import ask_vision
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1/models/"
-    "gemini-1.5-flash:generateContent"
-)
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # ── RAG BİLGİ TABANI (KNOWLEDGE BASE) ──
 NUTRITION_KNOWLEDGE_BASE = {
@@ -76,34 +64,29 @@ class MealHistoryItem(BaseModel):
 
 
 PROMPT = """
-Sen bir beslenme uzmanı yapay zeka asistanısın.
-Bu yemek fotoğrafını analiz et.
+Sen dünyanın en iyi görsel beslenme uzmanısın. Fotoğraftaki tabağı analiz et ve GERÇEK verilerle bir JSON raporu hazırla.
 
-ÖNEMLİ KURALLAR:
-1. Fotoğraftaki GERÇEK porsiyon boyutunu dikkatlice tahmin et (tabak boyutu, kaşık referansı vb. kullan).
-2. Kalori ve makro değerlerini SADECE görünen porsiyon miktarına göre hesapla. Abartma yapma.
-3. Porsiyon tahmini yaparken Türk mutfağı standart porsiyon boyutlarını referans al.
-4. Örnek: Bir kase çorba ~250ml = ~80-120 kcal, bir dilim ekmek = ~70-80 kcal, bir porsiyon pilav (150g) = ~180 kcal
-5. Eğer yemek tanınamıyorsa food_name = "Tanımlanamadı" yaz ve tüm sayısal değerleri 0 döndür.
+TALİMATLAR:
+1. GÖRSEL ANALİZ: Fotoğrafta ne görüyorsan (örn: fasulye, pilav, salata, yoğurt, hamburger, pizza vb.) tam ismini yaz.
+2. PORSİYON: Her bir parça yemeğin yaklaşık gramajını tahmin et.
+3. HESAPLAMA: Toplam kalori ve makroları (protein, karbonhidrat, yağ, lif) gördüğün porsiyona göre hesapla. 
+4. BOŞ BIRAKMA: JSON içindeki tırnak içlerini ve rakamları sakın benim verdiğim gibi bırakma; mutlaka senin bulduğun gerçek sonuçlarla doldur.
 
-Yanıtta SADECE aşağıdaki JSON formatı olsun, başka hiçbir metin ekleme:
-
+ÇIKTI FORMATI (SADECE JSON):
 {
-  "food_name": "yemeğin Türkçe adı",
-  "portion": "tahmini porsiyon miktarı (örn: 1 kase ~250ml, 1 tabak ~200g)",
+  "food_name": "",
+  "portion": "",
   "nutrients": {
-    "calories": 280,
-    "protein_g": 15.0,
-    "carbs_g": 30.0,
-    "fat_g": 8.0,
-    "fiber_g": 3.0
+    "calories": 0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 0.0,
+    "fiber_g": 0.0
   },
-  "health_score": 75,
-  "recommendation": "kısa, kişiselleştirilmiş öneri (1-2 cümle)",
-  "tags": ["dengeli", "ev yapımı"]
+  "health_score": 0,
+  "recommendation": "",
+  "tags": []
 }
-
-health_score: 0 (çok sağlıksız) - 100 (çok sağlıklı)
 """
 
 
@@ -114,13 +97,8 @@ async def analyze_food(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    M5 — Yemek Fotoğrafı Analizi (Gemini Vision)
-    Base64 JPEG/PNG alır, kalori + makro + öneri döner.
-    Sonucu PostgreSQL'e kaydeder.
+    M5 — Yemek Fotoğrafı Analizi.
     """
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY eksik")
-
     user = await crud.get_or_create_user(db, uid)
     
     # ── RAG: İstirdat (Retrieval) Mekanizması ──
@@ -134,14 +112,25 @@ async def analyze_food(
     rag_context_texts = []
 
     # M2 verilerini RAG bağlamına ekle (varsa)
-    if ml_features and len(ml_features) == 9:
+    # ml_features formatı: [[9], [9], ...] (matris) veya [9] (eski flat format)
+    ml_vector = None
+    if ml_features:
+        if isinstance(ml_features, list) and len(ml_features) > 0:
+            if isinstance(ml_features[0], list):
+                # Matris formatı — son pencereyi al
+                ml_vector = ml_features[-1]
+            elif len(ml_features) == 9:
+                # Eski flat format
+                ml_vector = ml_features
+
+    if ml_vector and len(ml_vector) == 9:
         rag_context_texts.append(
             f"Kullanıcının M2 Pipeline Temiz Verileri — "
-            f"Ort. Nabız: {ml_features[0]:.0f} bpm, "
-            f"Min Nabız: {ml_features[2]:.0f} bpm, "
-            f"Maks Nabız: {ml_features[3]:.0f} bpm, "
-            f"Adım Yoğunluğu: {ml_features[5]:.0f}, "
-            f"Aktif Süre: {ml_features[6]:.0f} dk"
+            f"Ort. Nabız: {ml_vector[0]:.0f} bpm, "
+            f"Min Nabız: {ml_vector[2]:.0f} bpm, "
+            f"Maks Nabız: {ml_vector[3]:.0f} bpm, "
+            f"Adım Yoğunluğu: {ml_vector[5]:.0f}, "
+            f"Aktif Süre: {ml_vector[6]:.0f} dk"
         )
 
     if risk_history and len(risk_history) > 0:
@@ -160,80 +149,38 @@ async def analyze_food(
     if not rag_context_texts:
         rag_context = "RAG Bağlamı Yok: Kullanıcı hakkında spesifik bir risk verisi bulunamadı. Standart yetişkin sağlıklı beslenme ilkelerini uygula."
     else:
-        rag_context = "RAG (Kullanıcının Sağlık Durumu ve Getirilen Beslenme Rehberi):\\n" + "\\n".join(rag_context_texts)
+        rag_context = "RAG (Kullanıcının Sağlık Durumu ve Getirilen Beslenme Rehberi):\n" + "\n".join(rag_context_texts)
 
-    augmented_prompt = f"{PROMPT}\\n\\n[SİSTEM ÖZEL BİLGİSİ / RAG BAĞLAMI]\\nAşağıdaki tıbbi/bağlamsal bilgiye dayanarak 'recommendation' (öneri) kısmını bu kullanıcıya göre hiper-kişiselleştir:\\n{rag_context}"
+    augmented_prompt = f"{PROMPT}\n\n[SİSTEM ÖZEL BİLGİSİ / RAG BAĞLAMI]\nAşağıdaki tıbbi/bağlamsal bilgiye dayanarak 'recommendation' (öneri) kısmını bu kullanıcıya göre hiper-kişiselleştir:\n{rag_context}"
 
-    # ── AI SEÇİMİ (Yemek analizi için Gemini daha stabil olduğu için sabitlendi) ──
-    use_groq = False 
-    
-    if use_groq:
-        url = GROQ_URL
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-        payload = {
-            "model": "llama-3.2-11b-vision-preview",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": augmented_prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{req.image_base64}"}
-                        }
-                    ]
-                }
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.2
-        }
-    else:
-        url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
-        headers = {}
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": augmented_prompt},
-                        {
-                            "inline_data": {
-                                "mime_type": "image/jpeg",
-                                "data": req.image_base64,
-                            }
-                        },
-                    ]
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0.2,
-                "response_mime_type": "application/json"
-            },
-        }
+    # AI Çağrısı (Merkezi Servis Üzerinden)
+    try:
+        text = await ask_vision(
+            prompt=augmented_prompt,
+            image_base64=req.image_base64,
+            json_mode=True
+        )
+    except Exception as e:
+        logger.error(f"Yemek analizi sırasında kritik hata: {e}")
+        text = None
 
-    import asyncio
-    max_retries = 3
-    
-    for attempt in range(max_retries):
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-        
-        if resp.status_code == 200:
-            break
-            
-        if resp.status_code == 503 and attempt < max_retries - 1:
-            await asyncio.sleep(2)  # 2 saniye bekle ve tekrar dene
-            continue
-            
-    if resp.status_code != 200:
-        logger.error(f"AI API Error [{resp.status_code}]: {resp.text}")
-        raise HTTPException(status_code=502, detail="Yemek analizi şu an yapılamıyor.")
+    if not text:
+        return FoodAnalysisResponse(
+            food_name="Tanımlanamadı",
+            portion="Bilinmiyor",
+            nutrients=NutrientInfo(
+                calories=0,
+                protein_g=0,
+                carbs_g=0,
+                fat_g=0,
+                fiber_g=0,
+            ),
+            health_score=0,
+            recommendation="Yemek analizi şu an yapılamıyor. Lütfen internet bağlantınızı kontrol edin veya biraz sonra tekrar deneyin.",
+            tags=["hata"]
+        )
 
     try:
-        data = resp.json()
-        if use_groq:
-            text = data["choices"][0]["message"]["content"]
-        else:
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
         # Markdown kod bloğu varsa temizle
         text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         data = json.loads(text)
@@ -380,11 +327,18 @@ async def get_diet_plan(
 
         # M2 Meta verileri
         ml_features = today_record.ml_features if hasattr(today_record, 'ml_features') else None
-        if ml_features and len(ml_features) == 9:
+        ml_vec = None
+        if ml_features and isinstance(ml_features, list) and len(ml_features) > 0:
+            if isinstance(ml_features[0], list):
+                ml_vec = ml_features[-1]
+            elif len(ml_features) == 9:
+                ml_vec = ml_features
+
+        if ml_vec and len(ml_vec) == 9:
             health_context = (
-                f"Nabız Ort: {ml_features[0]:.0f}, "
-                f"Nabız Max: {ml_features[3]:.0f}, "
-                f"Adım/Aktivite Skoru: {ml_features[5]:.0f}"
+                f"Nabız Ort: {ml_vec[0]:.0f}, "
+                f"Nabız Max: {ml_vec[3]:.0f}, "
+                f"Adım/Aktivite Skoru: {ml_vec[5]:.0f}"
             )
         else:
             health_context = "Veri M2'den geçmemiş."

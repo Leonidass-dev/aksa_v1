@@ -61,8 +61,8 @@ class MoodTrackerCard extends StatelessWidget {
                 child: Column(
                   children: [
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutBack,
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeOutCubic,
                       width: 50,
                       height: 50,
                       decoration: BoxDecoration(
@@ -71,13 +71,12 @@ class MoodTrackerCard extends StatelessWidget {
                             : AppColors.accent.withValues(alpha: 0.05),
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(
-                            color: AppColors.accent.withValues(
-                              alpha: isSelected ? 0.4 : 0.0,
-                            ),
-                            blurRadius: isSelected ? 12.0 : 0.1,
-                            offset: isSelected ? const Offset(0, 4) : Offset.zero,
-                          )
+                          if (isSelected)
+                            BoxShadow(
+                              color: AppColors.accent.withValues(alpha: 0.4),
+                              blurRadius: 12.0,
+                              offset: const Offset(0, 4),
+                            )
                         ],
                       ),
                       child: Center(

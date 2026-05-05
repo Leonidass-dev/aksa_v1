@@ -9,21 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from auth import get_current_user
 import crud
+from services.ai_service import ask_text
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1/models/"
-    "gemini-1.5-flash:generateContent"
-)
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 class ChatRequest(BaseModel):
     message: str = Field(description="Kullanıcının yazdığı mesaj (örn: başım ağrıyor, ne yapmalıyım?)")
@@ -64,88 +56,46 @@ async def chat_with_assistant(
     Semptom kontrolcüsü ve sağlık yaşam tarzı asistanı.
     Context-Aware: Kullanıcının son verilerini kullanarak yanıt verir.
     """
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY eksik")
-
-    # Kullanıcıyı ve son verilerini çek
-    user = await crud.get_or_create_user(db, uid)
-    latest_record = await crud.get_latest_health_record(db, user)
-    latest_risk = await crud.get_latest_risk_score(db, user)
-
-    # Context (Bağlam) Oluşturma
-    context = "\n--- KULLANICI SAĞLIK BAĞLAMI ---\n"
-    if latest_record:
-        context += f"- Bugünkü Adım: {latest_record.steps}\n"
-        context += f"- Kalp Atışı (Ort): {latest_record.heart_rate} bpm\n"
-        context += f"- Uyku Süresi: {latest_record.sleep_hours} saat\n"
-        context += f"- İçilen Su: {latest_record.water_ml} ml\n"
-        context += f"- Ruh Hali: {latest_record.mood or 'Belirtilmedi'}\n"
-    if latest_risk:
-        context += f"- Hesaplanan Risk Skoru: {latest_risk.score} / 100\n"
-        context += f"- Risk Seviyesi: {latest_risk.level_label}\n"
-    context += "--------------------------------\n"
-
-    # Sohbet Geçmişini Çek (Hafıza için son 6 mesaj)
-    history = await crud.get_chat_history(db, user, limit=6)
-    history_context = ""
-    groq_messages = [{"role": "system", "content": "Sen AKSA Health sağlık asistanısın. Kullanıcıya sağlık verilerine dayanarak yardımcı ol."}]
-    
-    for m in history:
-        groq_messages.append({"role": m.role, "content": m.content})
-        history_context += f"{m.role}: {m.content}\n"
-
-    # Kullanıcı mesajını DB'ye kaydet (History'den sonra kaydet ki bu istek history'e girmesin)
-    await crud.save_chat_message(db, user, role="user", content=req.message)
-
-    # ── AI SEÇİMİ (GROQ ÖNCELİKLİ) ──
-    use_groq = bool(GROQ_API_KEY)
-    
-    if use_groq:
-        url = GROQ_URL
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-        # Groq için gerçek mesaj listesi
-        current_messages = groq_messages + [{"role": "user", "content": f"[SAĞLIK VERİLERİM]\n{context}\n\n[SORU]\n{req.message}"}]
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": current_messages,
-            "temperature": 0.5,
-            "max_tokens": 1024
-        }
-    else:
-        url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
-        headers = {}
-        # Gemini için düz metin (Geçmiş dahil)
-        full_prompt = f"{PROMPT}\n{context}\n\n[GEÇMİŞ]\n{history_context}\n\nKullanıcı: {req.message}"
-        payload = {
-            "contents": [{"parts": [{"text": full_prompt}]}],
-            "generationConfig": {"temperature": 0.4}
-        }
-
     try:
-        import asyncio
-        max_retries = 3
+        # Kullanıcıyı ve son verilerini çek
+        user = await crud.get_or_create_user(db, uid)
+        latest_record = await crud.get_latest_health_record(db, user)
+        latest_risk = await crud.get_latest_risk_score(db, user)
+
+        # Context (Bağlam) Oluşturma
+        context = "\n--- KULLANICI SAĞLIK BAĞLAMI ---\n"
+        if latest_record:
+            context += f"- Bugünkü Adım: {latest_record.steps}\n"
+            context += f"- Kalp Atışı (Ort): {latest_record.heart_rate} bpm\n"
+            context += f"- Uyku Süresi: {latest_record.sleep_hours} saat\n"
+            context += f"- İçilen Su: {latest_record.water_ml} ml\n"
+            context += f"- Ruh Hali: {latest_record.mood or 'Belirtilmedi'}\n"
+        if latest_risk:
+            context += f"- Hesaplanan Risk Skoru: {latest_risk.score} / 100\n"
+            context += f"- Risk Seviyesi: {latest_risk.level_label}\n"
+        context += "--------------------------------\n"
+
+        # Sohbet Geçmişini Çek (Hafıza için son 6 mesaj)
+        history_records = await crud.get_chat_history(db, user, limit=6)
+        history = []
+        for m in history_records:
+            history.append({"role": m.role, "content": m.content})
+
+        # Kullanıcı mesajını DB'ye kaydet
+        await crud.save_chat_message(db, user, role="user", content=req.message)
+
+        # AI Çağrısı (Merkezi Servis Üzerinden)
+        full_prompt = f"{context}\n\nKullanıcı: {req.message}"
         
-        for attempt in range(max_retries):
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(url, json=payload, headers=headers)
-                
-            if resp.status_code == 200:
-                break
-                
-            if resp.status_code == 503 and attempt < max_retries - 1:
-                await asyncio.sleep(2)
-                continue
+        reply = await ask_text(
+            prompt=full_prompt,
+            system_prompt=PROMPT,
+            history=history,
+            json_mode=False
+        )
 
-        if resp.status_code != 200:
-            # Groq/Gemini hata ayıklama
-            logger.error(f"AI API Error [{resp.status_code}]: {resp.text}")
+        if not reply:
             raise HTTPException(status_code=502, detail="Yapay zeka servisi şu an yanıt veremiyor.")
-
-        data = resp.json()
-        if use_groq:
-            reply = data["choices"][0]["message"]["content"].strip()
-        else:
-            reply = data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
         # Asistan yanıtını DB'ye kaydet
         await crud.save_chat_message(db, user, role="assistant", content=reply)

@@ -80,7 +80,10 @@ class HealthServiceImpl implements IHealthService {
       HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
       HealthDataType.SLEEP_ASLEEP,
       HealthDataType.SLEEP_DEEP,
+      HealthDataType.SLEEP_LIGHT,
       HealthDataType.SLEEP_REM,
+      HealthDataType.SLEEP_SESSION,
+      HealthDataType.SLEEP_AWAKE,
       HealthDataType.DISTANCE_DELTA,
     ];
 
@@ -130,7 +133,10 @@ class HealthServiceImpl implements IHealthService {
         HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
         HealthDataType.SLEEP_ASLEEP,
         HealthDataType.SLEEP_DEEP,
+        HealthDataType.SLEEP_LIGHT,
         HealthDataType.SLEEP_REM,
+        HealthDataType.SLEEP_SESSION,
+        HealthDataType.SLEEP_AWAKE,
         HealthDataType.DISTANCE_DELTA,
       ];
 
@@ -152,17 +158,28 @@ class HealthServiceImpl implements IHealthService {
         }
         
         String emoji = "🔹";
-        if (p.typeString.contains("STEPS")) emoji = "👣";
-        else if (p.typeString.contains("HEART")) emoji = "❤️";
-        else if (p.typeString.contains("OXYGEN")) emoji = "🩸";
-        else if (p.typeString.contains("ENERGY")) emoji = "🔥";
-        else if (p.typeString.contains("SLEEP")) emoji = "🌙";
-        else if (p.typeString.contains("PRESSURE")) emoji = "⚖️";
+        if (p.typeString.contains("STEPS")) {
+          emoji = "👣";
+        } else if (p.typeString.contains("HEART")) {
+          emoji = "❤️";
+        } else if (p.typeString.contains("OXYGEN")) {
+          emoji = "🩸";
+        } else if (p.typeString.contains("ENERGY")) {
+          emoji = "🔥";
+        } else if (p.typeString.contains("SLEEP")) {
+          emoji = "🌙";
+        } else if (p.typeString.contains("PRESSURE")) {
+          emoji = "⚖️";
+        }
 
         String source = p.sourceName;
-        if (source.contains("xiaomi")) source = "⌚ XIAOMI";
-        else if (source.contains("fitness")) source = "📱 G-FIT";
-        else if (source.contains("android")) source = "🤖 SYSTEM";
+        if (source.contains("xiaomi")) {
+          source = "⌚ XIAOMI";
+        } else if (source.contains("fitness")) {
+          source = "📱 G-FIT";
+        } else if (source.contains("android")) {
+          source = "🤖 SYSTEM";
+        }
 
         final timeStr = "${p.dateFrom.hour.toString().padLeft(2, '0')}:${p.dateFrom.minute.toString().padLeft(2, '0')}";
         debugPrint("$emoji [${p.typeString.padRight(15)}] | Değer: ${valText.padRight(6)} | Zaman: $timeStr | Kaynak: $source");
@@ -192,7 +209,7 @@ class HealthServiceImpl implements IHealthService {
         sleepDeepMin: parsedData.sleepDeepMin,
         sleepLightMin: parsedData.sleepLightMin,
         sleepRemMin: parsedData.sleepRemMin,
-        sleepAwakeMin: todayEntry?.sleepAwakeMin ?? 0,
+        sleepAwakeMin: parsedData.sleepAwakeMin,
         activeCalories: parsedData.activeCalories,
         totalCalories: parsedData.totalCalories,
         distanceM: parsedData.distanceM,
@@ -208,7 +225,7 @@ class HealthServiceImpl implements IHealthService {
       debugPrint("║ \u2764\ufe0f Nabız   : ${parsedData.heartRate.toInt().toString().padRight(18)} ║");
       debugPrint("║ \ud83e\ude78 Oksijen : %${parsedData.spo2.toInt().toString().padRight(17)} ║");
       debugPrint("║ \ud83d\udd25 Kalori  : ${parsedData.activeCalories.toInt().toString().padRight(18)} ║");
-      debugPrint("║ \ud83d\udccf Mesafe  : ${parsedData.distanceM.toInt().toString()}m".padRight(35) + "║");
+      debugPrint("${"║ \ud83d\udccf Mesafe  : ${parsedData.distanceM.toInt().toString()}m".padRight(35)}║");
       debugPrint("╚══════════════════════════════════╝\n");
       
       // ── Tez Modül 2: Ham Verileri Pipeline'a Gönder ──────────────

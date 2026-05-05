@@ -3,7 +3,7 @@ AKSA Backend — CRUD İşlemleri
 Veritabanı okuma/yazma fonksiyonları.
 """
 
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,7 +67,7 @@ async def save_health_record(
         record = HealthRecord(user_id=user.id, record_date=record_date)
         db.add(record)
 
-    # Alanları güncelle (0 veya None ise mevcut değeri koru)
+    # Alanları güncelle (None ise mevcut değeri koru, 0 meşru değer olabilir)
     for field in [
         "steps", "heart_rate", "resting_heart_rate", "spo2",
         "systolic", "diastolic", "sleep_hours", "sleep_deep_min",
@@ -77,9 +77,10 @@ async def save_health_record(
     ]:
         new_val = data.get(field)
         if new_val is not None:
-            # Sayısal alanlar için 0'dan büyük kontrolü, string/list/dict gibi objeler için varlık kontrolü
+            # health_connect kaynağından gelen 0 değerler meşrudur (kullanıcı hareket etmemiş olabilir)
+            is_device = data.get("source") == "health_connect"
             if isinstance(new_val, (int, float)):
-                if new_val > 0:
+                if new_val > 0 or is_device:
                     setattr(record, field, new_val)
             elif new_val:
                 setattr(record, field, new_val)
@@ -87,7 +88,7 @@ async def save_health_record(
     if "source" in data:
         record.source = data["source"]
 
-    record.updated_at = datetime.utcnow()
+    record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
     await db.refresh(record)
     return record

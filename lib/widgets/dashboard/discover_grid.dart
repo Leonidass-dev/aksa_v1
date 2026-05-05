@@ -20,8 +20,8 @@ class DiscoverGrid extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: shortcuts.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) {
+        separatorBuilder: (context, index) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
           final s = shortcuts[i];
           return GestureDetector(
             onTap: () => context.go(s.path),

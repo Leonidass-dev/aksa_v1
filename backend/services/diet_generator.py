@@ -1,5 +1,3 @@
-import os
-import httpx
 import json
 import logging
 from typing import Optional
@@ -7,14 +5,8 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+from services.ai_service import ask_text
 
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1/models/"
-    "gemini-1.5-flash:generateContent"
-)
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # ── Pydantic Modelleri ──
 class DietMeal(BaseModel):
@@ -30,37 +22,39 @@ class DietPlanResponse(BaseModel):
     ai_advice: str = Field(description="Kullanıcının risk haritasına göre diyetisyen tavsiyesi.")
 
 DIET_PROMPT = """
-Sen uzman bir klinik diyetisyen ve yapay zeka sağlık asistanısın.
-Görecin: Kullanıcının fiziksel verileri, tıbbi riskleri ve günlük aktivitesine uygun {target_calories} kalorilik kişiselleştirilmiş bir tam gün (3 ana + 1 ara öğün) beslenme listesi oluşturmak.
+Sen uzman bir klinik diyetisyen ve beslenme bilimcisisin. Görevin, aşağıdaki verilere dayanarak kullanıcıya hiper-kişiselleştirilmiş, bilimsel temelli bir günlük beslenme planı hazırlamak.
 
-GİRDİ VERİLERİ:
-- Kullanıcı: {age} yaş, {gender}, {height}cm, {weight}kg
-- Tıbbi Risk Seviyesi: {risk_level}
-- Aktif Risk Problemleri: {risk_factors}
-- M2 Sensör Sağlık Özeti: {health_context}
+GİRDİ PARAMETRELERİ:
+- Profil: {age} yaş, {gender}, {height}cm, {weight}kg
+- Klinik Risk Seviyesi: {risk_level}
+- Tanımlanmış Risk Faktörleri: {risk_factors}
+- M2 Sensör Verileri (Bugünkü Durum): {health_context}
+- Günlük Kalori Hedefi: {target_calories} kcal
 
-KURALLAR:
-1. Eğer kullanıcının Tansiyon / Hipertansiyon riski varsa, Sodyum(tuz) uyarısı yap ve potasyum içeren yiyeceklere öncelik ver.
-2. Eğer kullanıcının Kalp/Taşikardi riski varsa (Yüksek Nabız), kafeinsiz ve şekersiz, hafif öğünler öner.
-3. Eğer kullanıcı hareketsizse (Düşük Adım), kaloriyi düşür ve lifli besinler öner.
-4. Verdiğin liste Türk mutfağı damak tadına ve standart diyetisyen listelerine (örn: Yulaf, haşlanmış yumurta, ızgara tavuk salata, sebze yemeği) uygun olsun.
-5. {target_calories} hedefine ortalama +-%10 sapma ile yaklaş.
+DİYETİSYEN TALİMATLARI:
+1. MAKRO DAĞILIMI: Planı yaklaşık %45 Karbonhidrat (kompleks), %25 Protein, %30 Sağlıklı Yağ dengesiyle kur.
+2. KLİNİK ÖNCELİKLER:
+   - Hipertansiyon varsa: Sodyum < 2300mg. Magnezyum ve Potasyumdan zengin (ıspanak, muz, baklagil) besinler.
+   - Yüksek Nabız/Kardiyak risk varsa: Kafein, rafine şeker ve ağır doymuş yağları tamamen çıkar.
+   - Hareketsiz günlerde: Glisemik indeksi düşük, lif oranı yüksek besinler.
+3. TÜBER UYUMLU: Türkiye Beslenme Rehberi (TÜBER) standartlarına ve Türk damak tadına uygun içerikler seç.
+4. DETAYLI PORSİYON: 'Biraz' veya 'Az' gibi belirsiz ifadeler yerine '1 orta boy (150g)', '2 yemek kaşığı' gibi net ölçüler kullan.
+5. NEDENSELLİK (Reasoning): Her öğün için 'Neden bu besin?' sorusunu kullanıcının klinik risklerine atıfta bulunarak açıkla.
 
-Planı SADECE aşağıdaki JSON formatında döndür. Başka hiçbir metin ekleme.
+Yanıtı SADECE aşağıdaki JSON yapısında döndür:
 
-JSON FORMATI:
 {{
-  "daily_calories_target": 1800,
+  "daily_calories_target": {target_calories},
   "meals": [
     {{
-      "meal_type": "Sabah",
-      "food_name": "Haşlanmış Yumurta ve Zeytinli Peynir Tabağı",
-      "portion": "1 tam yumurta, 30g az yağlı peynir, 5 zeytin, 1 dilim tam buğday ekmeği",
-      "calories": 300,
-      "reasoning": "Tansiyon riskinize karşı az tuzlu peynir seçildi, güne tok başlamanız amaçkandı."
+      "meal_type": "Sabah / Öğle / Akşam / Ara Öğün",
+      "food_name": "Yemeğin tam adı",
+      "portion": "Net gramaj ve ölçü birimi (örn: 180g Izgara Levrek, 1 kase mevsim salata)",
+      "calories": 350,
+      "reasoning": "Kullanıcının [Risk Faktörü] durumu için [Besin Bileşeni] sayesinde [Fayda] sağlar."
     }}
   ],
-  "ai_advice": "Bugün 14:00'ten sonra adım sayınız azaldığı için akşam yemeğini hafif tuttuk. Bol su içmeyi unutmayın."
+  "ai_advice": "Kullanıcının bugünkü M2 sensör verilerine ve genel risk haritasına göre diyetisyen notu (3-4 cümle)."
 }}
 """
 
@@ -69,57 +63,23 @@ async def generate_diet_plan(
     risk_level: str, risk_factors: str, health_context: str,
     target_calories: int
 ) -> Optional[DietPlanResponse]:
-    """Gemini AI kullanarak kişiselleştirilmiş 1 günlük diyet listesi üretir."""
-    if not GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY bulunamadı, diyet planı iptal.")
-        return None
-
     prompt = DIET_PROMPT.format(
         age=age, gender=gender, height=height, weight=weight,
         risk_level=risk_level, risk_factors=risk_factors,
         health_context=health_context, target_calories=target_calories
     )
 
-    # ── AI SEÇİMİ ──
-    use_groq = bool(GROQ_API_KEY)
-    
-    if use_groq:
-        url = GROQ_URL
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": "Sen uzman bir klinik diyetisyen ve yapay zeka sağlık asistanısın. Sadece JSON formatında yanıt ver."},
-                {"role": "user", "content": prompt}
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.4
-        }
-    else:
-        url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
-        headers = {}
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.3,
-                "response_mime_type": "application/json"
-            }
-        }
+    # AI Çağrısı (Merkezi Servis Üzerinden)
+    raw_text = await ask_text(
+        prompt=prompt,
+        system_prompt="Sen uzman bir klinik diyetisyensin. Yanıtlarını tamamen Türkçe ve akademik olmayan, halkın anlayacağı sade bir dille ver. Asla İngilizce terim kullanma.",
+        json_mode=True
+    )
+
+    if not raw_text:
+        return None
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            
-        if resp.status_code != 200:
-            logger.error(f"AI API hatası (Diyet): {resp.status_code} - {resp.text}")
-            return None
-
-        data = resp.json()
-        if use_groq:
-            raw_text = data["choices"][0]["message"]["content"]
-        else:
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-        
         # JSON temizleme
         cleaned_json = raw_text.strip()
         if cleaned_json.startswith("```json"):

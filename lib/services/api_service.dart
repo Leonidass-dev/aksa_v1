@@ -14,9 +14,8 @@ export '../models/api_models.dart';
 /// Tüm istekler Firebase token ile korunur.
 class ApiServiceImpl implements IApiService {
   final String _baseUrl = const String.fromEnvironment(
-
     'API_BASE_URL',
-    defaultValue: 'https://aksa-backend-8slk.onrender.com/api',
+    defaultValue: 'http://192.168.1.42:8000/api',  // Lokal geliştirme (fiziksel cihaz)
   );
 
   // ── Firebase Token Helper ─────────────────────────────────────
@@ -47,7 +46,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: body,
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         debugPrint("ML Pipeline (Preprocessing) başarıyla tamamlandı.");
@@ -73,7 +72,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode({'image_base64': base64Image}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         return FoodAnalysisResult.fromJson(jsonDecode(response.body));
@@ -92,7 +91,7 @@ class ApiServiceImpl implements IApiService {
       final res = await http.get(
         Uri.parse('$_baseUrl/diet-plan'),
         headers: headers,
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 60));
       
       if (res.statusCode == 200) {
         return DietPlanResult.fromJson(
@@ -117,7 +116,7 @@ class ApiServiceImpl implements IApiService {
         Uri.parse('$_baseUrl/anomaly-check'),
         headers: headers,
         body: jsonEncode({'history': history, 'today': today}),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 60));
       if (res.statusCode == 200) {
         return AnomalyApiResult.fromJson(
           jsonDecode(utf8.decode(res.bodyBytes)),
@@ -140,7 +139,7 @@ class ApiServiceImpl implements IApiService {
         Uri.parse('$_baseUrl/exercise-plan'),
         headers: headers,
         body: jsonEncode(req.toJson()),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 60));
       if (res.statusCode == 200) {
         return ExerciseApiResult.fromJson(
           jsonDecode(utf8.decode(res.bodyBytes)),
@@ -161,7 +160,7 @@ class ApiServiceImpl implements IApiService {
         Uri.parse('$_baseUrl/exercise-plan/feedback'),
         headers: headers,
         body: jsonEncode({'feedback': feedback}),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 60));
       if (res.statusCode == 200) {
         return true;
       }
@@ -182,7 +181,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode(req.toJson()),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         return RiskApiResult.fromJson(jsonDecode(response.body));
@@ -199,7 +198,7 @@ class ApiServiceImpl implements IApiService {
     try {
       final response = await http
           .get(Uri.parse('$_baseUrl/risk-score/demo'))
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) {
         return RiskApiResult.fromJson(jsonDecode(response.body));
       }
@@ -221,7 +220,7 @@ class ApiServiceImpl implements IApiService {
             Uri.parse('$_baseUrl/risk-history?limit=$limit'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
@@ -245,7 +244,7 @@ class ApiServiceImpl implements IApiService {
             Uri.parse('$_baseUrl/meal-history?limit=$limit'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
@@ -270,7 +269,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode({'message': message}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         return AssistantChatResponse.fromJson(
@@ -295,7 +294,7 @@ class ApiServiceImpl implements IApiService {
             Uri.parse('$_baseUrl/assistant/history?limit=$limit'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
@@ -342,7 +341,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 60));
 
       return response.statusCode == 200;
     } catch (e) {

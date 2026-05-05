@@ -4,6 +4,7 @@ Hibrit: XGBoost + GRU varsa kullanır, yoksa kural tabanlı fallback.
 """
 
 import datetime
+from datetime import timezone
 from dataclasses import dataclass, field, replace
 import numpy as np
 import os

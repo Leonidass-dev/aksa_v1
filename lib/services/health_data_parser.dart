@@ -25,7 +25,7 @@ class HealthDataParser {
     final Map<String, (double, DateTime)> sysBySrc = {};
     final Map<String, (double, DateTime)> diaBySrc = {};
     
-    double totalSleepMin = 0, sleepDeepMin = 0, sleepLightMin = 0, sleepRemMin = 0;
+    double totalSleepMin = 0, sleepDeepMin = 0, sleepLightMin = 0, sleepRemMin = 0, sleepAwakeMin = 0;
 
     // Kümülatif metrikler için kaynak bazlı toplam
     final Map<String, double> stepsBySrc = {};
@@ -43,9 +43,16 @@ class HealthDataParser {
     // ── DİĞER METRİKLER ────
     for (var point in healthData) {
       final isSleep = _sleepTypes.contains(point.type);
+      final isCumulative = [
+        HealthDataType.STEPS,
+        HealthDataType.ACTIVE_ENERGY_BURNED,
+        HealthDataType.TOTAL_CALORIES_BURNED,
+        HealthDataType.DISTANCE_DELTA,
+      ].contains(point.type);
 
-      // Uyku dışı verileri sadece midnight sonrasında işle
-      if (!isSleep && point.dateFrom.isBefore(midnight)) continue;
+      // Kümülatif veriler (Adım, Kalori, Mesafe) sadece bugün (midnight sonrası) için toplanır.
+      // Anlık veriler (Nabız, Tansiyon) ise 36 saatlik penceredeki "en son" değer olarak alınır.
+      if (isCumulative && point.dateFrom.isBefore(midnight)) continue;
 
       final val = isSleep
           ? point.dateTo.difference(point.dateFrom).inMinutes.toDouble()
@@ -93,6 +100,11 @@ class HealthDataParser {
         case HealthDataType.SLEEP_ASLEEP:
           totalSleepMin += val;
           break;
+        case HealthDataType.SLEEP_SESSION:
+          // Session genelde toplam süreyi kapsar, eğer ASLEEP gelmezse yedek olarak kullanılabilir.
+          // Burada sadece en büyük session süresini baz alacağız (genelde bir tane olur).
+          if (val > totalSleepMin) totalSleepMin = val;
+          break;
         case HealthDataType.SLEEP_DEEP:
           sleepDeepMin += val;
           break;
@@ -101,6 +113,9 @@ class HealthDataParser {
           break;
         case HealthDataType.SLEEP_REM:
           sleepRemMin += val;
+          break;
+        case HealthDataType.SLEEP_AWAKE:
+          sleepAwakeMin += val;
           break;
         default:
           break;
@@ -155,6 +170,7 @@ class HealthDataParser {
       sleepDeepMin: sleepDeepMin,
       sleepLightMin: sleepLightMin,
       sleepRemMin: sleepRemMin,
+      sleepAwakeMin: sleepAwakeMin > 0 ? sleepAwakeMin : (todayEntry?.sleepAwakeMin ?? 0),
       activeCalories: activeCalories,
       totalCalories: totalCalories,
       distanceM: distanceM,
@@ -168,6 +184,8 @@ class HealthDataParser {
     HealthDataType.SLEEP_DEEP,
     HealthDataType.SLEEP_LIGHT,
     HealthDataType.SLEEP_REM,
+    HealthDataType.SLEEP_SESSION,
+    HealthDataType.SLEEP_AWAKE,
   ];
 
   static double _numericValue(HealthDataPoint point) {
@@ -246,7 +264,7 @@ class ParsedHealthData {
   final double steps, heartRate, restingHeartRate, spo2, stressLevel;
   final DateTime? heartRateTime;
   final double systolic, diastolic, sleepHours;
-  final double sleepDeepMin, sleepLightMin, sleepRemMin;
+  final double sleepDeepMin, sleepLightMin, sleepRemMin, sleepAwakeMin;
   final double activeCalories, totalCalories, distanceM;
 
   const ParsedHealthData({
@@ -254,7 +272,8 @@ class ParsedHealthData {
     this.heartRateTime,
     required this.spo2, required this.stressLevel, required this.systolic, required this.diastolic,
     required this.sleepHours, required this.sleepDeepMin, required this.sleepLightMin,
-    required this.sleepRemMin, required this.activeCalories, required this.totalCalories,
+    required this.sleepRemMin, required this.sleepAwakeMin,
+    required this.activeCalories, required this.totalCalories,
     required this.distanceM,
   });
 }

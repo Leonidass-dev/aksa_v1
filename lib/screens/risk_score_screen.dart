@@ -7,7 +7,6 @@ import '../services/user_profile_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/theme_aware_state.dart';
 import 'dart:async';
-import 'dart:convert';
 
 class RiskScoreScreen extends StatefulWidget {
   const RiskScoreScreen({super.key});

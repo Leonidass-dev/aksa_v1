@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/health_service.dart';
 import '../widgets/common_widgets.dart';
-import '../widgets/app_line_chart.dart';
 import '../widgets/theme_aware_state.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/user_profile_service.dart';
@@ -853,7 +852,6 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
     );
   }
   Widget _buildWeeklySummaryCard(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -901,7 +899,7 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
           ),
           const SizedBox(height: 12),
           Text(
-            'Son 7 günde sağlık dengeniz ${_overallScore > 70 ? "gayet iyi" : "geliştirilebilir"} durumda. ${_bestCategory} verileriniz bu haftanın yıldızı oldu!',
+            'Son 7 günde sağlık dengeniz ${_overallScore > 70 ? "gayet iyi" : "geliştirilebilir"} durumda. $_bestCategory verileriniz bu haftanın yıldızı oldu!',
             style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
           ),
         ],

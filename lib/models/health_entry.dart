@@ -84,27 +84,27 @@ class HealthEntry {
     // mevcut sensör verilerini ezmesin diye atlanır (merge:true).
     final isDevice = source == 'health_connect';
 
-    void _put(String key, double value) {
+    void put(String key, double value) {
       if (value > 0 || isDevice) map[key] = value;
     }
 
-    _put('steps', steps);
-    _put('active_calories', activeCalories);
-    _put('total_calories', totalCalories);
-    _put('distance_m', distanceM);
-    _put('heart_rate', heartRate);
-    _put('resting_heart_rate', restingHeartRate);
-    _put('spo2', spo2);
-    _put('systolic', systolic);
-    _put('diastolic', diastolic);
-    _put('sleep_hours', sleepHours);
-    _put('sleep_deep_min', sleepDeepMin);
-    _put('sleep_light_min', sleepLightMin);
-    _put('sleep_rem_min', sleepRemMin);
-    _put('sleep_awake_min', sleepAwakeMin);
-    _put('stress_level', stressLevel);
-    _put('weight', weight);
-    _put('water_ml', waterMl);
+    put('steps', steps);
+    put('active_calories', activeCalories);
+    put('total_calories', totalCalories);
+    put('distance_m', distanceM);
+    put('heart_rate', heartRate);
+    put('resting_heart_rate', restingHeartRate);
+    put('spo2', spo2);
+    put('systolic', systolic);
+    put('diastolic', diastolic);
+    put('sleep_hours', sleepHours);
+    put('sleep_deep_min', sleepDeepMin);
+    put('sleep_light_min', sleepLightMin);
+    put('sleep_rem_min', sleepRemMin);
+    put('sleep_awake_min', sleepAwakeMin);
+    put('stress_level', stressLevel);
+    put('weight', weight);
+    put('water_ml', waterMl);
 
     return map;
   }

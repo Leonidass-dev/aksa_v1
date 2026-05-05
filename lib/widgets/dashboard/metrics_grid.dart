@@ -29,7 +29,7 @@ class DashboardMetricsGrid extends StatelessWidget {
 
     final hrTime = entry?.heartRateTime;
     final isHRStale = hrTime != null && DateTime.now().difference(hrTime).inMinutes > 20;
-    final hrStaleMsg = isHRStale ? '${DateTime.now().difference(hrTime!).inMinutes}dk önce' : '';
+    final hrStaleMsg = isHRStale ? '${DateTime.now().difference(hrTime).inMinutes}dk önce' : '';
 
     return GridView.count(
       crossAxisCount: 2,

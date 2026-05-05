@@ -21,7 +21,6 @@ class WaterTrackerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final pct = (currentMl / targetMl).clamp(0.0, 1.0);
 
     return AppCard(
       padding: const EdgeInsets.all(20),
