@@ -349,6 +349,25 @@ class ApiServiceImpl implements IApiService {
       return false;
     }
   }
+
+  // ── Hesabı Sil (Backend) ───────────────────────────────────────
+  @override
+  Future<bool> deleteUserFromBackend() async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .delete(
+            Uri.parse('$_baseUrl/user'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Backend user delete hatası: $e');
+      return false;
+    }
+  }
 }
 
 /// Test edilebilir Statik Facade yapısı.
@@ -380,4 +399,5 @@ class ApiService {
   static Future<AssistantChatResponse?> sendAssistantMessage(String message) => _instance.sendAssistantMessage(message);
   static Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50}) => _instance.fetchChatHistory(limit: limit);
   static Future<bool> syncHealthToBackend(HealthEntry entry) => _instance.syncHealthToBackend(entry);
+  static Future<bool> deleteUserFromBackend() => _instance.deleteUserFromBackend();
 }

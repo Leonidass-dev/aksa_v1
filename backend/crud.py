@@ -42,6 +42,19 @@ async def get_or_create_user(
     return user
 
 
+async def delete_user_completely(db: AsyncSession, user: User) -> bool:
+    """Kullanıcının veritabanındaki tüm izlerini (cascade) siler."""
+    try:
+        await db.delete(user)
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        import logging
+        logging.error(f"Error deleting user {user.firebase_uid}: {e}")
+        return False
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  HEALTH RECORDS
 # ═══════════════════════════════════════════════════════════════════

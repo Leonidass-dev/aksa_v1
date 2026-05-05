@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/app_theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_profile_service.dart';
@@ -37,6 +39,66 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _checkDeletionStatusAndRedirect() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists && doc.data()!.containsKey('deletion_scheduled_at')) {
+        final dateStr = doc.data()!['deletion_scheduled_at'] as String;
+        final deletionDate = DateTime.parse(dateStr);
+
+        if (DateTime.now().isAfter(deletionDate)) {
+          // 30 days have passed. Hard delete now.
+          await AuthService.hardDeleteAccount();
+          if (mounted) {
+            _showError('Hesabınız 30 günlük süre dolduğu için kalıcı olarak silinmiştir.');
+          }
+          return;
+        } else {
+          // Within 30 days. Ask to restore.
+          if (!mounted) return;
+          final restore = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Hesabınız Silinmek Üzere'),
+              content: Text(
+                  'Hesabınızı silme talebiniz bulunuyor. Eğer devam etmezseniz ${deletionDate.day}/${deletionDate.month}/${deletionDate.year} tarihinde hesabınız kalıcı olarak silinecek.\n\nHesabınızı kurtarmak ve giriş yapmak ister misiniz?'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    AuthService.instance.signOut();
+                    Navigator.pop(ctx, false);
+                  },
+                  child: const Text('Hayır, Çıkış Yap', style: TextStyle(color: AppColors.mutedForeground)),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                  child: const Text('Evet, Hesabımı Kurtar'),
+                ),
+              ],
+            ),
+          );
+
+          if (restore == true) {
+            await AuthService.restoreAccount();
+            // Continue to normal login flow
+            await _checkProfileAndRedirect();
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Check deletion error: $e");
+    }
+
+    // Normal login flow
+    await _checkProfileAndRedirect();
+  }
+
   Future<void> _checkProfileAndRedirect() async {
     final exists = await UserProfileService.profileExists();
     if (!mounted) return;
@@ -60,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = false);
 
     if (result.isSuccess) {
-      await _checkProfileAndRedirect();
+      await _checkDeletionStatusAndRedirect();
     } else {
       _showError(result.errorMessage!);
     }
@@ -73,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = false);
 
     if (result.isSuccess) {
-      await _checkProfileAndRedirect();
+      await _checkDeletionStatusAndRedirect();
     } else {
       _showError(result.errorMessage!);
     }
@@ -128,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = false);
 
     if (result.isSuccess) {
-      await _checkProfileAndRedirect();
+      await _checkDeletionStatusAndRedirect();
     } else {
       _showError(result.errorMessage!);
     }

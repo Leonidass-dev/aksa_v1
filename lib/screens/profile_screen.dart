@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../utils/image_utils.dart';
 import '../utils/bmi_utils.dart';
@@ -212,8 +213,8 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Hesabınız başarıyla silindi.')),
         );
-        // Kullanıcıyı giriş ekranına yönlendir ve stack'i temizle
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        // Kullanıcıyı giriş ekranına yönlendir
+        context.go('/login');
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

@@ -32,4 +32,6 @@ abstract class IApiService {
   Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50});
 
   Future<bool> syncHealthToBackend(HealthEntry entry);
+
+  Future<bool> deleteUserFromBackend();
 }

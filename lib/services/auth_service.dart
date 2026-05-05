@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'interfaces/i_auth_service.dart';
+import 'api_service.dart';
 
 class AuthServiceImpl implements IAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -165,32 +167,69 @@ class AuthServiceImpl implements IAuthService {
     await _auth.signOut();
   }
 
-  // ── Hesabı Kalıcı Olarak Sil ───────────────────────────────────────────
+  // ── Hesabı Sil (Soft Delete - 30 Gün Bekleme) ──────────────────────────
   @override
   Future<AuthResult> deleteAccount() async {
     try {
       final user = _auth.currentUser;
       if (user == null) return AuthResult.error('Kullanıcı bulunamadı.');
 
-      // 1. Firestore verilerini sil (Opsiyonel ama GDPR/KVKK için iyi)
-      // Not: Tam silme için alt koleksiyonların da silinmesi gerekir (Cloud Function önerilir)
-      // Ancak burada temel kullanıcı dokümanını siliyoruz.
-      // await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+      // Firestore'a silinme tarihini yaz (Şu an + 30 gün)
+      final deletionDate = DateTime.now().add(const Duration(days: 30));
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {'deletion_scheduled_at': deletionDate.toIso8601String()},
+        SetOptions(merge: true),
+      );
 
-      // 1. Firebase Auth hesabını sil
-      await user.delete();
-      
-      // 2. Oturumu kapat (Google vb. temizliği için)
+      // Oturumu kapat
       await signOut();
 
-      return AuthResult.successMessage('Hesabınız başarıyla silindi.');
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login') {
-        return AuthResult.error('Güvenlik nedeniyle tekrar giriş yapmanız gerekiyor.');
-      }
-      return AuthResult.error(_firebaseErrorMessage(e.code));
+      return AuthResult.successMessage('Hesabınız silinmek üzere işaretlendi ve 30 gün sonra kalıcı olarak silinecek.');
     } catch (e) {
-      return AuthResult.error('Hesap silinemedi: ${e.toString()}');
+      return AuthResult.error('İşlem başarısız: ${e.toString()}');
+    }
+  }
+
+  // ── Hesabı Kalıcı Olarak Sil (Hard Delete) ─────────────────────────────
+  static Future<bool> hardDeleteAccount() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      // 1. Backend'den kalıcı olarak sil
+      final backendSuccess = await ApiService.deleteUserFromBackend();
+      if (!backendSuccess) {
+        debugPrint("Backend deletion failed, but proceeding to delete Firebase auth");
+      }
+
+      // 2. Firestore verilerini sil
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+
+      // 3. Firebase Auth hesabını sil
+      await user.delete();
+
+      // 4. Çıkış yap
+      await _instance.signOut();
+      return true;
+    } catch (e) {
+      debugPrint('Hard delete error: $e');
+      return false;
+    }
+  }
+
+  // ── Silme İptali (Restore) ───────────────────────────────────────────────
+  static Future<bool> restoreAccount() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'deletion_scheduled_at': FieldValue.delete(),
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Restore account error: $e');
+      return false;
     }
   }
 
