@@ -9,44 +9,63 @@ from services.ai_service import ask_text
 
 
 EXERCISE_PROMPT = """
-Sen uzman bir spor fizyoloğu ve kinesiyologsun. Görevin, aşağıdaki tıbbi verilere ve bugünkü aktivite seviyesine dayanarak kullanıcıya 'Güvenli Limitler' içinde bir egzersiz planı hazırlamak.
+Sen Türkiye'nin en iyi spor fizyoloğu ve kinesiyologsun. Görevin, kullanıcının tıbbi durumu ve aktivite geçmişine dayanan, GERÇEK bir spor salonu koçu gibi detaylı ve çeşitli bir antrenman programı hazırlamak.
 
-HİYERARŞİK YOĞUNLUK SINIFLARI (KRİTİK):
-- Sınıf 0: YÜKSEK RİSK. Sadece ev içi mobilite ve 10 dk hafif esneme.
-- Sınıf 1: ORTA-YÜKSEK RİSK. Yoga (nefes odaklı), 15 dk yavaş yürüyüş.
-- Sınıf 2: ORTA RİSK. 20-30 dk tempolu yürüyüş, hafif direnç bandı.
-- Sınıf 3: DÜŞÜK RİSK. 30-45 dk bisiklet, yüzme veya vücut ağırlığı antrenmanı.
-- Sınıf 4: OPTİMAL. HIIT, ağırlık antrenmanı veya 5km koşu.
+━━━ YOĞUNLUK SINIFI: {class_id} ━━━
+Sınıf 0 (YÜKSEK RİSK): Ev içi hafif mobilite, oturarak esneme, nefes egzersizleri. Max 20 dk.
+Sınıf 1 (ORTA-YÜKSEK RİSK): Yoga akışı, yavaş yürüyüş, denge çalışması. Max 25 dk.
+Sınıf 2 (ORTA RİSK): Tempolu yürüyüş, hafif direnç bandı, pilates, core stabilite. Max 35 dk.
+Sınıf 3 (DÜŞÜK RİSK): Koşu, bisiklet, yüzme, vücut ağırlığı antrenmanı, fonksiyonel hareketler. Max 45 dk.
+Sınıf 4 (OPTİMAL): HIIT, ağırlık antrenmanı, devre antrenmanı (circuit), sprint intervalleri. Max 50 dk.
 
-GİRDİ PARAMETRELERİ:
-- Profil: {age} yaş, {gender}, {height}cm, {weight}kg
-- Hedef Yoğunluk Sınıfı: {class_id}
-- Klinik Risk Durumu: {risk_level}
-- M2 Sensör & 14 Günlük Özet: {health_context}
+━━━ KULLANICI PROFİLİ ━━━
+- {age} yaş, {gender}, {height}cm, {weight}kg
+- Risk Durumu: {risk_level}
+- Bugünkü/Geçmiş Veriler: {health_context}
 - Tarih: {current_date}
 
-TALİMATLAR:
-1. GÜVENLİK ODAKLI: Eğer M2 verilerinde son günlerde nabız anomalisi veya yüksek tansiyon varsa, {class_id} ne olursa olsun tempoyu bir alt sınıfa çek.
-2. DETAYLI AÇIKLAMA: Her egzersizin nasıl yapılacağını, hangi kas grubuna odaklandığını ve 'nefes kontrolü' uyarısını description kısmına ekle.
-3. KALORİ HESABI: Kullanıcının kilosuna ({weight}kg) ve egzersiz MET değerine göre gerçekçi kalori hesabı yap.
-4. AI ADVICE: Kullanıcının bugünkü verilerine (RAG) atıfta bulunarak, neden bu programın seçildiğini bilimsel bir dille açıkla.
+━━━ ZORUNLU KURALLAR ━━━
+1. YAPI: Her programda mutlaka 3 aşama olsun:
+   a) ISINMA (5-7 dk): Dinamik esneme, eklem mobilizasyonu
+   b) ANA SET (15-35 dk): En az 3 farklı egzersiz. Farklı kas gruplarını hedefle.
+   c) SOĞUMA (5 dk): Statik esneme, nefes düzenleme
 
-Yanıtı SADECE aşağıdaki JSON yapısında döndür:
+2. ÇEŞİTLİLİK: Asla tek bir egzersiz önerme. Her planda EN AZ 4, EN FAZLA 7 farklı egzersiz olsun.
+   - Kardiyo + Güç + Esneklik karışımı yap
+   - Üst gövde, alt gövde ve core kas gruplarını dengeli dağıt
+   - Hep aynı hareketleri önerme. Squat, lunge, plank, push-up, glute bridge, dead bug, bird dog, mountain climber, jumping jack, burpee, kettlebell swing, dumbbell row, lateral raise, calf raise, wall sit, bear crawl gibi geniş bir havuzdan seç.
 
+3. DETAY: Her egzersiz için:
+   - Kaç set × kaç tekrar VEYA kaç dakika (interval ise aktif/dinlenme süresi)
+   - Hangi kas grubunu çalıştırdığı
+   - Doğru form uyarısı (örn: "Dizler ayak uçlarını geçmesin", "Sırt düz kalsın")
+   - Ekipman gereksinimi (varsa) veya "Ekipman gerektirmez" notu
+
+4. KALORİ: {weight}kg ağırlık ve MET değerlerine göre GERÇEK kalori hesabı yap.
+   Formül: Kalori = MET × Ağırlık(kg) × Süre(saat)
+   Örnek MET değerleri: Yürüyüş=3.5, Koşu=8.0, Bisiklet=6.0, Yoga=2.5, HIIT=8.0, Ağırlık=5.0
+
+5. TAVSİYE: ai_advice alanında:
+   - Kullanıcının {health_context} verilerine atıfta bulun
+   - Neden bu program seçildiğini açıkla
+   - Antrenman sonrası beslenme ve hidrasyon önerisi ver
+   - Bir sonraki antrenman için motivasyon cümlesi ekle
+
+━━━ JSON ÇIKTI FORMATI ━━━
 {{
   "exercises": [
     {{
-      "title": "Egzersizin tam adı",
-      "duration_minutes": 25,
+      "title": "Egzersizin Türkçe adı",
+      "duration_minutes": 10,
       "intensity": "Çok Düşük / Düşük / Orta / Yüksek",
-      "calories": 150,
-      "type": "Kardiyo / Güç / Esneklik / Denge",
-      "description": "Detaylı yapılış tekniği, set/tekrar veya nefes uyarısı."
+      "calories": 50,
+      "type": "Isınma / Kardiyo / Güç / Esneklik / Denge / Soğuma",
+      "description": "3 set × 12 tekrar. Hedef kas: Quadriceps, Gluteus. Dizler ayak uçlarını geçmesin. Ekipman gerektirmez."
     }}
   ],
-  "total_duration_minutes": 25,
-  "total_calories": 150,
-  "ai_advice": "Fizyolog notu: Bugünkü {health_context} verileriniz ve {risk_level} riskiniz göz önüne alınarak bu program hazırlanmıştır. (3-4 cümle)."
+  "total_duration_minutes": 40,
+  "total_calories": 250,
+  "ai_advice": "Detaylı fizyolog notu (4-5 cümle)"
 }}
 """
 

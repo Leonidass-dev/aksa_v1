@@ -79,41 +79,59 @@ class ExercisePlanResponse(BaseModel):
 
 _CATALOG = {
     0: ExercisePlanResponse(
-        total_duration_minutes=30, total_calories=120,
-        ai_advice="Düşük şiddetli kardiyo öneriyoruz. Eklemlerinizi zorlamayın.",
+        total_duration_minutes=20, total_calories=60,
+        ai_advice="Bugünkü verileriniz yüksek risk gösterdiği için hafif mobilite ve nefes çalışması öneriyoruz. Eklemlerinizi korumak adına yavaş ve kontrollü hareket edin. Bol su için ve dinlenmeyi ihmal etmeyin.",
         exercises=[
-            ExerciseItem(title="Tempolu Yürüyüş", duration_minutes=20, intensity="Düşük", calories=80, type="Kardiyo", description="Açık havada veya bantta düz yürüyüş."),
-            ExerciseItem(title="Soğuma/Esneme", duration_minutes=10, intensity="Düşük", calories=40, type="Esneklik", description="Bacak ve sırt kaslarını esnetin.")
+            ExerciseItem(title="Oturarak Boyun ve Omuz Çevirme", duration_minutes=5, intensity="Çok Düşük", calories=10, type="Isınma", description="Oturarak boynu sağa-sola, öne-arkaya yavaşça çevirin. Omuzları yukarı kaldırıp 3 saniye tutun, bırakın. 10 tekrar."),
+            ExerciseItem(title="Sandalyede Oturarak Bacak Kaldırma", duration_minutes=5, intensity="Çok Düşük", calories=15, type="Güç", description="Oturarak bir bacağı düz uzatın, 3 saniye tutun, indirin. Her bacak 10 tekrar. Hedef kas: Quadriceps."),
+            ExerciseItem(title="Diyafram Nefes Egzersizi", duration_minutes=5, intensity="Çok Düşük", calories=10, type="Denge", description="4 saniye burundan nefes alın, 4 saniye tutun, 6 saniye ağızdan verin. 8 döngü. Parasempatik sinir sistemini aktive eder."),
+            ExerciseItem(title="Duvar Desteğiyle Baldır Esnetme", duration_minutes=5, intensity="Çok Düşük", calories=10, type="Soğuma", description="Duvara ellerinizi dayayın, bir bacağı geriye uzatın. Topuğu yerde tutarak baldırı esnetin. Her taraf 30 saniye × 3 tekrar."),
         ]
     ),
     1: ExercisePlanResponse(
-        total_duration_minutes=25, total_calories=90,
-        ai_advice="Esneklik ve rahatlama seansı öneriyoruz. Yoga stres azaltmaya da yardımcı olur.",
+        total_duration_minutes=25, total_calories=100,
+        ai_advice="Orta-yüksek risk seviyeniz göz önüne alınarak nefes odaklı yoga akışı ve hafif denge çalışması hazırlandı. Bu program stresi azaltır ve eklem hareketliliğini artırır.",
         exercises=[
-            ExerciseItem(title="Başlangıç Seviyesi Yoga", duration_minutes=25, intensity="Düşük", calories=90, type="Yoga", description="Nefes odaklı temel asanalar.")
+            ExerciseItem(title="Kedi-İnek Duruşu (Cat-Cow)", duration_minutes=5, intensity="Düşük", calories=15, type="Isınma", description="Dört ayak pozisyonunda sırtı yukarı yuvarlayın (kedi), sonra çukurlaştırın (inek). 12 tekrar. Omurga mobilizasyonu sağlar."),
+            ExerciseItem(title="Savaşçı Duruşu (Warrior I-II)", duration_minutes=7, intensity="Düşük", calories=25, type="Denge", description="Geniş adım açın, ön diz 90° bükün. Kolları yukarı (I) veya yanlara (II) açın. Her taraf 30 saniye × 3 tekrar. Hedef: Quadriceps, kalça fleksörleri."),
+            ExerciseItem(title="Köprü Duruşu (Glute Bridge)", duration_minutes=5, intensity="Düşük", calories=20, type="Güç", description="Sırt üstü yatın, dizleri bükün. Kalçayı yukarı kaldırıp 3 saniye sıkın. 3 set × 10 tekrar. Hedef kas: Gluteus, hamstring."),
+            ExerciseItem(title="Ağaç Duruşu (Tree Pose)", duration_minutes=3, intensity="Düşük", calories=10, type="Denge", description="Tek ayakta durun, diğer ayağı baldıra veya uyluğa koyun. Eller göğüste veya yukarıda. Her taraf 30 saniye × 2. Denge ve propriosepsiyon geliştirir."),
+            ExerciseItem(title="Çocuk Duruşu ile Soğuma", duration_minutes=5, intensity="Çok Düşük", calories=10, type="Soğuma", description="Dizler üstünde oturup öne uzanın, kolları ileri veya yanlara açın. 60 saniye tutun, derin nefes alın. 3 tekrar."),
         ]
     ),
     2: ExercisePlanResponse(
-        total_duration_minutes=40, total_calories=300,
-        ai_advice="Kardiyo kapasitenizi artırmak için orta şiddetli koşu öneriyoruz.",
+        total_duration_minutes=35, total_calories=220,
+        ai_advice="Orta risk seviyenize uygun bir kardiyo ve core stabilite programı hazırlandı. Tempolu yürüyüş kardiyovasküler sağlığınızı güçlendirirken, core egzersizleri duruşunuzu ve bel sağlığınızı koruyacaktır.",
         exercises=[
-            ExerciseItem(title="Isınma Yürüyüşü", duration_minutes=5, intensity="Düşük", calories=20, type="Kardiyo", description="Yavaş tempo yürüyüş."),
-            ExerciseItem(title="Hafif Tempo Koşu", duration_minutes=30, intensity="Orta", calories=250, type="Kardiyo", description="Nabzı %60-70 bandında tutarak koşu."),
-            ExerciseItem(title="Soğuma", duration_minutes=5, intensity="Düşük", calories=30, type="Esneklik", description="Bacak kaslarını uzatma.")
+            ExerciseItem(title="Dinamik Isınma (Arm Circles + Leg Swings)", duration_minutes=5, intensity="Düşük", calories=20, type="Isınma", description="Kolları ileri-geri çevirin (20 tekrar). Bir ağaca tutunarak bacağı ileri-geri sallayın (her taraf 15 tekrar). Eklem sıvısını aktive eder."),
+            ExerciseItem(title="Tempolu Yürüyüş", duration_minutes=15, intensity="Orta", calories=90, type="Kardiyo", description="Saatte 5.5-6.5 km hızda yürüyün. Nabzınızı maksimumun %60-70'inde tutun. Kolları aktif sallayın. Düz bir zeminde veya bantta."),
+            ExerciseItem(title="Plank (Ön Köprü)", duration_minutes=5, intensity="Orta", calories=30, type="Güç", description="Ön kol desteğinde düz durun. Kalça aşağı düşmesin, sırt düz kalsın. 30 saniye × 4 set (30 sn dinlenme). Hedef: Core, omuz stabilizatörleri."),
+            ExerciseItem(title="Direnç Bandıyla Squat", duration_minutes=5, intensity="Orta", calories=40, type="Güç", description="Direnç bandını dizlerin üstüne takın, omuz genişliğinde açılın. Kalçayı geriye iterek çömelin. 3 set × 12 tekrar. Hedef: Quadriceps, Gluteus. Dizler ayak uçlarını geçmesin."),
+            ExerciseItem(title="Hamstring ve Kalça Esnetme", duration_minutes=5, intensity="Düşük", calories=15, type="Soğuma", description="Oturup bir bacağı uzatın, öne doğru eğilin. Her taraf 30 saniye × 3. Ardından kelebek oturuşunda kalçayı esnetin."),
         ]
     ),
     3: ExercisePlanResponse(
-        total_duration_minutes=45, total_calories=320,
-        ai_advice="Bisiklet antrenmanı eklemlerinize az yük binerken dayanıklılığınızı artırır.",
+        total_duration_minutes=45, total_calories=350,
+        ai_advice="Düşük risk seviyeniz harika! Bugünkü program koşu ile kardiyovasküler dayanıklılığınızı, vücut ağırlığı hareketleriyle de fonksiyonel gücünüzü artırmayı hedefliyor. Antrenman sonrası protein ağırlıklı bir atıştırmalık tüketmenizi öneririm.",
         exercises=[
-            ExerciseItem(title="Sabit Bisiklet", duration_minutes=45, intensity="Orta", calories=320, type="Kardiyo", description="Orta dirençte pedal çevirme.")
+            ExerciseItem(title="Dinamik Isınma (High Knees + Butt Kicks)", duration_minutes=5, intensity="Düşük", calories=25, type="Isınma", description="Yerinde yüksek diz kaldırma (30 sn) + topuk-kalçaya vurma (30 sn). 3 döngü. Kan dolaşımını hızlandırır."),
+            ExerciseItem(title="Hafif Tempo Koşu", duration_minutes=15, intensity="Orta", calories=130, type="Kardiyo", description="6-7 dk/km temposunda koşu. Nabzı %65-75 bandında tutun. Nefes ritmi: 3 adım nefes al, 2 adım ver."),
+            ExerciseItem(title="Bulgarian Split Squat", duration_minutes=5, intensity="Orta", calories=40, type="Güç", description="Arka ayağı sandalyeye koyun, ön bacakla çömelin. Her taraf 3 set × 10 tekrar. Hedef: Quadriceps, Gluteus, denge. Diz 90° geçmesin."),
+            ExerciseItem(title="Push-up (Şınav) Varyasyonları", duration_minutes=5, intensity="Orta", calories=40, type="Güç", description="Standart şınav 10 + geniş tutuş 8 + dar tutuş 6 = 1 set. 3 set yapın. Hedef: Göğüs, triceps, ön omuz. Sırt düz kalsın."),
+            ExerciseItem(title="Dead Bug (Sırt Üstü Core)", duration_minutes=5, intensity="Orta", calories=25, type="Güç", description="Sırt üstü yatın, kol ve bacakları havada tutun. Karşılıklı kol-bacağı yere indirip kaldırın. 3 set × 12 tekrar. Hedef: Derin karın kasları (transversus abdominis)."),
+            ExerciseItem(title="Foam Roller ile Soğuma", duration_minutes=5, intensity="Düşük", calories=15, type="Soğuma", description="Foam roller üzerinde quadriceps, IT bandı, sırt ve baldır kaslarını yavaşça yuvarlayın. Her bölge 45 saniye. Kas toparlanmasını hızlandırır."),
         ]
     ),
     4: ExercisePlanResponse(
-        total_duration_minutes=30, total_calories=400,
-        ai_advice="Verileriniz çok sağlıklı. HIIT ile kondisyonunuzu maksimize edin!",
+        total_duration_minutes=45, total_calories=450,
+        ai_advice="Verileriniz optimal seviyede! Bugün yüksek yoğunluklu devre antrenmanı ile hem kondisyon hem güç kazanacaksınız. HIIT formatında çalışmak metabolizmanızı antrenman sonrası 24 saat boyunca yüksek tutacaktır (EPOC etkisi).",
         exercises=[
-            ExerciseItem(title="HIIT / Vücut Ağırlığı", duration_minutes=30, intensity="Yüksek", calories=400, type="Güç/Kardiyo", description="Burpee, Jump Squat ve Mountain Climber.")
+            ExerciseItem(title="Dinamik Isınma (Jumping Jacks + Inchworm)", duration_minutes=5, intensity="Orta", calories=30, type="Isınma", description="Jumping Jack 30 sn + Inchworm (ayakta öne eğilip ellerle plank pozisyonuna yürüyün) 30 sn. 3 döngü."),
+            ExerciseItem(title="HIIT Devre: Burpee → Squat Jump → Mountain Climber", duration_minutes=12, intensity="Yüksek", calories=150, type="Kardiyo", description="40 sn aktif / 20 sn dinlenme formatında: Burpee (40sn) → Squat Jump (40sn) → Mountain Climber (40sn). 4 tur. Tüm vücut kardiyo."),
+            ExerciseItem(title="Dumbbell / Vücut Ağırlığı Lunge", duration_minutes=8, intensity="Yüksek", calories=80, type="Güç", description="İleriye adım atarak lunge. Opsiyonel: her elde 4-8 kg dumbbell. Her taraf 4 set × 10 tekrar. Hedef: Quadriceps, hamstring, gluteus."),
+            ExerciseItem(title="Plank to Push-up (Komando)", duration_minutes=5, intensity="Yüksek", calories=50, type="Güç", description="Ön kollardan tam kol desteğine geçip geri inin. 3 set × 10 tekrar. Hedef: Core, triceps, omuz. Kalça sallanmamalı."),
+            ExerciseItem(title="Kettlebell / Dumbbell Swing", duration_minutes=5, intensity="Yüksek", calories=60, type="Güç", description="Bacak açıklığında durun, kettlebell'i kalça menteşesi hareketiyle öne sallayın. 4 set × 15 tekrar. Hedef: Posterior zincir (hamstring, gluteus, sırt). Ekipman yoksa squat + overhead press yapın."),
+            ExerciseItem(title="Soğuma: Dünya'nın En Büyük Esnemesi", duration_minutes=5, intensity="Düşük", calories=15, type="Soğuma", description="Lunge pozisyonunda öne eğilip dirsekle yere dokunun, sonra aynı taraf kolu göğe açın. Her taraf 5 tekrar. Tüm vücudu tek harekette esnetir."),
         ]
     ),
 }
