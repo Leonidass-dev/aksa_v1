@@ -28,8 +28,8 @@ class DashboardMetricsGrid extends StatelessWidget {
     final stress = entry?.stressLevel ?? 0;
 
     final hrTime = entry?.heartRateTime;
-    final isHRStale = hrTime != null && DateTime.now().difference(hrTime).inMinutes > 20;
-    final hrStaleMsg = isHRStale ? '${DateTime.now().difference(hrTime).inMinutes}dk önce' : '';
+    final isHRStale = false; // Disable staleness UI temporarily
+    final hrStaleMsg = '';
 
     return GridView.count(
       crossAxisCount: 2,

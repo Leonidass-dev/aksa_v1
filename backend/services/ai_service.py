@@ -18,7 +18,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "llava")
 
 # URLs
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 def clean_json_string(raw_text: str) -> str:
