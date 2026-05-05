@@ -49,8 +49,23 @@ class _NutritionScreenState extends State<NutritionScreen>
 
       if (mounted) {
         setState(() {
-          // Bazal metabolizmaya o gün yakılan kaloriyi ekleyerek hedefi güncelliyoruz
-          _calorieGoal = (bmr + activeCals).round();
+          // KRİTİK: Xiaomi gibi saatler TOTAL_CALORIES_BURNED alanına
+          // BMR + Aktif toplamını gönderiyor. Üstüne tekrar BMR eklersek
+          // çift sayım (double counting) olur (3000 kal gibi).
+          // Backend (food.py) ile aynı mantık uygulanıyor.
+          int calculatedGoal;
+          if (activeCals > bmr) {
+            // Cihaz zaten toplam (BMR+Aktif) göndermiş, direkt kullan
+            calculatedGoal = activeCals.round();
+          } else if (activeCals > 0) {
+            // Cihaz sadece aktif kaloriyi göndermiş, BMR'yi ekle
+            calculatedGoal = (bmr + activeCals).round();
+          } else {
+            // Aktif kalori yok, sedanter çarpan (BMR * 1.2)
+            calculatedGoal = (bmr * 1.2).round();
+          }
+          // Güvenlik sınırları (backend ile uyumlu)
+          _calorieGoal = calculatedGoal.clamp(1200, 3500);
         });
       }
     }

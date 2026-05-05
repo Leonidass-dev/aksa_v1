@@ -247,6 +247,22 @@ async def get_meal_history(
     return list(result.scalars().all())
 
 
+async def get_today_meals(db: AsyncSession, user: User) -> list[MealRecord]:
+    """Bugün analiz edilen yemekleri getir."""
+    from datetime import datetime, timezone
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    stmt = (
+        select(MealRecord)
+        .where(
+            MealRecord.user_id == user.id,
+            MealRecord.analyzed_at >= today_start,
+        )
+        .order_by(desc(MealRecord.analyzed_at))
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  EXERCISE PLANS
 # ═══════════════════════════════════════════════════════════════════

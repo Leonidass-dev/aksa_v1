@@ -27,9 +27,7 @@ class DashboardMetricsGrid extends StatelessWidget {
     final spo2 = entry?.spo2 ?? 0;
     final stress = entry?.stressLevel ?? 0;
 
-    final hrTime = entry?.heartRateTime;
-    final isHRStale = false; // Disable staleness UI temporarily
-    final hrStaleMsg = '';
+
 
     return GridView.count(
       crossAxisCount: 2,
@@ -56,8 +54,6 @@ class DashboardMetricsGrid extends StatelessWidget {
           sub: hr > 0 ? 'bpm' : '',
           progress: hr > 0 ? ((hr - 40) / 160).clamp(0.0, 1.0) : 0,
           progressColor: hr > 100 ? AppColors.destructive : AppColors.secondary,
-          isStale: isHRStale,
-          staleMessage: hrStaleMsg,
         ),
         MetricTile(
           icon: Icons.bloodtype_rounded,
