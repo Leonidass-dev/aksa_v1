@@ -21,4 +21,6 @@ abstract class IAuthService {
   Future<AuthResult> sendPasswordReset(String email);
   Future<void> signOut();
   Future<AuthResult> deleteAccount();
+  Future<bool> hardDeleteAccount();
+  Future<bool> restoreAccount();
 }

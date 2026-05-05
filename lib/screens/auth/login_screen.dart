@@ -69,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    AuthService.instance.signOut();
+                    AuthService.signOut();
                     Navigator.pop(ctx, false);
                   },
                   child: const Text('Hayır, Çıkış Yap', style: TextStyle(color: AppColors.mutedForeground)),

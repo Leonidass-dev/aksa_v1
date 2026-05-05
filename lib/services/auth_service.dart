@@ -191,7 +191,8 @@ class AuthServiceImpl implements IAuthService {
   }
 
   // ── Hesabı Kalıcı Olarak Sil (Hard Delete) ─────────────────────────────
-  static Future<bool> hardDeleteAccount() async {
+  @override
+  Future<bool> hardDeleteAccount() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
@@ -209,7 +210,7 @@ class AuthServiceImpl implements IAuthService {
       await user.delete();
 
       // 4. Çıkış yap
-      await _instance.signOut();
+      await signOut();
       return true;
     } catch (e) {
       debugPrint('Hard delete error: $e');
@@ -218,7 +219,8 @@ class AuthServiceImpl implements IAuthService {
   }
 
   // ── Silme İptali (Restore) ───────────────────────────────────────────────
-  static Future<bool> restoreAccount() async {
+  @override
+  Future<bool> restoreAccount() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
@@ -303,6 +305,8 @@ class AuthService {
   static Future<AuthResult> sendPasswordReset(String email) => _instance.sendPasswordReset(email);
   static Future<void> signOut() => _instance.signOut();
   static Future<AuthResult> deleteAccount() => _instance.deleteAccount();
+  static Future<bool> hardDeleteAccount() => _instance.hardDeleteAccount();
+  static Future<bool> restoreAccount() => _instance.restoreAccount();
 }
 
 // ── Sonuç Modeli ─────────────────────────────────────────────────────────────
