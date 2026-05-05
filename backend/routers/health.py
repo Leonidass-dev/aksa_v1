@@ -49,6 +49,10 @@ class HealthRecordRequest(BaseModel):
     stress_level: float = Field(default=0, ge=0, le=100, description="Stres seviyesi (0-100)")
     weight: float = Field(default=0, ge=0, le=500, description="Kilo (kg)")
 
+    # Yeni Özellikler
+    water_ml: float = Field(default=0, ge=0, description="Su içme (ml)")
+    mood: str = Field(default="neutral", description="Ruh hali")
+
     # Meta
     source: str = Field(default="manual", description="Veri kaynağı: manual | health_connect")
 
@@ -72,6 +76,8 @@ class HealthRecordResponse(BaseModel):
     distance_m: float
     stress_level: float
     weight: float
+    water_ml: float
+    mood: str
     source: str
 
     class Config:
@@ -98,6 +104,8 @@ def _record_to_response(r) -> HealthRecordResponse:
         distance_m=r.distance_m or 0,
         stress_level=r.stress_level or 0,
         weight=r.weight or 0,
+        water_ml=r.water_ml or 0,
+        mood=r.mood or "neutral",
         source=r.source or "manual",
     )
 
