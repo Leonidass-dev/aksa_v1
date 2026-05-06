@@ -35,5 +35,5 @@ abstract class IApiService {
 
   Future<bool> deleteUserFromBackend();
 
-  Future<bool> saveManualFood(String foodName, String portion, int calories);
+  Future<FoodAnalysisResult?> saveManualFood(String foodName, String portion);
 }

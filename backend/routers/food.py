@@ -371,28 +371,88 @@ async def get_diet_plan(
 class ManualFoodRequest(BaseModel):
     food_name: str
     portion: str
-    calories: int
 
-@router.post("/manual", response_model=dict)
+@router.post("/manual", response_model=FoodAnalysisResponse)
 async def add_manual_food(
     req: ManualFoodRequest,
     uid: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Kullanıcının kamerasız, manuel olarak yediği yemeği kaydetmesi."""
+    """Kullanıcının kamerasız, manuel olarak yediği yemeği kaydetmesi ve AI'ın makro tahmini yapması."""
     user = await crud.get_or_create_user(db, uid)
+    
+    # 1. AI ile Makro Tahmini (Hızlı ve API Dostu: Sadece Groq Kullan)
+    from services.ai_service import _call_groq, clean_json_string
+    import json
+    
+    estimated_calories = 300 # Varsayılan fallback
+    protein_g, carbs_g, fat_g, fiber_g = 0.0, 0.0, 0.0, 0.0
+    health_score = 50
+    recommendation = "Makrolar yapay zeka tarafından tahmin edildi."
+    tags = ["manuel_giris", "ai_kalori"]
+
+    try:
+        prompt = f"Yemek: {req.food_name}\nPorsiyon: {req.portion}"
+        system = """Sen uzman bir diyetisyensin. Verilen yemeğin besin değerlerini tahmin et ve SADECE aşağıdaki JSON formatında dön:
+{
+  "food_name": "Yemeğin adı",
+  "portion": "Net gramaj",
+  "nutrients": {
+    "calories": 0,
+    "protein_g": 0.0,
+    "carbs_g": 0.0,
+    "fat_g": 0.0,
+    "fiber_g": 0.0
+  },
+  "health_score": 50,
+  "recommendation": "Beslenme tavsiyesi",
+  "tags": ["etiket1", "etiket2"]
+}"""
+        
+        ai_res = await _call_groq(prompt, system, history=[], json_mode=True)
+        if ai_res:
+            data = json.loads(clean_json_string(ai_res))
+            nutrients = data.get("nutrients", {})
+            estimated_calories = int(nutrients.get("calories", estimated_calories))
+            protein_g = float(nutrients.get("protein_g", 0.0))
+            carbs_g = float(nutrients.get("carbs_g", 0.0))
+            fat_g = float(nutrients.get("fat_g", 0.0))
+            fiber_g = float(nutrients.get("fiber_g", 0.0))
+            health_score = int(data.get("health_score", 50))
+            recommendation = data.get("recommendation", recommendation)
+            tags = data.get("tags", tags)
+            
+            logger.info(f"💡 Manuel Yemek Groq Tahmini: {estimated_calories} kcal, P: {protein_g}g ({req.food_name})")
+    except Exception as e:
+        logger.error(f"Manuel yemek Groq tahmini hatası: {e}")
+
+    # 2. Veritabanına Kaydet
     record = await crud.save_meal_record(
         db=db,
         user=user,
         food_name=req.food_name,
         portion=req.portion,
-        calories=req.calories,
-        protein_g=0.0,
-        carbs_g=0.0,
-        fat_g=0.0,
-        fiber_g=0.0,
-        health_score=50,
-        recommendation="Kullanıcı tarafından manuel eklendi. AI analizi yapılmadı.",
-        tags=["manuel_giris"]
+        calories=estimated_calories,
+        protein_g=protein_g,
+        carbs_g=carbs_g,
+        fat_g=fat_g,
+        fiber_g=fiber_g,
+        health_score=health_score,
+        recommendation=recommendation,
+        tags=tags
     )
-    return {"message": "success", "id": record.id}
+    
+    return FoodAnalysisResponse(
+        food_name=req.food_name,
+        portion=req.portion,
+        nutrients=NutrientInfo(
+            calories=estimated_calories,
+            protein_g=protein_g,
+            carbs_g=carbs_g,
+            fat_g=fat_g,
+            fiber_g=fiber_g
+        ),
+        health_score=health_score,
+        recommendation=recommendation,
+        tags=tags
+    )

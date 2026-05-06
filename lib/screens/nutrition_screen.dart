@@ -152,7 +152,6 @@ class _NutritionScreenState extends State<NutritionScreen>
   void _showManualEntryDialog() {
     final nameCtrl = TextEditingController();
     final portionCtrl = TextEditingController();
-    final calCtrl = TextEditingController();
     
     showDialog(
       context: context,
@@ -171,10 +170,9 @@ class _NutritionScreenState extends State<NutritionScreen>
               decoration: const InputDecoration(labelText: 'Porsiyon', hintText: 'Örn: 1 porsiyon (200g)'),
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: calCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Tahmini Kalori (kcal)', hintText: 'Örn: 350'),
+            const Text(
+              'Kalori değeri yapay zeka tarafından yemeğin adına ve porsiyonuna göre otomatik tahmin edilecektir.',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
             ),
           ],
         ),
@@ -186,30 +184,29 @@ class _NutritionScreenState extends State<NutritionScreen>
           ElevatedButton(
             onPressed: () async {
               if (nameCtrl.text.isEmpty) return;
-              final cal = int.tryParse(calCtrl.text) ?? 0;
               Navigator.pop(ctx);
               
               setState(() => _analyzing = true);
+              final portionText = portionCtrl.text.isEmpty ? "1 porsiyon" : portionCtrl.text;
               
-              // Sahte bir analiz sonucu oluşturuyoruz (AI yerine manuel)
-              final manualResult = FoodAnalysisResult(
+              // Backend'e gönder, yapay zeka makroları tahmin edip tam nesneyi dönecek
+              final result = await ApiService.saveManualFood(
+                nameCtrl.text, 
+                portionText, 
+              );
+              
+              // Eğer backend çökerse fallback oluştur
+              final manualResult = result ?? FoodAnalysisResult(
                 foodName: nameCtrl.text,
-                portion: portionCtrl.text.isEmpty ? "1 porsiyon" : portionCtrl.text,
-                calories: cal,
+                portion: portionText,
+                calories: 300,
                 proteinG: 0,
                 carbsG: 0,
                 fatG: 0,
                 fiberG: 0,
-                healthScore: 50, // Orta derece varsayılan skor
-                recommendation: "Kullanıcı tarafından manuel eklendi. AI analizi yapılmadı.",
-                tags: ["manuel_giris"],
-              );
-              
-              // Backend'e gönder
-              await ApiService.saveManualFood(
-                nameCtrl.text, 
-                portionCtrl.text.isEmpty ? "1 porsiyon" : portionCtrl.text, 
-                cal
+                healthScore: 50,
+                recommendation: "Bağlantı hatası: Makrolar hesaplanamadı.",
+                tags: ["hata"],
               );
               
               setState(() {
