@@ -24,6 +24,7 @@ import 'screens/data_entry_screen.dart';
 import 'screens/assistant_screen.dart';
 import 'widgets/bottom_nav.dart';
 import 'services/notification_service.dart';
+import 'services/background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,13 @@ void main() async {
     await NotificationService.scheduleNudges();
   } catch (e) {
     debugPrint('Bildirim servisi başlatılamadı (Hata: $e). Uygulama devam ediyor.');
+  }
+
+  try {
+    // Arkaplan Anomali Tespiti (WorkManager)
+    await BackgroundService.initialize();
+  } catch (e) {
+    debugPrint('Arkaplan servisi başlatılamadı (Hata: $e). Uygulama devam ediyor.');
   }
 
   runApp(const AksaApp());

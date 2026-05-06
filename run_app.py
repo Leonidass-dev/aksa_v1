@@ -60,23 +60,22 @@ def main():
 
     # ── 1. Backend başlat ─────────────────────
     backend_process = None
-    if True:
-        python_exe = os.path.join(backend_dir, "venv", "Scripts", "python.exe")
-        if not os.path.exists(python_exe):
-            print("[!] Backend venv bulunamadi!")
-            sys.exit(1)
+    python_exe = os.path.join(backend_dir, "venv", "Scripts", "python.exe")
+    if not os.path.exists(python_exe):
+        print("[!] Backend venv bulunamadi!")
+        sys.exit(1)
 
-        backend_cmd = [python_exe, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-        print("[1/2] Lokal Backend baslatiliyor...")
-        backend_process = subprocess.Popen(
-            backend_cmd,
-            cwd=backend_dir,
-            creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0,
-        )
-        if check_backend_ready():
-            print("[OK]  Backend hazir!")
-        else:
-            print("[!!]  Backend yavash basladi...")
+    backend_cmd = [python_exe, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    print("[1/2] Lokal Backend baslatiliyor...")
+    backend_process = subprocess.Popen(
+        backend_cmd,
+        cwd=backend_dir,
+        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0,
+    )
+    if check_backend_ready():
+        print("[OK]  Backend hazir!")
+    else:
+        print("[!!]  Backend yavash basladi...")
 
     # ── 2. Flutter başlat ────────────────────────────────────
     print("[2/2] Flutter baslatiliyor...")

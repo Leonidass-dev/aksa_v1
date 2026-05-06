@@ -37,6 +37,21 @@ def clean_json_string(raw_text: str) -> str:
         
     return raw_text.strip()
 
+async def summarize_memory(old_memory: str, new_user_msg: str, new_ai_msg: str) -> str:
+    """Eski hafızayı yeni sohbetle birleştirip özetler."""
+    system_prompt = (
+        "Sen gelişmiş bir profil çıkarma (profiling) AI'ısın. "
+        "Aşağıdaki eski hafıza ve yeni sohbet bağlamından kullanıcının kalıcı sağlık profilini (hastalıklar, "
+        "diyet alışkanlıkları, vücut yapısı, son durumu vb.) kısa ve öz bir şekilde GÜNCELLE. "
+        "Yalnızca kalıcı ve önemli bilgileri tut, gereksiz sohbet detaylarını at. Sadece Türkçe metin dön."
+    )
+    prompt = f"Eski Hafıza:\n{old_memory}\n\nYeni Konuşma:\nKullanıcı: {new_user_msg}\nAsistan: {new_ai_msg}"
+    
+    # Kendi ask_text fonksiyonumuzu kullanarak özetletiyoruz
+    new_memory = await ask_text(prompt, system_prompt=system_prompt)
+    return new_memory or old_memory
+
+
 async def ask_text(prompt: str, system_prompt: str = "Sen uzman bir sağlık asistanısın. Yanıtlarını SADECE Türkçe olarak ver. Teknik terimlerin doğrudan Türkçe karşılıklarını kullan. Asla İngilizce kelime karıştırma.", history: List[Dict] = None, json_mode: bool = False) -> Optional[str]:
     """
     General purpose text generation with fallback logic.

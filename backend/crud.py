@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db_models import (
     User, HealthRecord, RiskScore,
     MealRecord, ExercisePlan, ChatMessage,
-    DailyDietPlan
+    DailyDietPlan, UserMemory
 )
 
 
@@ -57,6 +57,28 @@ async def delete_user_completely(db: AsyncSession, user: User) -> bool:
 
 # ═══════════════════════════════════════════════════════════════════
 #  HEALTH RECORDS
+async def get_user_memory(db: AsyncSession, user_id: int) -> UserMemory:
+    """Kullanıcının AI hafızasını getir veya boş oluştur."""
+    stmt = select(UserMemory).where(UserMemory.user_id == user_id)
+    result = await db.execute(stmt)
+    memory = result.scalar_one_or_none()
+    if not memory:
+        memory = UserMemory(user_id=user_id, memory_summary="")
+        db.add(memory)
+        await db.commit()
+        await db.refresh(memory)
+    return memory
+
+
+async def update_user_memory(db: AsyncSession, user_id: int, new_summary: str) -> UserMemory:
+    """Kullanıcının AI hafızasını güncelle."""
+    memory = await get_user_memory(db, user_id)
+    memory.memory_summary = new_summary
+    await db.commit()
+    await db.refresh(memory)
+    return memory
+
+
 # ═══════════════════════════════════════════════════════════════════
 
 async def save_health_record(

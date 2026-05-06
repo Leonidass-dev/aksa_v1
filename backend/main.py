@@ -22,12 +22,13 @@ app = FastAPI(
 # Canlı ortamda ALLOWED_ORIGINS env var ile kısıtla
 _allowed_origins = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:3000,http://10.0.2.2:3000"  # Geliştirme varsayılanları
+    "http://localhost:3000,http://10.0.2.2:3000,http://localhost:8000"  # Geliştirme varsayılanları
 ).split(",")
+_allowed_origins.append("*")  # Mobil cihazlar CORS kullanmaz, geliştirme kolaylığı
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

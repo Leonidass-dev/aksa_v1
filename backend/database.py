@@ -72,5 +72,6 @@ async def init_db():
         from db_models import (
             User, HealthRecord, RiskScore,
             MealRecord, ExercisePlan, ChatMessage,
+            UserMemory, DailyDietPlan,
         )
         await conn.run_sync(Base.metadata.create_all)

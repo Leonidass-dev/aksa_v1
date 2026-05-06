@@ -40,6 +40,19 @@ class User(Base):
     exercise_plans = relationship("ExercisePlan", back_populates="user", cascade="all, delete-orphan")
     chat_messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")
     daily_diet_plans = relationship("DailyDietPlan", back_populates="user", cascade="all, delete-orphan")
+    memory = relationship("UserMemory", back_populates="user", uselist=False, cascade="all, delete-orphan")
+
+
+class UserMemory(Base):
+    """Yapay Zeka Uzun Süreli Kullanıcı Hafızası."""
+    __tablename__ = "user_memories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    memory_summary = Column(Text, nullable=False, default="")
+    last_updated = Column(DateTime(timezone=True), default=get_turkey_time, onupdate=get_turkey_time)
+
+    user = relationship("User", back_populates="memory")
 
 
 class HealthRecord(Base):

@@ -34,4 +34,6 @@ abstract class IApiService {
   Future<bool> syncHealthToBackend(HealthEntry entry);
 
   Future<bool> deleteUserFromBackend();
+
+  Future<bool> saveManualFood(String foodName, String portion, int calories);
 }

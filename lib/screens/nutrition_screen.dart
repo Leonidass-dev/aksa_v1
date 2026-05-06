@@ -149,6 +149,88 @@ class _NutritionScreenState extends State<NutritionScreen>
     if (mounted) setState(() => _analyzing = false);
   }
 
+  void _showManualEntryDialog() {
+    final nameCtrl = TextEditingController();
+    final portionCtrl = TextEditingController();
+    final calCtrl = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Manuel Yemek Ekle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: 'Yemek Adı', hintText: 'Örn: Izgara Tavuk'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: portionCtrl,
+              decoration: const InputDecoration(labelText: 'Porsiyon', hintText: 'Örn: 1 porsiyon (200g)'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: calCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Tahmini Kalori (kcal)', hintText: 'Örn: 350'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameCtrl.text.isEmpty) return;
+              final cal = int.tryParse(calCtrl.text) ?? 0;
+              Navigator.pop(ctx);
+              
+              setState(() => _analyzing = true);
+              
+              // Sahte bir analiz sonucu oluşturuyoruz (AI yerine manuel)
+              final manualResult = FoodAnalysisResult(
+                foodName: nameCtrl.text,
+                portion: portionCtrl.text.isEmpty ? "1 porsiyon" : portionCtrl.text,
+                calories: cal,
+                proteinG: 0,
+                carbsG: 0,
+                fatG: 0,
+                fiberG: 0,
+                healthScore: 50, // Orta derece varsayılan skor
+                recommendation: "Kullanıcı tarafından manuel eklendi. AI analizi yapılmadı.",
+                tags: ["manuel_giris"],
+              );
+              
+              // Backend'e gönder
+              await ApiService.saveManualFood(
+                nameCtrl.text, 
+                portionCtrl.text.isEmpty ? "1 porsiyon" : portionCtrl.text, 
+                cal
+              );
+              
+              setState(() {
+                _meals.insert(
+                  0,
+                  _MealEntry(
+                    image: null, // Manuel
+                    result: manualResult,
+                    dateTime: DateTime.now(),
+                  ),
+                );
+                _analyzing = false;
+              });
+            },
+            child: const Text('Ekle'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showImageSourceSheet() {
     showModalBottomSheet(
       context: context,
@@ -180,7 +262,7 @@ class _NutritionScreenState extends State<NutritionScreen>
             ),
             const SizedBox(height: 4),
             Text(
-              'Gemini AI ile besin değerlerini analiz et',
+              'Yapay Zeka ile besin değerlerini analiz et',
               style: TextStyle(
                 fontSize: 12,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -213,6 +295,19 @@ class _NutritionScreenState extends State<NutritionScreen>
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: _SourceButton(
+                icon: Icons.edit_note_rounded,
+                label: 'Manuel Giriş (Yazarak Ekle)',
+                color: Theme.of(context).colorScheme.tertiary,
+                onTap: () {
+                  Navigator.pop(context);
+                  _showManualEntryDialog();
+                },
+              ),
             ),
             const SizedBox(height: 12),
           ],

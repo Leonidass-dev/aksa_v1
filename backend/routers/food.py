@@ -366,3 +366,33 @@ async def get_diet_plan(
     await crud.save_daily_diet_plan(db, user, today, plan.model_dump())
         
     return plan
+
+
+class ManualFoodRequest(BaseModel):
+    food_name: str
+    portion: str
+    calories: int
+
+@router.post("/manual", response_model=dict)
+async def add_manual_food(
+    req: ManualFoodRequest,
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Kullanıcının kamerasız, manuel olarak yediği yemeği kaydetmesi."""
+    user = await crud.get_or_create_user(db, uid)
+    record = await crud.save_meal_record(
+        db=db,
+        user=user,
+        food_name=req.food_name,
+        portion=req.portion,
+        calories=req.calories,
+        protein_g=0.0,
+        carbs_g=0.0,
+        fat_g=0.0,
+        fiber_g=0.0,
+        health_score=50,
+        recommendation="Kullanıcı tarafından manuel eklendi. AI analizi yapılmadı.",
+        tags=["manuel_giris"]
+    )
+    return {"message": "success", "id": record.id}

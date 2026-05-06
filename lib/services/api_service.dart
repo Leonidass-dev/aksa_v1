@@ -83,6 +83,30 @@ class ApiServiceImpl implements IApiService {
     return null;
   }
 
+  Future<bool> saveManualFood(String foodName, String portion, int calories) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/manual'),
+            headers: headers,
+            body: jsonEncode({
+              'food_name': foodName,
+              'portion': portion,
+              'calories': calories,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Manual food save hatası: $e');
+    }
+    return false;
+  }
+
   // ── M5: Diyet Planı Önerisi (Yapay Zeka Yeni Modül) ────────────
   @override
   Future<DietPlanResult?> getDietPlan() async {
@@ -400,4 +424,5 @@ class ApiService {
   static Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50}) => _instance.fetchChatHistory(limit: limit);
   static Future<bool> syncHealthToBackend(HealthEntry entry) => _instance.syncHealthToBackend(entry);
   static Future<bool> deleteUserFromBackend() => _instance.deleteUserFromBackend();
+  static Future<bool> saveManualFood(String foodName, String portion, int calories) => _instance.saveManualFood(foodName, portion, calories);
 }

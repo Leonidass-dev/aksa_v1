@@ -1,15 +1,15 @@
 import os
 import httpx
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db
+from database import get_db, async_session
 from auth import get_current_user
 import crud
-from services.ai_service import ask_text
+from services.ai_service import ask_text, summarize_memory
 
 load_dotenv()
 
@@ -53,9 +53,19 @@ VERİ KULLANIMI:
 Kullanıcının Mesajı: 
 """
 
+async def _bg_update_memory(user_id: int, old_memory: str, req_msg: str, ai_reply: str):
+    """Arkaplanda çalışıp kullanıcının kalıcı AI hafızasını günceller."""
+    try:
+        new_summary = await summarize_memory(old_memory, req_msg, ai_reply)
+        async with async_session() as db:
+            await crud.update_user_memory(db, user_id, new_summary)
+    except Exception as e:
+        logger.error(f"Hafıza güncellenirken hata oluştu: {e}")
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_assistant(
     req: ChatRequest,
+    background_tasks: BackgroundTasks,
     uid: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -69,9 +79,13 @@ async def chat_with_assistant(
         today_record = await crud.get_today_health(db, user)
         latest_risk = await crud.get_latest_risk_score(db, user)
         today_meals = await crud.get_today_meals(db, user)
+        user_memory = await crud.get_user_memory(db, user.id)
 
         # ── Zengin Bağlam (Context) Oluşturma ──
-        context_parts = ["--- KULLANICININ BUGÜNKÜ SAĞLIK VERİLERİ ---"]
+        context_parts = ["--- KULLANICININ BUGÜNKÜ SAĞLIK VERİLERİ VE HAFIZA ---"]
+        
+        if user_memory.memory_summary:
+            context_parts.append(f"🧠 KULLANICI PROFİLİ (Geçmişten Öğrenilenler):\n{user_memory.memory_summary}\n")
 
         # Profil Bilgileri
         if user.age or user.weight or user.height:
@@ -173,6 +187,15 @@ async def chat_with_assistant(
 
         # Asistan yanıtını DB'ye kaydet
         await crud.save_chat_message(db, user, role="assistant", content=reply)
+
+        # Arkaplanda hafızayı güncelle
+        background_tasks.add_task(
+            _bg_update_memory,
+            user.id,
+            user_memory.memory_summary,
+            req.message,
+            reply
+        )
 
         return ChatResponse(reply=reply)
 

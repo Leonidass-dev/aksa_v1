@@ -3,6 +3,7 @@ import '../../widgets/common_widgets.dart';
 import '../water_wave_widget.dart';
 
 /// Su tüketimi takip kartı — ilerleme çubuğu ve hızlı ekleme butonları.
+/// Geri Al (Undo) mekanizması ile yanlış eklemeleri önler.
 class WaterTrackerCard extends StatelessWidget {
   final double currentMl;
   final double targetMl;
@@ -17,6 +18,30 @@ class WaterTrackerCard extends StatelessWidget {
     required this.targetMl,
     required this.onAddWater,
   });
+
+  void _addWithUndo(BuildContext context, double amount) {
+    // 1. Hemen ekle (iyimser güncelleme)
+    onAddWater(amount);
+    
+    // 2. SnackBar ile Geri Al seçeneği sun
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('💧 ${amount.toInt()} ml su eklendi.'),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        action: SnackBarAction(
+          label: 'GERİ AL',
+          textColor: Colors.amber,
+          onPressed: () {
+            // Negatif miktar göndererek geri al
+            onAddWater(-amount);
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +73,7 @@ class WaterTrackerCard extends StatelessWidget {
                   runSpacing: 8,
                   children: _quickAddAmounts.map((amount) {
                     return InkWell(
-                      onTap: () => onAddWater(amount.toDouble()),
+                      onTap: () => _addWithUndo(context, amount.toDouble()),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

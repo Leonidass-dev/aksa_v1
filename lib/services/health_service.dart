@@ -314,8 +314,9 @@ class HealthServiceImpl implements IHealthService {
   Future<void> updateWater(double ml) async {
     final today = await getTodayEntry();
     final entry = today ?? HealthEntry(date: DateTime.now());
+    final newWater = (entry.waterMl + ml).clamp(0.0, double.infinity);
     final updated = entry.copyWith(
-      waterMl: entry.waterMl + ml,
+      waterMl: newWater,
     );
     await saveHealthEntry(updated);
   }
