@@ -29,17 +29,18 @@ GİRDİ PARAMETRELERİ:
 - Klinik Risk Seviyesi: {risk_level}
 - Tanımlanmış Risk Faktörleri: {risk_factors}
 - M2 Sensör Verileri (Bugünkü Durum): {health_context}
-- Günlük Kalori Hedefi: {target_calories} kcal
+- Günlük Kalori Hedefi: {target_calories} kcal (BU DEĞER UYGULAMA TARAFINDAN ÖZEL HESAPLANMIŞTIR. KESİNLİKLE EKSİLTME YAPMAYIN, DİYET LİSTESİNİ TAM OLARAK BU KALORİYE GÖRE HAZIRLAYIN)
 
 DİYETİSYEN TALİMATLARI:
 1. MAKRO DAĞILIMI: Planı yaklaşık %45 Karbonhidrat (kompleks), %25 Protein, %30 Sağlıklı Yağ dengesiyle kur.
-2. KLİNİK ÖNCELİKLER:
+2. MATEMATİKSEL KONTROL (ÇOK ÖNEMLİ): Yazdığın tüm öğünlerin (Sabah, Öğle, Akşam, Ara Öğünler) kalori değerlerinin TOPLAMI, BİREBİR sana verilen Günlük Kalori Hedefi ({target_calories}) değerine EŞİT OLMALIDIR. Kalorileri gramajları ayarlayarak bu toplama tam uyacak şekilde dağıt.
+3. KLİNİK ÖNCELİKLER:
    - Hipertansiyon varsa: Sodyum < 2300mg. Magnezyum ve Potasyumdan zengin (ıspanak, muz, baklagil) besinler.
    - Yüksek Nabız/Kardiyak risk varsa: Kafein, rafine şeker ve ağır doymuş yağları tamamen çıkar.
    - Hareketsiz günlerde: Glisemik indeksi düşük, lif oranı yüksek besinler.
-3. TÜBER UYUMLU: Türkiye Beslenme Rehberi (TÜBER) standartlarına ve Türk damak tadına uygun içerikler seç.
-4. DETAYLI PORSİYON: 'Biraz' veya 'Az' gibi belirsiz ifadeler yerine '1 orta boy (150g)', '2 yemek kaşığı' gibi net ölçüler kullan.
-5. NEDENSELLİK (Reasoning): Her öğün için 'Neden bu besin?' sorusunu kullanıcının klinik risklerine atıfta bulunarak açıkla.
+4. TÜBER UYUMLU: Türkiye Beslenme Rehberi (TÜBER) standartlarına ve Türk damak tadına uygun içerikler seç.
+5. DETAYLI PORSİYON: 'Biraz' veya 'Az' gibi belirsiz ifadeler yerine '1 orta boy (150g)', '2 yemek kaşığı' gibi net ölçüler kullan.
+6. NEDENSELLİK (Reasoning): Her öğün için 'Neden bu besin?' sorusunu kullanıcının klinik risklerine atıfta bulunarak açıkla.
 
 Yanıtı SADECE aşağıdaki JSON yapısında döndür:
 
@@ -85,6 +86,15 @@ async def generate_diet_plan(
         cleaned_json = clean_json_string(raw_text)
             
         json_data = json.loads(cleaned_json)
+        
+        # MATEMATİK KORUMASI: LLM'ler toplama işleminde hata yapabilir.
+        # Öğünlerin toplamını alıp, UI'a o değeri yansıtıyoruz ki tutarsızlık olmasın.
+        if "meals" in json_data and isinstance(json_data["meals"], list):
+            total_meal_cals = sum(meal.get("calories", 0) for meal in json_data["meals"])
+            # Sadece 0'dan büyükse ve mantıklıysa üzerine yaz
+            if total_meal_cals > 500:
+                json_data["daily_calories_target"] = total_meal_cals
+
         return DietPlanResponse(**json_data)
 
     except Exception as e:

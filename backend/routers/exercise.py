@@ -65,8 +65,11 @@ async def get_exercise_plan(
 
         # 2.5 SMART CACHE: Eğer son 24 saatte üretilmiş bir plan varsa onu kullan (force_refresh değilse)
         from db_models import get_turkey_time
-        if not req.force_refresh and last_plan and last_plan.created_at > (get_turkey_time() - timedelta(hours=24)):
-            logger.info(f"♻️ SMART CACHE: Son 24 saat içinde üretilmiş plan bulundu (ID: {last_plan.id}), Gemini atlanıyor.")
+        now_naive = get_turkey_time().replace(tzinfo=None)
+        if not req.force_refresh and last_plan:
+            created_naive = last_plan.created_at.replace(tzinfo=None) if last_plan.created_at.tzinfo else last_plan.created_at
+            if created_naive > (now_naive - timedelta(hours=24)):
+                logger.info(f"♻️ SMART CACHE: Son 24 saat içinde üretilmiş plan bulundu (ID: {last_plan.id}), Gemini atlanıyor.")
             return ExercisePlanResponse(
                 exercises=[ExerciseItem(**e) for e in last_plan.exercises],
                 total_duration_minutes=last_plan.total_duration_minutes,
