@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../utils/image_utils.dart';
 import '../utils/bmi_utils.dart';
@@ -18,6 +19,10 @@ import '../widgets/profile/edit_profile_sheet.dart';
 import '../widgets/profile/health_goals_sheet.dart';
 import '../widgets/profile/weight_update_sheet.dart';
 import '../widgets/profile/profile_dialogs.dart';
+import '../widgets/profile/emergency_card.dart';
+import '../widgets/profile/device_status_card.dart';
+import '../services/health_service.dart';
+import '../constants/app_constants.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -47,10 +52,14 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   String _dataPoints = '0';
   String _healthScore = '-';
 
+  // Acil Durum Bilgileri
+  String _bloodType = '';
+  String _allergies = '';
+  String _emergencyContact = '';
+  DateTime? _lastSyncTime;
+
   double _currentAvgSteps = 0;
   double _currentAvgSleep = 0;
-
-  // ── Lifecycle ────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -59,8 +68,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     _loadGoals();
     _loadStats();
   }
-
-  // ── Data Loading ─────────────────────────────────────────────────
 
   Future<void> _loadUser() async {
     final u = FirebaseAuth.instance.currentUser;
@@ -82,10 +89,9 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
           _gender = data['gender'] ?? 'M';
           _height = (data['height'] as num?)?.toDouble() ?? 170.0;
           _userWeight = (data['weight'] as num?)?.toDouble() ?? 75.0;
-        });
-      } else {
-        await FirebaseFirestore.instance.collection('users').doc(u.uid).set({
-          'uid': u.uid, 'fullName': _fullName, 'email': _email, 'photoUrl': _photoUrl, 'bio': '',
+          _bloodType = data['bloodType'] ?? '';
+          _allergies = data['allergies'] ?? '';
+          _emergencyContact = data['emergencyContact'] ?? '';
         });
       }
     } catch (_) {}
@@ -125,7 +131,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
       for (var doc in entries.docs.take(7)) {
         final d = doc.data();
         final steps = (d['steps'] as num?)?.toDouble() ?? 0;
-        final sleep = (d['sleepHours'] as num?)?.toDouble() ?? 0;
+        final sleep = (d['sleep_hours'] as num?)?.toDouble() ?? 0;
         if (steps > 0 || sleep > 0) validDays++;
         totalSteps += steps;
         totalSleep += sleep;
@@ -142,21 +148,13 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
         });
       }
 
-      final history = await FirebaseFirestore.instance
-          .collection('users').doc(u.uid)
-          .collection('risk_history')
-          .orderBy('timestamp', descending: true).limit(1).get();
-
-      if (history.docs.isNotEmpty && mounted) {
-        final riskScore = history.docs.first.data()['score'] as num?;
-        if (riskScore != null) {
-          setState(() => _healthScore = (100 - riskScore.toInt()).toString());
-        }
+      // Son senkronizasyon saatini al
+      final todayEntry = await HealthService.getTodayEntry();
+      if (mounted) {
+        setState(() => _lastSyncTime = todayEntry?.date);
       }
     } catch (_) {}
   }
-
-  // ── BMI Hesaplama (BmiUtils'e delege) ────────────────────────────
 
   double get _bmi => BmiUtils.calculate(_height, _userWeight);
   String get _bmiCategory => BmiUtils.category(_bmi, _age);
@@ -164,16 +162,14 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
 
   double get _completionRate {
     double score = 0;
-    if (_fullName.isNotEmpty && _fullName != 'Kullanıcı' && _fullName != 'Guest') score += 0.2;
+    if (_fullName.isNotEmpty) score += 0.2;
     if (_age > 0) score += 0.2;
     if (_height > 0) score += 0.2;
     if (_userWeight > 0) score += 0.2;
-    if (_gender.isNotEmpty) score += 0.1;
-    if (_bio.isNotEmpty) score += 0.1;
-    return score;
+    if (_bloodType.isNotEmpty) score += 0.1;
+    if (_emergencyContact.isNotEmpty) score += 0.1;
+    return score.clamp(0.0, 1.0);
   }
-
-  // ── Actions ──────────────────────────────────────────────────────
 
   void _showEditProfileSheet() {
     EditProfileSheet(
@@ -207,42 +203,56 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     try {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
       if (image != null) {
-        // Normalde Firebase Storage'a yüklenir. Mock olarak URL atıyoruz veya local dosya gösteriyoruz.
-        setState(() {
-          _photoUrl = image.path; // ImageUtils local file okuyabiliyorsa çalışır, aksi halde placeholder
-        });
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil fotoğrafı güncellendi!')));
+        setState(() => _photoUrl = image.path);
       }
     } catch (e) {
       debugPrint('Fotoğraf seçme hatası: $e');
     }
   }
 
-  Future<void> _deleteAccount() async {
-    ProfileDialogs.showDeleteAccount(context, () async {
-      setState(() => _loading = true);
-      final result = await AuthService.deleteAccount();
-      if (!mounted) return;
-      setState(() => _loading = false);
+  void _showEmergencyEditDialog() {
+    final bloodController = TextEditingController(text: _bloodType);
+    final allergyController = TextEditingController(text: _allergies);
+    final contactController = TextEditingController(text: _emergencyContact);
 
-      if (result.isSuccess) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Hesabınız başarıyla silindi.')),
-        );
-        // Kullanıcıyı giriş ekranına yönlendir
-        context.go('/login');
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.errorMessage!), backgroundColor: AppColors.destructive),
-        );
-      }
-    });
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Dijital Sağlık Kartı'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: bloodController, decoration: const InputDecoration(labelText: 'Kan Grubu (Örn: A Rh+)')),
+            TextField(controller: allergyController, decoration: const InputDecoration(labelText: 'Alerjiler')),
+            TextField(controller: contactController, decoration: const InputDecoration(labelText: 'Acil Durum Kişisi & No')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
+          ElevatedButton(
+            onPressed: () async {
+              final uid = FirebaseAuth.instance.currentUser?.uid;
+              if (uid != null) {
+                await FirebaseFirestore.instance.collection('users').doc(uid).update({
+                  'bloodType': bloodController.text,
+                  'allergies': allergyController.text,
+                  'emergencyContact': contactController.text,
+                });
+                if (!mounted) return;
+                setState(() {
+                  _bloodType = bloodController.text;
+                  _allergies = allergyController.text;
+                  _emergencyContact = contactController.text;
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
   }
-
-  // ── UI Build ─────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -262,6 +272,15 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           healthScore: _healthScore,
                           activeDays: _activeDays,
                           dataPoints: _dataPoints,
+                        ),
+                        const SizedBox(height: 16),
+                        DeviceStatusCard(lastSync: _lastSyncTime),
+                        const SizedBox(height: 16),
+                        EmergencyCard(
+                          bloodType: _bloodType,
+                          allergies: _allergies,
+                          emergencyContact: _emergencyContact,
+                          onEdit: _showEmergencyEditDialog,
                         ),
                         if (_completionRate < 1.0) ...[
                           const SizedBox(height: 16),
@@ -303,14 +322,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                         ),
                         const SizedBox(height: 24),
                         const SignOutButton(),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: _deleteAccount,
-                          child: const Text(
-                            'Hesabımı Kalıcı Olarak Sil',
-                            style: TextStyle(color: AppColors.destructive, fontSize: 13, fontWeight: FontWeight.w500),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -321,9 +332,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   }
 
   List<GoalItem> _buildGoalItems() {
-    final weightProgress = _targetWeight > 0
-        ? (1 - ((_userWeight - _targetWeight).abs() / _userWeight)).clamp(0.0, 1.0)
-        : 0.0;
+    final weightProgress = _targetWeight > 0 ? (1 - ((_userWeight - _targetWeight).abs() / _userWeight)).clamp(0.0, 1.0) : 0.0;
     final stepsProgress = _targetSteps > 0 ? (_currentAvgSteps / _targetSteps).clamp(0.0, 1.0) : 0.0;
     final sleepProgress = _targetSleep > 0 ? (_currentAvgSleep / _targetSleep).clamp(0.0, 1.0) : 0.0;
 
@@ -337,11 +346,8 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   Widget _buildSliverHeader(BuildContext context) {
     return SliverAppBar(
       expandedHeight: 200,
-      floating: false,
       pinned: true,
       backgroundColor: AppColors.primary,
-      elevation: 0,
-      automaticallyImplyLeading: false,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: const BoxDecoration(
@@ -351,97 +357,32 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
             ),
           ),
           child: SafeArea(
-            bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Profilim', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      GestureDetector(
-                        onTap: _showEditProfileSheet,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.edit_outlined, color: Colors.white, size: 20),
-                        ),
-                      ),
+                      IconButton(onPressed: _showEditProfileSheet, icon: const Icon(Icons.edit_outlined, color: Colors.white)),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
-                        ),
-                        child: GestureDetector(
-                          onTap: _pickProfilePhoto,
-                          child: Stack(
-                            alignment: Alignment.bottomRight,
-                            children: [
-                              CircleAvatar(
-                                radius: 32,
-                                backgroundImage: ImageUtils.getPhotoProvider(_photoUrl),
-                                backgroundColor: Colors.white.withValues(alpha: 0.1),
-                                child: _photoUrl.isEmpty ? const Icon(Icons.person, color: Colors.white, size: 32) : null,
-                              ),
-                              Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.accent,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
-                              ),
-                            ],
-                          ),
-                        ),
+                      CircleAvatar(
+                        radius: 32,
+                        backgroundImage: ImageUtils.getPhotoProvider(_photoUrl),
+                        child: _photoUrl.isEmpty ? const Icon(Icons.person, color: Colors.white, size: 32) : null,
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              _fullName.isNotEmpty ? _fullName : 'İsimsiz Kullanıcı',
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 2),
+                            Text(_fullName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                             Text(_email, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
-                            if (_bio.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                _bio,
-                                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.accent.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.calendar_today, color: AppColors.accent, size: 10),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'AKSA ile ${_activeDays == "0" ? "İlk Gününüz" : "$_activeDays. Gün"}',
-                                    style: const TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -452,8 +393,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
             ),
           ),
         ),
-        titlePadding: const EdgeInsets.only(left: 24, bottom: 16),
-        title: const SizedBox.shrink(),
       ),
     );
   }
@@ -472,37 +411,12 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.stars_rounded, color: AppColors.accent, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Profil Tamamlama',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary.withValues(alpha: 0.8)),
-                  ),
-                ],
-              ),
-              Text(
-                '%$pct',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
-              ),
+              const Text('Profil Tamamlama', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+              Text('%$pct', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
             ],
           ),
           const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: _completionRate,
-              minHeight: 8,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Profilinizi tamamlayarak daha doğru sağlık analizleri alabilirsiniz.',
-            style: TextStyle(fontSize: 11, color: AppColors.mutedForeground),
-          ),
+          LinearProgressIndicator(value: _completionRate, backgroundColor: AppColors.primary.withValues(alpha: 0.1), valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary)),
         ],
       ),
     );

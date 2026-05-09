@@ -384,6 +384,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       child: HealthGaugeCard(
                         riskResult: _riskResult,
                         factorSummary: _topFactorSummary(),
+                        scoreTrend: _calculateTrend(), // Trend hesaplaması eklendi
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -668,6 +669,65 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  double? _calculateTrend() {
+    if (_riskResult == null || _weeklyData.isEmpty || _weeklyData.every((e) => e == 0)) return null;
+    // Bugünün skoru ile dünkü (veya son geçerli) skoru karşılaştır
+    final current = _riskResult!.score;
+    final last = _weeklyData.firstWhere((e) => e > 0, orElse: () => current);
+    if (last == 0) return 0;
+    return (last - current); // Risk skoru azalıyorsa iyileşme vardır (ters mantık)
+  }
+
+  Widget _buildHeaderAction({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool isLoading = false,
+    bool hasBadge = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (isLoading)
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            else
+              Icon(icon, color: Colors.white, size: 24),
+            if (hasBadge)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.primary, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

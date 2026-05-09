@@ -312,6 +312,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         const SizedBox(height: 4),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min, // Sadece içeriği kadar yer kaplasın
           children: [
             _stepperButton(
               icon: Icons.remove,
@@ -320,9 +321,9 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
                 onChanged((val - 1).clamp(min, max));
               } : null,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8), // 12 -> 8
             Text(val.toInt().toString(), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8), // 12 -> 8
             _stepperButton(
               icon: Icons.add,
               onTap: val < max ? () {
