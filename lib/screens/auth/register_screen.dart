@@ -22,6 +22,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -179,9 +185,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 6),
-                const Text('En az 6 karakter olmalıdır',
-                    style: TextStyle(
-                        fontSize: 12, color: AppColors.mutedForeground)),
+                _buildPasswordStrength(),
                 const SizedBox(height: 16),
 
                 // Koşullar
@@ -299,6 +303,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 fontWeight: FontWeight.bold,
                 fontSize: 14)),
       ),
+    );
+  }
+
+  Widget _buildPasswordStrength() {
+    final pwd = _passwordController.text;
+    int strength = 0;
+    if (pwd.length >= 6) strength++;
+    if (pwd.length >= 10) strength++;
+    if (RegExp(r'[A-Z]').hasMatch(pwd)) strength++;
+    if (RegExp(r'[0-9]').hasMatch(pwd)) strength++;
+    if (RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(pwd)) strength++;
+
+    final labels = ['', 'Çok Zayıf', 'Zayıf', 'Orta', 'Güçlü', 'Çok Güçlü'];
+    final colors = [AppColors.border, AppColors.destructive, AppColors.accent, AppColors.stressYellow, AppColors.secondary, AppColors.secondary];
+    final label = pwd.isEmpty ? '' : labels[strength.clamp(0, 5)];
+    final color = colors[strength.clamp(0, 5)];
+    final progress = pwd.isEmpty ? 0.0 : (strength / 5.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 5,
+            backgroundColor: AppColors.border,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+        if (label.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Şifre gücü: $label',
+            style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500),
+          ),
+        ] else ...[
+          const SizedBox(height: 4),
+          const Text('En az 6 karakter olmalıdır', style: TextStyle(fontSize: 11, color: AppColors.mutedForeground)),
+        ],
+      ],
     );
   }
 }

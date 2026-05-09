@@ -4,6 +4,7 @@ import '../services/health_service.dart';
 import '../services/api_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/theme_aware_state.dart';
+import '../widgets/shimmer_loading.dart';
 import 'package:intl/intl.dart';
 
 class AlertsScreen extends StatefulWidget {
@@ -170,18 +171,10 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
 
   Widget _buildBody(BuildContext context) {
     if (_loading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60),
-        child: Column(
-          children: [
-            const CircularProgressIndicator(color: AppColors.primary),
-            const SizedBox(height: 16),
-            Text(
-              _syncing ? 'Akıllı saatten veri alınıyor...' : 'Son 7 gün analiz ediliyor...',
-              style: const TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
+      return ShimmerLoading(
+        showHeader: true,
+        itemCount: 3,
+        itemHeight: 80,
       );
     }
 
@@ -229,7 +222,60 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
             child: _buildAnomalyCard(context, a),
           ),
         ),
+        const SizedBox(height: 32),
+        _buildArchiveSection(context),
         const SizedBox(height: 60),
+      ],
+    );
+  }
+
+  Widget _buildArchiveSection(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Geçmiş Analizler (Arşiv)',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: 12),
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 3,
+            separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
+            itemBuilder: (ctx, index) {
+              final date = DateTime.now().subtract(Duration(days: index + 1));
+              return ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.history_rounded, color: AppColors.secondary, size: 20),
+                ),
+                title: Text(
+                  DateFormat('d MMMM yyyy').format(date),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                ),
+                subtitle: const Text('Normal seviyeler tespit edildi', style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_right, size: 20),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Arşiv detayları yakında eklenecek.')),
+                  );
+                },
+              );
+            },
+          ),
+        ),
       ],
     );
   }

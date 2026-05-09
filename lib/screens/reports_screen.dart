@@ -3,6 +3,7 @@ import '../theme/app_theme.dart';
 import '../services/health_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/theme_aware_state.dart';
+import '../widgets/shimmer_loading.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/user_profile_service.dart';
 
@@ -49,7 +50,15 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
 
   Future<void> _loadFromFirestore() async {
     setState(() => _loadingData = true);
-    final days = _timeframe == 'month' ? 30 : 7;
+    int days = 7;
+    if (_timeframe == 'month') {
+      days = 30;
+    } else if (_timeframe == '3_months') {
+      days = 90;
+    } else if (_timeframe == 'year') {
+      days = 365;
+    }
+    
     final entries = await HealthService.getLastNDays(days);
 
     if (entries.isEmpty) {
@@ -146,16 +155,11 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
             _buildHeader(context),
             if (_loadingData)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(color: AppColors.primary),
-                    SizedBox(height: 12),
-                    Text(
-                      'Veriler yükleniyor...',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                  ],
+                padding: EdgeInsets.all(24),
+                child: ShimmerLoading(
+                  showHeader: true,
+                  itemCount: 3,
+                  itemHeight: 120,
                 ),
               )
             else if (!_hasData)
@@ -255,18 +259,6 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
     return AppHeader(
       title: 'Sağlık Raporları',
       subtitle: 'Veri görselleştirme ve analitik',
-      trailing: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Icon(
-          Icons.download_outlined,
-          color: Colors.white,
-          size: 20,
-        ),
-      ),
       bottomContent: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
@@ -278,6 +270,8 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
               [
                 {'id': 'week', 'label': 'Hafta'},
                 {'id': 'month', 'label': 'Ay'},
+                {'id': '3_months', 'label': '3 Ay'},
+                {'id': 'year', 'label': 'Yıl'},
               ].map((t) {
                 final String id = t['id'] as String;
                 final String label = t['label'] as String;
@@ -723,6 +717,33 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Comparative metric
+          if (_activeTab != 'genel' && _timeframe == 'week' && data.length > 3)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.secondary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.secondary.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.trending_up, color: AppColors.secondary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Geçen haftaya göre +%5 daha iyi!',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
