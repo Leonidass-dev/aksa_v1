@@ -26,6 +26,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
   );
   bool _loading = true;
   bool _hasData = false;
+  double? _previousScore;
 
   @override
   void initState() {
@@ -111,6 +112,14 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
           });
         }
       }
+
+      // Önceki skoru yükle (karşılaştırma için)
+      try {
+        final history = await ApiService.fetchRiskHistory(limit: 2);
+        if (history.length >= 2 && mounted) {
+          setState(() => _previousScore = history[1].score);
+        }
+      } catch (_) {}
     } catch (e) {
       debugPrint("RiskScoreScreen Hata: $e");
     } finally {
@@ -171,6 +180,31 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
                       _buildTopFactors(context),
                       const SizedBox(height: 16),
                       _buildRecommendations(context),
+                      const SizedBox(height: 16),
+                      // Tıbbi disclaimer
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.accent.withValues(alpha: 0.15)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.accent),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Bu skor tıbbi bir teşhis değildir. Sağlık sorunlarınız için mutlaka bir doktora danışın.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 80),
                   ],
@@ -201,7 +235,6 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
 
   Widget _buildScoreCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final score = _result.score.toInt();
     return Transform.translate(
       offset: const Offset(0, -40),
       child: Container(
@@ -226,36 +259,48 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  SizedBox(
-                    width: 180,
-                    height: 180,
-                    child: CircularProgressIndicator(
-                      value: _result.score / 100,
-                      strokeWidth: 12,
-                      backgroundColor: cs.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation<Color>(_levelColor),
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$score',
-                        style: TextStyle(
-                          fontSize: 56,
-                          fontWeight: FontWeight.bold,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                      Text(
-                        '/ 100',
-                        style: TextStyle(
-                          color: cs.onSurfaceVariant,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: _result.score / 100),
+                    duration: const Duration(milliseconds: 1500),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 180,
+                            height: 180,
+                            child: CircularProgressIndicator(
+                              value: value,
+                              strokeWidth: 12,
+                              backgroundColor: cs.surfaceContainerHighest,
+                              valueColor: AlwaysStoppedAnimation<Color>(_levelColor),
+                              strokeCap: StrokeCap.round,
+                            ),
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${(value * 100).toInt()}',
+                                style: TextStyle(
+                                  fontSize: 56,
+                                  fontWeight: FontWeight.bold,
+                                  color: cs.onSurface,
+                                ),
+                              ),
+                              Text(
+                                '/ 100',
+                                style: TextStyle(
+                                  color: cs.onSurfaceVariant,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -291,6 +336,40 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
               textAlign: TextAlign.center,
               style: TextStyle(color: cs.onSurface, fontSize: 13, height: 1.5),
             ),
+            // Önceki skor karşılaştırması
+            if (_previousScore != null) ...[
+              const SizedBox(height: 12),
+              Builder(builder: (_) {
+                final delta = _result.score - _previousScore!;
+                final isImproved = delta < 0; // Düşük risk = daha iyi
+                final absDelta = delta.abs().toStringAsFixed(0);
+                final color = isImproved ? AppColors.secondary : AppColors.destructive;
+                final icon = isImproved ? Icons.trending_down : Icons.trending_up;
+                final text = isImproved ? '$absDelta puan iyileşme' : '$absDelta puan artış';
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, color: color, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        text,
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+                      ),
+                      Text(
+                        ' (öncekine göre)',
+                        style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       ),
@@ -525,56 +604,95 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                factor.name,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: cs.onSurface,
-                ),
-              ),
-              Row(
+      child: InkWell(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder: (ctx) => Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    isPositive ? Icons.arrow_downward : Icons.arrow_upward,
-                    color: color,
-                    size: 14,
+                  Row(
+                    children: [
+                      Icon(isPositive ? Icons.check_circle : Icons.warning_amber_rounded, color: color),
+                      const SizedBox(width: 8),
+                      Text(factor.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
                   ),
-                  const SizedBox(width: 2),
-                  Text(
-                    '${isPositive ? "-" : "+"}${factor.contribution.abs().toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: color,
+                  const SizedBox(height: 16),
+                  Text(factor.description, style: TextStyle(color: cs.onSurfaceVariant, height: 1.5)),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Anladım'),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            factor.description,
-            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: barWidth,
-              minHeight: 5,
-              backgroundColor: cs.surfaceContainerHighest,
-              valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
-          ),
-        ],
+          );
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  factor.name,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: cs.onSurface,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Icon(
+                      isPositive ? Icons.arrow_downward : Icons.arrow_upward,
+                      color: color,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      '${isPositive ? "-" : "+"}${factor.contribution.abs().toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              factor.description,
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: barWidth,
+                minHeight: 5,
+                backgroundColor: cs.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

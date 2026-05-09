@@ -7,8 +7,9 @@ import 'package:go_router/go_router.dart';
 class ChatMessage {
   final String text;
   final bool isUser;
+  final DateTime timestamp;
 
-  ChatMessage({required this.text, required this.isUser});
+  ChatMessage({required this.text, required this.isUser, required this.timestamp});
 }
 
 class AssistantScreen extends StatefulWidget {
@@ -22,6 +23,16 @@ class _AssistantScreenState extends State<AssistantScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+  bool _hasUserMessages = false;
+
+  static const _quickQuestions = [
+    'Bugün ne yemeliyim?',
+    'Uykumu nasıl düzeltebilirim?',
+    'Stresimi nasıl azaltırım?',
+    'Günlük su ihtiyacım ne kadar?',
+    'Kilo vermek için öneriler',
+    'Tansiyonum yüksek, ne yapmalıyım?',
+  ];
 
   @override
   void initState() {
@@ -46,7 +57,11 @@ class _AssistantScreenState extends State<AssistantScreen> {
           for (final item in history.reversed) {
             _messages.insert(
               0,
-              ChatMessage(text: item.content, isUser: item.role == 'user'),
+              ChatMessage(
+                text: item.content, 
+                isUser: item.role == 'user',
+                timestamp: DateTime.tryParse(item.createdAt)?.toLocal() ?? DateTime.now(),
+              ),
             );
           }
         } else {
@@ -56,6 +71,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
               text:
                   "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
               isUser: false,
+              timestamp: DateTime.now(),
             ),
           );
         }
@@ -69,8 +85,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
     _controller.clear();
     setState(() {
-      _messages.insert(0, ChatMessage(text: text, isUser: true));
+      _messages.insert(0, ChatMessage(text: text, isUser: true, timestamp: DateTime.now()));
       _isLoading = true;
+      _hasUserMessages = true;
     });
 
     final res = await ApiService.sendAssistantMessage(text);
@@ -79,13 +96,14 @@ class _AssistantScreenState extends State<AssistantScreen> {
       setState(() {
         _isLoading = false;
         if (res != null) {
-          _messages.insert(0, ChatMessage(text: res.reply, isUser: false));
+          _messages.insert(0, ChatMessage(text: res.reply, isUser: false, timestamp: DateTime.now()));
         } else {
           _messages.insert(
             0,
             ChatMessage(
               text: "Bağlantı hatası oluştu. Lütfen tekrar deneyin.",
               isUser: false,
+              timestamp: DateTime.now(),
             ),
           );
         }
@@ -153,13 +171,44 @@ class _AssistantScreenState extends State<AssistantScreen> {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
+                    GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            title: const Text('Sohbeti Temizle'),
+                            content: const Text('Tüm mesajlar silinecek. Devam etmek istiyor musunuz?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  setState(() {
+                                    _messages.clear();
+                                    _hasUserMessages = false;
+                                    _messages.add(ChatMessage(
+                                      text: "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
+                                      isUser: false,
+                                      timestamp: DateTime.now(),
+                                    ));
+                                  });
+                                },
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.destructive),
+                                child: const Text('Temizle'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 20),
                       ),
-                      child: const Icon(Icons.auto_awesome, color: AppColors.secondary, size: 20),
                     ),
                   ],
                 ),
@@ -211,6 +260,72 @@ class _AssistantScreenState extends State<AssistantScreen> {
             ),
           ),
 
+          // ── Hızlı Soru Önerileri ──
+          if (!_hasUserMessages && !_isLoading)
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 8),
+                    child: Text(
+                      'Hızlı Sorular',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _quickQuestions.map((q) => GestureDetector(
+                      onTap: () {
+                        _controller.text = q;
+                        _sendMessage();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: Text(
+                          q,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    )).toList(),
+                  ),
+                ],
+              ),
+            ),
+
+          // ── Tıbbi Uyarı ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            color: AppColors.accent.withValues(alpha: 0.08),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 12, color: cs.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Bu bilgiler tıbbi tavsiye niteliği taşımaz. Sağlık sorunlarınız için doktorunuza danışın.',
+                    style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // ── Input Alanı ──
           Container(
             padding: EdgeInsets.only(
@@ -249,6 +364,19 @@ class _AssistantScreenState extends State<AssistantScreen> {
                         vertical: 12,
                       ),
                     ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.mic, color: AppColors.primary, size: 20),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sesli giriş yakında eklenecek')));
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -293,23 +421,36 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 : const Radius.circular(20),
           ),
         ),
-        child: MarkdownBody(
-          data: msg.text,
-          styleSheet: MarkdownStyleSheet(
-            p: TextStyle(
-              color: msg.isUser ? Colors.white : cs.onSurface,
-              fontSize: 15,
-              height: 1.4,
+        child: Column(
+          crossAxisAlignment: msg.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            MarkdownBody(
+              data: msg.text,
+              styleSheet: MarkdownStyleSheet(
+                p: TextStyle(
+                  color: msg.isUser ? Colors.white : cs.onSurface,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
+                strong: TextStyle(
+                  color: msg.isUser ? Colors.white : cs.onSurface,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+                listBullet: TextStyle(
+                  color: msg.isUser ? Colors.white : cs.onSurface,
+                ),
+              ),
             ),
-            strong: TextStyle(
-              color: msg.isUser ? Colors.white : cs.onSurface,
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
+            const SizedBox(height: 6),
+            Text(
+              '${msg.timestamp.hour.toString().padLeft(2, '0')}:${msg.timestamp.minute.toString().padLeft(2, '0')}',
+              style: TextStyle(
+                fontSize: 10,
+                color: msg.isUser ? Colors.white.withValues(alpha: 0.7) : cs.onSurfaceVariant,
+              ),
             ),
-            listBullet: TextStyle(
-              color: msg.isUser ? Colors.white : cs.onSurface,
-            ),
-          ),
+          ],
         ),
       ),
     );

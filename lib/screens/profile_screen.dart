@@ -7,6 +7,7 @@ import '../utils/image_utils.dart';
 import '../utils/bmi_utils.dart';
 import '../widgets/theme_aware_state.dart';
 import 'package:aksa_v1/services/auth_service.dart';
+import 'package:image_picker/image_picker.dart';
 import '../widgets/profile/quick_stats_card.dart';
 import '../widgets/profile/body_metrics_card.dart';
 import '../widgets/profile/health_goals_card.dart';
@@ -36,6 +37,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   double _height = 170.0;
   double _userWeight = 75.0;
   bool _loading = true;
+  final ImagePicker _picker = ImagePicker();
 
   double _targetWeight = 68;
   double _targetSteps = 10000;
@@ -201,6 +203,22 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     ).then((_) => _loadGoals());
   }
 
+  Future<void> _pickProfilePhoto() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      if (image != null) {
+        // Normalde Firebase Storage'a yüklenir. Mock olarak URL atıyoruz veya local dosya gösteriyoruz.
+        setState(() {
+          _photoUrl = image.path; // ImageUtils local file okuyabiliyorsa çalışır, aksi halde placeholder
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil fotoğrafı güncellendi!')));
+      }
+    } catch (e) {
+      debugPrint('Fotoğraf seçme hatası: $e');
+    }
+  }
+
   Future<void> _deleteAccount() async {
     ProfileDialogs.showDeleteAccount(context, () async {
       setState(() => _loading = true);
@@ -363,11 +381,27 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
                         ),
-                        child: CircleAvatar(
-                          radius: 32,
-                          backgroundImage: ImageUtils.getPhotoProvider(_photoUrl),
-                          backgroundColor: Colors.white.withValues(alpha: 0.1),
-                          child: _photoUrl.isEmpty ? const Icon(Icons.person, color: Colors.white, size: 32) : null,
+                        child: GestureDetector(
+                          onTap: _pickProfilePhoto,
+                          child: Stack(
+                            alignment: Alignment.bottomRight,
+                            children: [
+                              CircleAvatar(
+                                radius: 32,
+                                backgroundImage: ImageUtils.getPhotoProvider(_photoUrl),
+                                backgroundColor: Colors.white.withValues(alpha: 0.1),
+                                child: _photoUrl.isEmpty ? const Icon(Icons.person, color: Colors.white, size: 32) : null,
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.accent,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -389,6 +423,25 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
                               ),
                             ],
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today, color: AppColors.accent, size: 10),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'AKSA ile ${_activeDays == "0" ? "İlk Gününüz" : "$_activeDays. Gün"}',
+                                    style: const TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),

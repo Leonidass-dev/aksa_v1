@@ -7,7 +7,7 @@ import '../services/api_service.dart';
 import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/theme_aware_state.dart';
-import '../widgets/common_widgets.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'diet_plan_screen.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -91,6 +91,7 @@ class _NutritionScreenState extends State<NutritionScreen>
                   tags: List<String>.from(h.tags ?? []),
                 ),
                 dateTime: DateTime.parse(h.analyzedAt).toLocal(),
+                mealType: _getMealTypeFromTime(DateTime.parse(h.analyzedAt).toLocal()),
               )));
         });
       }
@@ -99,6 +100,12 @@ class _NutritionScreenState extends State<NutritionScreen>
     }
   }
 
+  String _getMealTypeFromTime(DateTime time) {
+    if (time.hour >= 6 && time.hour < 11) return 'Kahvaltı';
+    if (time.hour >= 11 && time.hour < 16) return 'Öğle Yemeği';
+    if (time.hour >= 16 && time.hour < 22) return 'Akşam Yemeği';
+    return 'Ara Öğün';
+  }
 
   int get _totalCalories {
     final now = DateTime.now();
@@ -134,6 +141,7 @@ class _NutritionScreenState extends State<NutritionScreen>
             image: File(xfile.path),
             result: result,
             dateTime: DateTime.now(),
+            mealType: _getMealTypeFromTime(DateTime.now()),
           ),
         );
       });
@@ -216,6 +224,7 @@ class _NutritionScreenState extends State<NutritionScreen>
                     image: null, // Manuel
                     result: manualResult,
                     dateTime: DateTime.now(),
+                    mealType: _getMealTypeFromTime(DateTime.now()),
                   ),
                 );
                 _analyzing = false;
@@ -317,48 +326,27 @@ class _NutritionScreenState extends State<NutritionScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: "diet_plan",
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DietPlanScreen()),
-              );
-            },
-            backgroundColor: AppColors.primary,
-            icon: const Icon(Icons.auto_awesome, color: Colors.white),
-            label: const Text(
-              'Bugün Ne Yemeliyim?',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: "add_meal",
+        onPressed: _analyzing ? null : _showImageSourceSheet,
+        backgroundColor: AppColors.secondary,
+        icon: _analyzing
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : const Icon(Icons.add_a_photo_outlined, color: Colors.white),
+        label: Text(
+          _analyzing ? 'Analiz ediliyor...' : 'Öğün Ekle',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(width: 12),
-          FloatingActionButton.extended(
-            heroTag: "add_meal",
-            onPressed: _analyzing ? null : _showImageSourceSheet,
-            backgroundColor: AppColors.secondary,
-            icon: _analyzing
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const Icon(Icons.add_a_photo_outlined, color: Colors.white),
-            label: Text(
-              _analyzing ? 'Analiz ediliyor...' : 'Öğün Ekle',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -384,6 +372,47 @@ class _NutritionScreenState extends State<NutritionScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: AppColors.secondary.withValues(alpha: 0.06),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.restaurant_menu_rounded, size: 56, color: AppColors.secondary.withValues(alpha: 0.4)),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Henüz Öğün Kaydı Yok',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Yediğiniz yemeği fotoğraflayın,\nyapay zeka kalori ve besin değerlerini hesaplasın.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, height: 1.5),
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton.icon(
+          onPressed: _showImageSourceSheet,
+          icon: const Icon(Icons.camera_alt_rounded, size: 20),
+          label: const Text('Yemeğinizi Fotoğraflayın'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.secondary,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 52),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
     );
   }
 
@@ -441,6 +470,32 @@ class _NutritionScreenState extends State<NutritionScreen>
                           style: TextStyle(color: Colors.white70, fontSize: 13),
                         ),
                       ],
+                    ),
+                  ),
+                  // Bugün Ne Yemeliyim Butonu buraya taşındı
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => DietPlanScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+                          SizedBox(width: 6),
+                          Text(
+                            'Ne Yemeliyim?',
+                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -575,11 +630,52 @@ class _NutritionScreenState extends State<NutritionScreen>
           const SizedBox(height: 16),
           Row(
             children: [
-              _MacroChip('Protein', totalProtein, 'g', AppColors.secondary),
-              const SizedBox(width: 8),
-              _MacroChip('Karb', totalCarbs, 'g', AppColors.primary),
-              const SizedBox(width: 8),
-              _MacroChip('Yağ', totalFat, 'g', AppColors.accent),
+              SizedBox(
+                width: 100,
+                height: 100,
+                child: PieChart(
+                  PieChartData(
+                    sectionsSpace: 0,
+                    centerSpaceRadius: 30,
+                    sections: [
+                      PieChartSectionData(
+                        color: AppColors.secondary,
+                        value: totalProtein > 0 ? totalProtein : 1,
+                        title: '',
+                        radius: 12,
+                      ),
+                      PieChartSectionData(
+                        color: AppColors.primary,
+                        value: totalCarbs > 0 ? totalCarbs : 1,
+                        title: '',
+                        radius: 12,
+                      ),
+                      PieChartSectionData(
+                        color: AppColors.accent,
+                        value: totalFat > 0 ? totalFat : 1,
+                        title: '',
+                        radius: 12,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        _MacroChip('Protein', totalProtein, 'g', AppColors.secondary),
+                        const SizedBox(width: 8),
+                        _MacroChip('Karb', totalCarbs, 'g', AppColors.primary),
+                        const SizedBox(width: 8),
+                        _MacroChip('Yağ', totalFat, 'g', AppColors.accent),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -587,14 +683,7 @@ class _NutritionScreenState extends State<NutritionScreen>
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    return AppEmptyState(
-      icon: Icons.add_a_photo_outlined,
-      color: AppColors.secondary,
-      title: 'Henüz öğün eklenmedi',
-      subtitle: 'Aşağıdaki butona basarak yemek fotoğrafı çek\nGemini AI besin değerlerini analiz etsin',
-    );
-  }
+
 
   Widget _buildMealCard(BuildContext context, _MealEntry meal) {
     final cs = Theme.of(context).colorScheme;
@@ -702,13 +791,27 @@ class _NutritionScreenState extends State<NutritionScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        r.foodName,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: cs.onSurface,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            meal.mealType,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            r.foodName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     Text(
@@ -908,10 +1011,12 @@ class _MealEntry {
   final File? image;
   final FoodAnalysisResult result;
   final DateTime dateTime;
+  final String mealType;
   const _MealEntry({
     this.image,
     required this.result,
     required this.dateTime,
+    required this.mealType,
   });
 
   int get calories => result.calories;

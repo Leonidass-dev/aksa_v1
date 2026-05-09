@@ -45,6 +45,7 @@ class DashboardMetricsGrid extends StatelessWidget {
           value: steps > 0 ? '${steps.toInt()}' : '--',
           sub: '/ ${AppConstants.defaultStepGoal}',
           progress: (steps / AppConstants.defaultStepGoal).clamp(0.0, 1.0),
+          isCircular: true,
         ),
         MetricTile(
           icon: Icons.favorite_rounded,
@@ -60,8 +61,11 @@ class DashboardMetricsGrid extends StatelessWidget {
           color: AppColors.primary,
           label: 'Oksijen',
           value: spo2 > 0 ? '%${spo2.toInt()}' : '--',
-          sub: spo2 > 95 ? 'Normal' : 'Düşük',
+          sub: spo2 > 0 ? (spo2 >= 95 ? 'Normal' : (spo2 >= 90 ? 'Dikkat' : 'Riskli')) : '',
           progress: (spo2 / 100).clamp(0.0, 1.0),
+          progressColor: spo2 > 0 
+            ? (spo2 >= 95 ? AppColors.secondary : (spo2 >= 90 ? AppColors.stressYellow : AppColors.destructive))
+            : null,
         ),
         MetricTile(
           icon: Icons.psychology_rounded,
@@ -118,6 +122,7 @@ class MetricTile extends StatelessWidget {
   final VoidCallback? onTap;
   final bool isStale;
   final String staleMessage;
+  final bool isCircular;
 
   const MetricTile({
     super.key,
@@ -131,6 +136,7 @@ class MetricTile extends StatelessWidget {
     this.onTap,
     this.isStale = false,
     this.staleMessage = '',
+    this.isCircular = false,
   });
 
   @override
@@ -138,10 +144,14 @@ class MetricTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final pColor = progressColor ?? color;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
+    return Semantics(
+      label: '$label: $value $sub',
+      hint: isStale ? staleMessage : '',
+      button: onTap != null,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: BorderRadius.circular(24),
@@ -202,7 +212,24 @@ class MetricTile extends StatelessWidget {
                           ),
                         ],
                       ),
-                      child: Icon(icon, color: color, size: 18),
+                      child: isCircular
+                          ? Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    value: progress,
+                                    strokeWidth: 3,
+                                    backgroundColor: color.withValues(alpha: 0.2),
+                                    valueColor: AlwaysStoppedAnimation<Color>(pColor),
+                                  ),
+                                ),
+                                Icon(icon, color: color, size: 14),
+                              ],
+                            )
+                          : Icon(icon, color: color, size: 18),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -250,45 +277,48 @@ class MetricTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                // Modern Pill Progress
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Stack(
-                      children: [
-                        Container(
-                          height: 6,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: cs.outlineVariant.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 1000),
-                          height: 6,
-                          width: constraints.maxWidth * progress.clamp(0.0, 1.0),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [pColor, pColor.withValues(alpha: 0.6)],
+                if (!isCircular) ...[
+                  const SizedBox(height: 12),
+                  // Modern Pill Progress
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Stack(
+                        children: [
+                          Container(
+                            height: 6,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: cs.outlineVariant.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(3),
                             ),
-                            borderRadius: BorderRadius.circular(3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: pColor.withValues(alpha: 0.3),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
                           ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 1000),
+                            height: 6,
+                            width: constraints.maxWidth * progress.clamp(0.0, 1.0),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [pColor, pColor.withValues(alpha: 0.6)],
+                              ),
+                              borderRadius: BorderRadius.circular(3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: pColor.withValues(alpha: 0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ],
+        ),
         ),
       ),
     );

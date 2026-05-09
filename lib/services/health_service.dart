@@ -280,7 +280,16 @@ class HealthServiceImpl implements IHealthService {
     final uid = _uid;
     if (uid == null) return null;
 
-    final dateKey = _dateKey(DateTime.now());
+    return getEntryByDate(DateTime.now());
+  }
+
+  // ── Belirli bir günün verisini oku ────────────────────────────
+  @override
+  Future<HealthEntry?> getEntryByDate(DateTime date) async {
+    final uid = _uid;
+    if (uid == null) return null;
+
+    final dateKey = _dateKey(date);
     final doc = await _db
         .collection('users')
         .doc(uid)
@@ -351,6 +360,7 @@ class HealthService {
   static Future<void> saveHealthEntry(HealthEntry entry) => _instance.saveHealthEntry(entry);
   static Future<bool> syncFromDevice({bool force = false}) => _instance.syncFromDevice(force: force);
   static Future<HealthEntry?> getTodayEntry() => _instance.getTodayEntry();
+  static Future<HealthEntry?> getEntryByDate(DateTime date) => _instance.getEntryByDate(date);
   static Future<List<HealthEntry>> getLastNDays(int n) => _instance.getLastNDays(n);
   static Future<void> updateWater(double ml) => _instance.updateWater(ml);
   static Future<void> updateMood(String mood) => _instance.updateMood(mood);

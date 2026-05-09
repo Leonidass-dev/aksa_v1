@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/shimmer_loading.dart';
 import '../widgets/theme_aware_state.dart';
 
 class ExerciseScreen extends StatefulWidget {
@@ -20,12 +23,59 @@ class _ExerciseScreenState extends State<ExerciseScreen>
   ExerciseApiResult? _apiResult;
   String? _errorMsg;
   int _completedToday = 0;
+  Set<String> _completedExercises = {};
+
+  // Egzersiz tipi → ikon haritası
+  static final _exerciseIconMap = <String, IconData>{
+    'kardiyo': Icons.directions_run,
+    'koşu': Icons.directions_run,
+    'yürüyüş': Icons.directions_walk,
+    'yoga': Icons.self_improvement,
+    'esneme': Icons.accessibility_new,
+    'bisiklet': Icons.pedal_bike,
+    'yüzme': Icons.pool,
+    'kuvvet': Icons.fitness_center,
+    'pilates': Icons.self_improvement,
+    'dans': Icons.music_note,
+    'meditasyon': Icons.spa,
+    'nefes': Icons.air,
+  };
+
+  IconData _getExerciseIcon(String type) {
+    final lowerType = type.toLowerCase();
+    for (final entry in _exerciseIconMap.entries) {
+      if (lowerType.contains(entry.key)) return entry.value;
+    }
+    return Icons.fitness_center;
+  }
 
 
   @override
   void initState() {
     super.initState();
+    _loadCompletedExercises();
     _loadExercisePlan();
+  }
+
+  Future<void> _loadCompletedExercises() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now();
+    final key = 'completed_exercises_${today.year}_${today.month}_${today.day}';
+    final saved = prefs.getStringList(key) ?? [];
+    if (mounted) {
+      setState(() {
+        _completedExercises = saved.toSet();
+        _completedToday = _completedExercises.length;
+      });
+    }
+  }
+
+  Future<void> _saveCompletedExercise(String exerciseTitle) async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now();
+    final key = 'completed_exercises_${today.year}_${today.month}_${today.day}';
+    _completedExercises.add(exerciseTitle);
+    await prefs.setStringList(key, _completedExercises.toList());
   }
 
   Future<void> _loadExercisePlan({bool force = false}) async {
@@ -119,19 +169,10 @@ class _ExerciseScreenState extends State<ExerciseScreen>
 
   Widget _buildBody(BuildContext context) {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 60),
-        child: Column(
-          children: [
-            CircularProgressIndicator(color: AppColors.primary),
-            SizedBox(height: 16),
-            Text(
-              'Yapay zeka size özel egzersiz planı hazırlıyor...',
-              style: TextStyle(fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+      return const ShimmerLoading(
+        showHeader: true,
+        itemCount: 3,
+        itemHeight: 160,
       );
     }
 
@@ -168,6 +209,10 @@ class _ExerciseScreenState extends State<ExerciseScreen>
     return Column(
       children: [
         _buildTodayStatusCard(context),
+        if (_completedExercises.isNotEmpty && _apiResult != null) ...[
+          const SizedBox(height: 12),
+          _buildPerformanceSummary(context),
+        ],
         const SizedBox(height: 20),
         if (_apiResult != null && _apiResult!.exercises.isNotEmpty)
           _buildExerciseList(context, _apiResult!.exercises)
@@ -248,6 +293,66 @@ class _ExerciseScreenState extends State<ExerciseScreen>
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerformanceSummary(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final exercises = _apiResult!.exercises;
+    int completedMins = 0;
+    int completedCals = 0;
+    for (final ex in exercises) {
+      if (_completedExercises.contains(ex.title)) {
+        completedMins += ex.durationMinutes;
+        completedCals += ex.calories;
+      }
+    }
+    final totalMins = _apiResult!.totalDurationMinutes;
+    final progress = totalMins > 0 ? (completedMins / totalMins).clamp(0.0, 1.0) : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.secondary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Bugünkü İlerleme', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+              Text(
+                '${(progress * 100).toInt()}%',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.secondary, fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: cs.surfaceContainerHighest,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.secondary),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(Icons.timer_outlined, size: 14, color: cs.onSurfaceVariant),
+              const SizedBox(width: 4),
+              Text('$completedMins / $totalMins dk', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              const Spacer(),
+              Icon(Icons.local_fire_department_outlined, size: 14, color: cs.onSurfaceVariant),
+              const SizedBox(width: 4),
+              Text('$completedCals kcal yakıldı', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ],
           ),
         ],
       ),
@@ -390,9 +495,11 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                           ),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(
-                          Icons.fitness_center,
-                          color: AppColors.primary,
+                        child: Icon(
+                          _getExerciseIcon(ex.type),
+                          color: _completedExercises.contains(ex.title)
+                              ? AppColors.secondary
+                              : AppColors.primary,
                           size: 26,
                         ),
                       ),
@@ -467,25 +574,45 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
-                    child: TextButton(
-                      onPressed: () => _showExerciseTimer(context, ex),
-                      style: TextButton.styleFrom(
-                        backgroundColor: AppColors.primary.withValues(
-                          alpha: 0.06,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                      child: const Text(
-                        'Egzersizi Başlat',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                    child: _completedExercises.contains(ex.title)
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.check_circle, color: AppColors.secondary, size: 18),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Tamamlandı ✅',
+                                  style: TextStyle(
+                                    color: AppColors.secondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : TextButton(
+                            onPressed: () => _showExerciseTimer(context, ex),
+                            style: TextButton.styleFrom(
+                              backgroundColor: AppColors.primary.withValues(alpha: 0.06),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            child: const Text(
+                              'Egzersizi Başlat',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -534,7 +661,12 @@ class _ExerciseScreenState extends State<ExerciseScreen>
       builder: (ctx) => _ExerciseTimerDialog(
         exercise: exercise,
         onComplete: () {
-          setState(() => _completedToday++);
+          HapticFeedback.mediumImpact();
+          _saveCompletedExercise(exercise.title);
+          setState(() {
+            _completedToday++;
+            _completedExercises.add(exercise.title);
+          });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
