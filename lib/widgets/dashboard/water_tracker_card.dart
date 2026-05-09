@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../widgets/common_widgets.dart';
 import '../water_wave_widget.dart';
 
@@ -21,6 +22,7 @@ class WaterTrackerCard extends StatelessWidget {
 
   void _addWithUndo(BuildContext context, double amount) {
     // 1. Hemen ekle (iyimser güncelleme)
+    HapticFeedback.lightImpact();
     onAddWater(amount);
     
     // 2. SnackBar ile Geri Al seçeneği sun

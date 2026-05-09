@@ -13,6 +13,7 @@ class DiscoverGrid extends StatelessWidget {
       _Shortcut(Icons.analytics_rounded, 'Raporlar', 'Haftalık analiz', Color(0xFF8B5CF6), '/app/reports'),
       _Shortcut(Icons.shield_rounded, 'Risk Detayı', 'Skor detayları', AppColors.primary, '/app/risk-score'),
       _Shortcut(Icons.notifications_active_rounded, 'Uyarılar', 'Sağlık alerts', AppColors.accent, '/app/alerts'),
+      _Shortcut(Icons.edit_note_rounded, 'Veri Girişi', 'Manuel kayıt', AppColors.secondary, '/app/data-entry'),
     ];
 
     return SizedBox(

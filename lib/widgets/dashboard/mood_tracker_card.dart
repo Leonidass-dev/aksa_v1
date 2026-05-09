@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -57,7 +58,10 @@ class MoodTrackerCard extends StatelessWidget {
             children: _moods.map((m) {
               final isSelected = currentMood == m['val'];
               return GestureDetector(
-                onTap: () => onMoodSelected(m['val']!),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onMoodSelected(m['val']!);
+                },
                 child: Column(
                   children: [
                     AnimatedContainer(

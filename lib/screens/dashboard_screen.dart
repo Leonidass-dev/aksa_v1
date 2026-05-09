@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,7 @@ import '../services/api_service.dart';
 import '../services/user_profile_service.dart';
 import '../constants/app_constants.dart';
 import '../widgets/theme_aware_state.dart';
+import '../widgets/shimmer_loading.dart';
 import '../widgets/dashboard/health_gauge_card.dart';
 import '../widgets/dashboard/metrics_grid.dart';
 import '../widgets/dashboard/water_tracker_card.dart';
@@ -35,6 +37,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   String _userName = 'Kullanıcı';
   double _waterTarget = 2000;
   bool _isSyncing = false;
+  bool _initialLoadDone = false;
+  DateTime? _lastSyncTime;
 
   // Bugünün Firestore'dan gelen verileri
   HealthEntry? _todayEntry;
@@ -139,6 +143,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     _isSyncing = true;
 
     try {
+      HapticFeedback.mediumImpact();
       await HealthService.syncFromDevice();
       if (mounted) await _loadTodayData();
     } catch (e) {
@@ -282,7 +287,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         debugPrint('Haftalık risk geçmişi hatası: $e');
       }
 
-      if (mounted) setState(() => _isSyncing = false);
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+          _initialLoadDone = true;
+          _lastSyncTime = DateTime.now();
+        });
+      }
     }
   }
 
@@ -332,13 +343,28 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.go('/app/data-entry'),
+        backgroundColor: AppColors.secondary,
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: const Text('Veri Ekle', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+      ),
       body: RefreshIndicator(
         onRefresh: _silentSyncAndLoad,
         color: AppColors.primary,
+        backgroundColor: Colors.white,
+        strokeWidth: 3,
+        displacement: 40,
+        edgeOffset: 20,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             _buildSliverHeader(context),
+            if (!_initialLoadDone && _isSyncing)
+              const SliverToBoxAdapter(child: DashboardShimmer())
+            else if (_initialLoadDone && _todayEntry == null && _isDataMissing)
+              SliverToBoxAdapter(child: _buildEmptyState(context))
+            else
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
@@ -353,36 +379,25 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                       const SizedBox(height: 16),
                     ],
-                    if (_isDataMissing) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Güncel sağlık verisi bulunamadı. Lütfen saatinizi senkronize edin.',
-                                style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
-                        ),
+                    GestureDetector(
+                      onTap: () => context.go('/app/risk-score'),
+                      child: HealthGaugeCard(
+                        riskResult: _riskResult,
+                        factorSummary: _topFactorSummary(),
                       ),
-                      const SizedBox(height: 16),
-                    ],
-                    HealthGaugeCard(
-                      riskResult: _riskResult,
-                      factorSummary: _topFactorSummary(),
                     ),
                     const SizedBox(height: 12),
+                    _buildDailySummaryCard(context),
+                    const SizedBox(height: 12),
                     _buildSectionTitle(context, 'Günlük Metrikler', Icons.insights_rounded),
-                    const SizedBox(height: 0), // Boşluk daraltıldı (M2 Feedback)
+                    if (_lastSyncTime != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 4),
+                        child: Text(
+                          'Son güncelleme: ${_relativeTime(_lastSyncTime!)}',
+                          style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
+                      ),
                     DashboardMetricsGrid(
                       todayEntry: _todayEntry,
                       onBPTap: () => BPEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
@@ -466,6 +481,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ),
                       ],
+                      if (_lastSyncTime != null) ...[
+                        const Spacer(),
+                        Icon(Icons.sync, color: Colors.white.withValues(alpha: 0.5), size: 10),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${_lastSyncTime!.hour.toString().padLeft(2, '0')}:${_lastSyncTime!.minute.toString().padLeft(2, '0')}',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10),
+                        ),
+                      ],
                     ],
                   ),
                   Text(
@@ -518,6 +542,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildSectionTitle(BuildContext context, String title, IconData icon) {
     return Row(
       children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 6),
         Text(
           title,
           style: const TextStyle(
@@ -535,5 +561,122 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       ],
     );
+  }
+
+  Widget _buildDailySummaryCard(BuildContext context) {
+    if (_todayEntry == null) return const SizedBox.shrink();
+    
+    final steps = _todayEntry!.steps;
+    final sleep = _todayEntry!.sleepHours;
+    
+    String message = "Bugün hareketlisiniz, harika!";
+    if (steps < 4000) {
+      message = "Bugün biraz hareketsiz kaldınız, kısa bir yürüyüş iyi gelebilir.";
+    } else if (steps > 8000 && sleep >= 7) {
+      message = "Harika bir gün! Hem aktifsiniz hem de uykunuzu almışsınız.";
+    } else if (sleep > 0 && sleep < 5) {
+      message = "Dün gece az uyumuşsunuz, bugün kendinizi yormamaya çalışın.";
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 40, 20, 100),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.monitor_heart_outlined, size: 72, color: AppColors.primary.withValues(alpha: 0.4)),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Henüz Sağlık Verisi Yok',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: cs.onSurface),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Akıllı saatinizi bağlayarak otomatik veri çekebilir veya manuel olarak sağlık verilerinizi girebilirsiniz.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant, height: 1.5),
+          ),
+          const SizedBox(height: 32),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _handleManualSync,
+                  icon: const Icon(Icons.watch_rounded, size: 18),
+                  label: const Text('Saati Bağla'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 48),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go('/app/data-entry'),
+                  icon: const Icon(Icons.edit_note_rounded, size: 18),
+                  label: const Text('Manuel Giriş'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    side: const BorderSide(color: AppColors.primary),
+                    foregroundColor: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _relativeTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'Az önce';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} dk önce';
+    if (diff.inHours < 24) return '${diff.inHours} saat önce';
+    return '${diff.inDays} gün önce';
   }
 }
