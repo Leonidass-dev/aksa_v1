@@ -508,20 +508,24 @@ class _ExerciseScreenState extends State<ExerciseScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              ex.title,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                            Text(
-                              ex.type,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
+                             Text(
+                               ex.type.toUpperCase(),
+                               style: TextStyle(
+                                 fontSize: 10,
+                                 fontWeight: FontWeight.w900,
+                                 letterSpacing: 0.5,
+                                 color: cs.primary.withValues(alpha: 0.7),
+                               ),
+                             ),
+                             const SizedBox(height: 2),
+                             Text(
+                               ex.title,
+                               style: TextStyle(
+                                 fontWeight: FontWeight.bold,
+                                 fontSize: 16,
+                                 color: cs.onSurface,
+                               ),
+                             ),
                             const SizedBox(height: 4),
                             Row(
                               children: [

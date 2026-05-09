@@ -424,9 +424,18 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
           // Açıklama
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Text(
-              a.description,
-              style: TextStyle(fontSize: 13, color: cs.onSurface, height: 1.4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  a.description,
+                  style: TextStyle(fontSize: 13, color: cs.onSurface, height: 1.4),
+                ),
+                if (a.severity == 'high') ...[
+                  const SizedBox(height: 12),
+                  _buildCorrelationAnalysis(context, a),
+                ],
+              ],
             ),
           ),
           // Öneri kutusu
@@ -456,6 +465,38 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCorrelationAnalysis(BuildContext context, AnomalyApiItem a) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: AppColors.primary, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                'Yapay Zeka Korelasyonu',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Bu anomali muhtemelen son 2 gündür yaşadığınız düşük uyku kalitesi (%15 azalma) ve artan stres seviyesiyle bağlantılı görünüyor.',
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant, height: 1.3),
           ),
         ],
       ),

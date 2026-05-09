@@ -7,8 +7,8 @@ import '../services/api_service.dart';
 import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/theme_aware_state.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'diet_plan_screen.dart';
+import '../widgets/nutrition/macro_nutrients_ring.dart';
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -605,81 +605,12 @@ class _NutritionScreenState extends State<NutritionScreen>
     );
   }
 
-  Widget _buildCalorieSummary(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final now = DateTime.now();
-    final todayMeals = _meals.where((m) =>
-        m.dateTime.year == now.year &&
-        m.dateTime.month == now.month &&
-        m.dateTime.day == now.day);
-
-    final totalProtein = todayMeals.fold(0.0, (s, m) => s + m.result.proteinG);
-    final totalCarbs = todayMeals.fold(0.0, (s, m) => s + m.result.carbsG);
-    final totalFat = todayMeals.fold(0.0, (s, m) => s + m.result.fatG);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Bugünkü Makrolar',
-            style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: PieChart(
-                  PieChartData(
-                    sectionsSpace: 0,
-                    centerSpaceRadius: 30,
-                    sections: [
-                      PieChartSectionData(
-                        color: AppColors.secondary,
-                        value: totalProtein > 0 ? totalProtein : 1,
-                        title: '',
-                        radius: 12,
-                      ),
-                      PieChartSectionData(
-                        color: AppColors.primary,
-                        value: totalCarbs > 0 ? totalCarbs : 1,
-                        title: '',
-                        radius: 12,
-                      ),
-                      PieChartSectionData(
-                        color: AppColors.accent,
-                        value: totalFat > 0 ? totalFat : 1,
-                        title: '',
-                        radius: 12,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        _MacroChip('Protein', totalProtein, 'g', AppColors.secondary),
-                        const SizedBox(width: 8),
-                        _MacroChip('Karb', totalCarbs, 'g', AppColors.primary),
-                        const SizedBox(width: 8),
-                        _MacroChip('Yağ', totalFat, 'g', AppColors.accent),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return MacroNutrientsRing(
+      protein: totalProtein,
+      carbs: totalCarbs,
+      fat: totalFat,
+      totalCalories: _totalCalories.toDouble(),
+      targetCalories: _calorieGoal.toDouble(),
     );
   }
 
