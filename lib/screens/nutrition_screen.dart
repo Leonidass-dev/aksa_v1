@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/theme_aware_state.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'diet_plan_screen.dart';
 import '../widgets/nutrition/macro_nutrients_ring.dart';
 
@@ -72,7 +73,7 @@ class _NutritionScreenState extends State<NutritionScreen>
 
     // Geçmiş öğünleri backend'den yükle
     try {
-      final history = await ApiService.fetchMealHistory(limit: 10);
+      final history = await ApiService.fetchMealHistory(limit: 50);
       if (mounted && history.isNotEmpty) {
         setState(() {
           _meals.clear();
@@ -604,6 +605,18 @@ class _NutritionScreenState extends State<NutritionScreen>
       ),
     );
   }
+
+  Widget _buildCalorieSummary(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    final todayMeals = _meals.where((m) =>
+        m.dateTime.year == now.year &&
+        m.dateTime.month == now.month &&
+        m.dateTime.day == now.day);
+
+    final totalProtein = todayMeals.fold(0.0, (s, m) => s + m.result.proteinG);
+    final totalCarbs = todayMeals.fold(0.0, (s, m) => s + m.result.carbsG);
+    final totalFat = todayMeals.fold(0.0, (s, m) => s + m.result.fatG);
 
     return MacroNutrientsRing(
       protein: totalProtein,

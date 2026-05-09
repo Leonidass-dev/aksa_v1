@@ -12,7 +12,7 @@ import '../services/user_profile_service.dart';
 import '../constants/app_constants.dart';
 import '../widgets/theme_aware_state.dart';
 import '../widgets/shimmer_loading.dart';
-import '../widgets/dashboard/health_gauge_card.dart';
+import '../widgets/common_widgets.dart';
 import '../widgets/dashboard/metrics_grid.dart';
 import '../widgets/dashboard/water_tracker_card.dart';
 import '../widgets/dashboard/mood_tracker_card.dart';
@@ -325,6 +325,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  String _calculateTrend() {
+    if (_weeklyData.length < 2) return 'Stabil';
+    final today = _weeklyData.last;
+    final yesterday = _weeklyData[_weeklyData.length - 2];
+    
+    if (today > yesterday + 5) return 'Artıyor';
+    if (today < yesterday - 5) return 'Azalıyor';
+    return 'Stabil';
+  }
+
   String _topFactorSummary() {
     final risk = _riskResult;
     if (risk == null) return 'Veri bekleniyor...';
@@ -379,14 +389,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                       const SizedBox(height: 16),
                     ],
-                    GestureDetector(
-                      onTap: () => context.go('/app/risk-score'),
-                      child: HealthGaugeCard(
-                        riskResult: _riskResult,
-                        factorSummary: _topFactorSummary(),
-                        scoreTrend: _calculateTrend(), // Trend hesaplaması eklendi
-                      ),
-                    ),
+                    _buildWellnessSummary(context),
                     const SizedBox(height: 12),
                     _buildDailySummaryCard(context),
                     const SizedBox(height: 12),
@@ -480,15 +483,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                             color: _riskResult!.level.color,
                             shape: BoxShape.circle,
                           ),
-                        ),
-                      ],
-                      if (_lastSyncTime != null) ...[
-                        const Spacer(),
-                        Icon(Icons.sync, color: Colors.white.withValues(alpha: 0.5), size: 10),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${_lastSyncTime!.hour.toString().padLeft(2, '0')}:${_lastSyncTime!.minute.toString().padLeft(2, '0')}',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10),
                         ),
                       ],
                     ],
@@ -673,15 +667,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  double? _calculateTrend() {
-    if (_riskResult == null || _weeklyData.isEmpty || _weeklyData.every((e) => e == 0)) return null;
-    // Bugünün skoru ile dünkü (veya son geçerli) skoru karşılaştır
-    final current = _riskResult!.score;
-    final last = _weeklyData.firstWhere((e) => e > 0, orElse: () => current);
-    if (last == 0) return 0;
-    return (last - current); // Risk skoru azalıyorsa iyileşme vardır (ters mantık)
-  }
-
   Widget _buildHeaderAction({
     required IconData icon,
     required VoidCallback onTap,
@@ -732,6 +717,148 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _buildWellnessSummary(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final risk = _riskResult;
+    final score = risk?.score.round() ?? 0;
+    final color = risk?.level.color ?? AppColors.secondary;
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: () => context.go('/app/risk-score'),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                color.withValues(alpha: 0.1),
+                color.withValues(alpha: 0.02),
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              // Skor Halkası
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 70,
+                    height: 70,
+                    child: CircularProgressIndicator(
+                      value: score / 100,
+                      strokeWidth: 8,
+                      backgroundColor: color.withValues(alpha: 0.1),
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                      strokeCap: StrokeCap.round,
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$score',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      Text(
+                        'PUAN',
+                        style: TextStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(width: 20),
+              // Bilgi Bölümü
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Sağlık: ${risk?.level.label ?? "Hesaplanıyor"}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: cs.onSurface,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (_lastSyncTime != null)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Text(
+                              '${_lastSyncTime!.hour}:${_lastSyncTime!.minute.toString().padLeft(2, '0')}',
+                              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _topFactorSummary(),
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _calculateTrend() == 'Artıyor' 
+                                ? Icons.trending_up_rounded 
+                                : _calculateTrend() == 'Azalıyor'
+                                    ? Icons.trending_down_rounded
+                                    : Icons.trending_flat_rounded, 
+                            size: 14, 
+                            color: color,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Risk seviyeniz ${_calculateTrend().toLowerCase()}.',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: color,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _relativeTime(DateTime time) {
     final diff = DateTime.now().difference(time);
     if (diff.inMinutes < 1) return 'Az önce';
@@ -740,3 +867,4 @@ class _DashboardScreenState extends State<DashboardScreen>
     return '${diff.inDays} gün önce';
   }
 }
+

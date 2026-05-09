@@ -433,7 +433,7 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
                 ),
                 if (a.severity == 'high') ...[
                   const SizedBox(height: 12),
-                  _buildCorrelationAnalysis(context, a),
+                  _buildCorrelationAnalysis(context, _getCorrelationText(a)),
                 ],
               ],
             ),
@@ -471,7 +471,7 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
     );
   }
 
-  Widget _buildCorrelationAnalysis(BuildContext context, AnomalyApiItem a) {
+  Widget _buildCorrelationAnalysis(BuildContext context, String text) {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
@@ -495,12 +495,26 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
           ),
           const SizedBox(height: 6),
           Text(
-            'Bu anomali muhtemelen son 2 gündür yaşadığınız düşük uyku kalitesi (%15 azalma) ve artan stres seviyesiyle bağlantılı görünüyor.',
+            text,
             style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant, height: 1.3),
           ),
         ],
       ),
     );
+  }
+
+  String _getCorrelationText(AnomalyApiItem a) {
+    final metric = a.metric.toLowerCase();
+    if (metric.contains('heart') || metric.contains('pulse')) {
+      return 'Bu nabız artışı muhtemelen son 2 gündür yaşadığınız düşük uyku kalitesi veya artan stres seviyesiyle bağlantılı olabilir.';
+    } else if (metric.contains('step') || metric.contains('active')) {
+      return 'Düşük hareketlilik, son dönemdeki düzensiz uyku rutininiz ve düşük enerji seviyelerinizle paralellik gösteriyor.';
+    } else if (metric.contains('sleep')) {
+      return 'Uyku kalitesindeki düşüş, artan fiziksel aktivite veya geç saatteki besin tüketimiyle ilişkili olabilir.';
+    } else if (metric.contains('pressure') || metric.contains('systolic')) {
+      return 'Tansiyon değerlerindeki dalgalanma, tuz tüketimi veya yetersiz su alımıyla birleşen stres faktörlerinden kaynaklanıyor olabilir.';
+    }
+    return 'Bu anomali, diğer sağlık metriklerinizdeki küçük sapmalarla korelasyon gösteriyor. Dengeli bir rutin önerilir.';
   }
 }
 
