@@ -4,6 +4,7 @@ SQLAlchemy Async Engine + Session Factory
 """
 
 import os
+import asyncio
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
@@ -19,7 +20,7 @@ DATABASE_URL = os.getenv(
 # SQLAlchemy'nin async çalışabilmesi için "postgresql+asyncpg://" olmalıdır.
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
-elif DATABASE_URL.startswith("postgresql://"):
+elif DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 
@@ -67,11 +68,30 @@ async def get_db():
 
 
 async def init_db():
-    """Uygulama başlarken tabloları oluşturur."""
-    async with engine.begin() as conn:
-        from db_models import (
-            User, HealthRecord, RiskScore,
-            MealRecord, ExercisePlan, ChatMessage,
-            UserMemory, DailyDietPlan,
-        )
-        await conn.run_sync(Base.metadata.create_all)
+    """Uygulama başlarken tabloları oluşturur. Timeout ve fallback mekanizması eklendi."""
+    from db_models import (
+        User, HealthRecord, RiskScore,
+        MealRecord, ExercisePlan, ChatMessage,
+        UserMemory, DailyDietPlan,
+    )
+    
+    print(f"[*] Veritabanı başlatılıyor: {DATABASE_URL}")
+    try:
+        # 10 saniye içinde bağlanamazsa hata fırlat (hang olmasını engelle)
+        async with asyncio.timeout(10):
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        print("[OK] Veritabanı tabloları hazır.")
+    except (asyncio.TimeoutError, Exception) as e:
+        print(f"[!] PostgreSQL bağlantı hatası veya zaman aşımı: {e}")
+        if "postgresql" in DATABASE_URL:
+            print("[*] SQLite fallback moduna geçiliyor (./aksa_fallback.db)...")
+            # Fallback engine oluştur
+            fallback_url = "sqlite+aiosqlite:///./aksa_fallback.db"
+            from sqlalchemy.ext.asyncio import create_async_engine as create_engine_fallback
+            fb_engine = create_engine_fallback(fallback_url)
+            async with fb_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            print("[OK] SQLite fallback veritabanı hazır.")
+        else:
+            raise e
