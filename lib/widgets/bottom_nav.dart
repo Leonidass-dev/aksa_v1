@@ -81,32 +81,37 @@ class BottomNav extends StatelessWidget {
               }
 
               return Expanded(
-                child: GestureDetector(
-                  onTap: () => context.go(item.path),
-                  behavior: HitTestBehavior.opaque,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        isActive ? item.activeIcon : item.icon,
-                        size: 22,
-                        color: isActive
-                            ? AppColors.primary
-                            : AppColors.mutedForeground.withValues(alpha: 0.6),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                child: Semantics(
+                  label: '${item.label} sekmesi',
+                  selected: isActive,
+                  button: true,
+                  child: GestureDetector(
+                    onTap: () => context.go(item.path),
+                    behavior: HitTestBehavior.opaque,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isActive ? item.activeIcon : item.icon,
+                          size: 22,
                           color: isActive
                               ? AppColors.primary
                               : AppColors.mutedForeground.withValues(alpha: 0.6),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 3),
+                        Text(
+                          item.label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                            color: isActive
+                                ? AppColors.primary
+                                : AppColors.mutedForeground.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

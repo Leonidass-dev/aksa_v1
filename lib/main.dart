@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart'; // flutterfire configure ile otomatik oluşur
 import 'theme/app_theme.dart';
 import 'theme/theme_notifier.dart';
+import 'screens/onboarding/onboarding_wrapper.dart';
 import 'screens/onboarding/onboarding1_screen.dart';
 import 'screens/onboarding/onboarding2_screen.dart';
 import 'screens/onboarding/onboarding3_screen.dart';
@@ -26,9 +28,14 @@ import 'widgets/bottom_nav.dart';
 import 'services/notification_service.dart';
 import 'services/background_service.dart';
 
+bool _onboardingCompleted = false;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  final prefs = await SharedPreferences.getInstance();
+  _onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
   
   try {
     // Bildirim Servisini Başlat
@@ -87,6 +94,11 @@ String? _authGuard(BuildContext context, GoRouterState state) {
   if (!isAuth && !publicRoutes.contains(loc)) {
     return '/login';
   }
+  
+  if (!isAuth && loc == '/' && _onboardingCompleted) {
+    return '/login';
+  }
+  
   if (isAuth && publicRoutes.contains(loc)) {
     return '/app/dashboard';
   }
@@ -98,19 +110,7 @@ final _router = GoRouter(
   redirect: _authGuard,
   refreshListenable: _AuthNotifier(),
   routes: [
-    GoRoute(path: '/', builder: (_, _) => const Onboarding1Screen()),
-    GoRoute(
-      path: '/onboarding-2',
-      builder: (_, _) => const Onboarding2Screen(),
-    ),
-    GoRoute(
-      path: '/onboarding-3',
-      builder: (_, _) => const Onboarding3Screen(),
-    ),
-    GoRoute(
-      path: '/onboarding-4',
-      builder: (_, _) => const Onboarding4Screen(),
-    ),
+    GoRoute(path: '/', builder: (_, _) => const OnboardingWrapper()),
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
     GoRoute(

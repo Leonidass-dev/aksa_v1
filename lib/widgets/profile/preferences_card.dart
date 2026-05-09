@@ -4,7 +4,7 @@ import '../../theme/theme_notifier.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Tercihler kartı — bildirim, dark mode ve gizlilik ayarları.
-class PreferencesCard extends StatelessWidget {
+class PreferencesCard extends StatefulWidget {
   final bool notifications;
   final ValueChanged<bool> onNotificationChanged;
   final VoidCallback onPrivacyTap;
@@ -15,6 +15,16 @@ class PreferencesCard extends StatelessWidget {
     required this.onNotificationChanged,
     required this.onPrivacyTap,
   });
+
+  @override
+  State<PreferencesCard> createState() => _PreferencesCardState();
+}
+
+class _PreferencesCardState extends State<PreferencesCard> {
+  bool _waterNotif = true;
+  bool _exerciseNotif = true;
+  bool _summaryNotif = false;
+  bool _useMetric = true;
 
   @override
   Widget build(BuildContext context) {
@@ -28,15 +38,46 @@ class PreferencesCard extends StatelessWidget {
           Text('Tercihler', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
           const SizedBox(height: 16),
           _toggleRow(context, Icons.notifications_outlined, AppColors.primary,
-              'Bildirimler', 'Anlık bildirimler ve uyarılar', notifications, onNotificationChanged),
+              'Bildirimler', 'Tüm anlık bildirimler', widget.notifications, widget.onNotificationChanged),
+          if (widget.notifications) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 48, top: 8),
+              child: Column(
+                children: [
+                  _subToggleRow(context, 'Su Hatırlatması', _waterNotif, (v) => setState(() => _waterNotif = v)),
+                  _subToggleRow(context, 'Egzersiz Hatırlatması', _exerciseNotif, (v) => setState(() => _exerciseNotif = v)),
+                  _subToggleRow(context, 'Günlük Özet', _summaryNotif, (v) => setState(() => _summaryNotif = v)),
+                ],
+              ),
+            ),
+          ],
           Divider(color: cs.outlineVariant, height: 24),
           _toggleRow(context, Icons.dark_mode_outlined, AppColors.accent,
               'Karanlık Mod', 'Karanlık temaya geç', isDark,
               (v) => themeNotifier.value = v ? ThemeMode.dark : ThemeMode.light),
           Divider(color: cs.outlineVariant, height: 24),
+          _toggleRow(context, Icons.straighten_outlined, AppColors.stepsIndigo,
+              'Ölçü Birimi', _useMetric ? 'Metrik (cm, kg)' : 'İmparatorluk (ft, lbs)', _useMetric,
+              (v) => setState(() => _useMetric = v)),
+          Divider(color: cs.outlineVariant, height: 24),
           _buildPrivacyRow(context),
         ],
       ),
+    );
+  }
+
+  Widget _subToggleRow(BuildContext context, String title, bool value, ValueChanged<bool> onChanged) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+        Switch(
+          value: value, 
+          onChanged: onChanged,
+          activeThumbColor: AppColors.primary,
+        ),
+      ],
     );
   }
 
@@ -68,7 +109,7 @@ class PreferencesCard extends StatelessWidget {
   Widget _buildPrivacyRow(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return InkWell(
-      onTap: onPrivacyTap,
+      onTap: widget.onPrivacyTap,
       borderRadius: BorderRadius.circular(8),
       child: Row(
         children: [
