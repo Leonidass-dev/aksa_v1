@@ -3,7 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 
 class Onboarding1Screen extends StatelessWidget {
-  const Onboarding1Screen({super.key});
+  final PageController? controller;
+  const Onboarding1Screen({super.key, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +82,16 @@ class Onboarding1Screen extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () => context.go('/onboarding-2'),
+                          onPressed: () {
+                            if (controller != null) {
+                              controller!.nextPage(
+                                duration: const Duration(milliseconds: 600),
+                                curve: Curves.easeInOutCubic,
+                              );
+                            } else {
+                              context.go('/onboarding-2');
+                            }
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: AppColors.primary,

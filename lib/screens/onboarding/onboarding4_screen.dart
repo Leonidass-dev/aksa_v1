@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Onboarding4Screen extends StatelessWidget {
-  const Onboarding4Screen({super.key});
+  final PageController? controller;
+  const Onboarding4Screen({super.key, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -99,17 +101,28 @@ class Onboarding4Screen extends StatelessWidget {
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => context.go('/register'),
-                        icon: const Icon(Icons.chevron_right),
-                        label: const Text('Hesap Oluştur'),
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setBool('onboarding_completed', true);
+                          if (context.mounted) {
+                            context.go('/register');
+                          }
+                        },
+                        child: const Text('Hesap Oluştur'),
                       ),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
-                        onPressed: () => context.go('/login'),
+                        onPressed: () async {
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setBool('onboarding_completed', true);
+                          if (context.mounted) {
+                            context.go('/login');
+                          }
+                        },
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 56),
                           shape: RoundedRectangleBorder(
