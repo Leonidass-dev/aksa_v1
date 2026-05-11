@@ -18,7 +18,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "llava")
 
 # URLs
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 import re
@@ -81,8 +81,8 @@ async def ask_vision(prompt: str, image_base64: str, json_mode: bool = True) -> 
     """
     Vision analysis with fallback logic.
     """
-    # Görsel analizde SADECE Gemini kullanıyoruz (en yüksek doğruluk için).
-    providers = ["gemini"]
+    # Kararlılık için Gemini 1.5 Flash birincil, Groq yedek olarak ayarlandı.
+    providers = ["gemini", "groq"]
     
     for provider in providers:
         try:
@@ -191,7 +191,7 @@ async def _call_gemini_vision(prompt: str, image_base64: str) -> Optional[str]:
 async def _call_groq_vision(prompt: str, image_base64: str, json_mode: bool) -> Optional[str]:
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
     payload = {
-        "model": "llama-3.2-11b-vision-preview",
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
         "messages": [{
             "role": "user",
             "content": [
@@ -205,9 +205,14 @@ async def _call_groq_vision(prompt: str, image_base64: str, json_mode: bool) -> 
         payload["response_format"] = {"type": "json_object"}
 
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(GROQ_URL, json=payload, headers=headers)
-        if resp.status_code == 200:
-            return resp.json()["choices"][0]["message"]["content"]
+        try:
+            resp = await client.post(GROQ_URL, json=payload, headers=headers)
+            if resp.status_code == 200:
+                return resp.json()["choices"][0]["message"]["content"]
+            else:
+                logger.error(f"Groq Vision API Hatası ({resp.status_code}): {resp.text}")
+        except Exception as e:
+            logger.error(f"Groq Vision Bağlantı Hatası: {e}")
     return None
 
 async def _call_ollama_vision(prompt: str, image_base64: str, json_mode: bool) -> Optional[str]:
