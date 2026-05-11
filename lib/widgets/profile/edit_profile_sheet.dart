@@ -4,14 +4,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/app_theme.dart';
 import '../../services/api_service.dart';
 
+enum EditMode { identity, metrics }
+
 /// Profil düzenleme bottom sheet'i.
 class EditProfileSheet extends StatelessWidget {
   final String fullName;
   final String bio;
   final int age;
   final String gender;
+  final String bloodType;
+  final String allergies;
+  final String emergencyContact;
   final double height;
   final double weight;
+  final EditMode mode;
   final ValueChanged<ProfileUpdateResult> onSaved;
 
   const EditProfileSheet({
@@ -20,9 +26,13 @@ class EditProfileSheet extends StatelessWidget {
     required this.bio,
     required this.age,
     required this.gender,
+    required this.bloodType,
+    required this.allergies,
+    required this.emergencyContact,
     required this.height,
     required this.weight,
     required this.onSaved,
+    this.mode = EditMode.identity,
   });
 
   void show(BuildContext context) {
@@ -35,9 +45,13 @@ class EditProfileSheet extends StatelessWidget {
         initialBio: bio,
         age: age,
         gender: gender,
+        bloodType: bloodType,
+        allergies: allergies,
+        emergencyContact: emergencyContact,
         height: height,
         weight: weight,
-        onSave: (name, bio, age, gender, height, weight) async {
+        mode: mode,
+        onSave: (name, bio, age, gender, bloodType, allergies, emergencyContact, height, weight) async {
           final u = FirebaseAuth.instance.currentUser;
           if (u == null) return;
           await u.updateDisplayName(name);
@@ -46,6 +60,9 @@ class EditProfileSheet extends StatelessWidget {
             'bio': bio,
             'age': age,
             'gender': gender,
+            'bloodType': bloodType,
+            'allergies': allergies,
+            'emergencyContact': emergencyContact,
             'height': height,
             'weight': weight,
           });
@@ -55,7 +72,9 @@ class EditProfileSheet extends StatelessWidget {
           );
 
           onSaved(ProfileUpdateResult(
-            name: name, bio: bio, age: age, gender: gender, height: height, weight: weight,
+            name: name, bio: bio, age: age, gender: gender, 
+            bloodType: bloodType, allergies: allergies, 
+            emergencyContact: emergencyContact, height: height, weight: weight,
           ));
         },
       ),
@@ -67,12 +86,14 @@ class EditProfileSheet extends StatelessWidget {
 }
 
 class ProfileUpdateResult {
-  final String name, bio, gender;
+  final String name, bio, gender, bloodType, allergies, emergencyContact;
   final int age;
   final double height, weight;
   const ProfileUpdateResult({
     required this.name, required this.bio, required this.age,
-    required this.gender, required this.height, required this.weight,
+    required this.gender, required this.bloodType, 
+    required this.allergies, required this.emergencyContact,
+    required this.height, required this.weight,
   });
 }
 
@@ -81,17 +102,25 @@ class _EditProfileContent extends StatefulWidget {
   final String initialBio;
   final int age;
   final String gender;
+  final String bloodType;
+  final String allergies;
+  final String emergencyContact;
   final double height;
   final double weight;
-  final Future<void> Function(String, String, int, String, double, double) onSave;
+  final EditMode mode;
+  final Future<void> Function(String, String, int, String, String, String, String, double, double) onSave;
 
   const _EditProfileContent({
     required this.initialName,
     required this.initialBio,
     required this.age,
     required this.gender,
+    required this.bloodType,
+    required this.allergies,
+    required this.emergencyContact,
     required this.height,
     required this.weight,
+    required this.mode,
     required this.onSave,
   });
 
@@ -106,6 +135,9 @@ class _EditProfileContentState extends State<_EditProfileContent> {
   late TextEditingController heightCtrl;
   late TextEditingController weightCtrl;
   late String selectedGender;
+  late String selectedBloodType;
+  late TextEditingController allergyCtrl;
+  late TextEditingController contactCtrl;
 
   @override
   void initState() {
@@ -116,6 +148,9 @@ class _EditProfileContentState extends State<_EditProfileContent> {
     heightCtrl = TextEditingController(text: widget.height.toString());
     weightCtrl = TextEditingController(text: widget.weight.toString());
     selectedGender = widget.gender;
+    selectedBloodType = widget.bloodType.isEmpty ? 'A Rh+' : widget.bloodType;
+    allergyCtrl = TextEditingController(text: widget.allergies);
+    contactCtrl = TextEditingController(text: widget.emergencyContact);
   }
 
   @override
@@ -150,82 +185,127 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('Profili Düzenle', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface)),
+              Text(
+                widget.mode == EditMode.identity ? 'Kimlik Bilgilerini Düzenle' : 'Vücut Metriklerini Düzenle', 
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface)
+              ),
               const SizedBox(height: 20),
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Ad Soyad',
-                  prefixIcon: const Icon(Icons.person_outline),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              if (widget.mode == EditMode.identity) ...[
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Ad Soyad',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: ageCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Yaş',
-                        prefixIcon: const Icon(Icons.cake_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: ageCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Yaş',
+                          prefixIcon: const Icon(Icons.cake_outlined),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: heightCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Boy (cm)',
-                        prefixIcon: const Icon(Icons.height),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: selectedGender,
+                        decoration: InputDecoration(
+                          labelText: 'Cinsiyet',
+                          prefixIcon: const Icon(Icons.wc),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'M', child: Text('Erkek')),
+                          DropdownMenuItem(value: 'F', child: Text('Kadın')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setState(() => selectedGender = v);
+                        },
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedBloodType.isEmpty ? null : (const [
+                    'A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', '0 Rh+', '0 Rh-'
+                  ].contains(selectedBloodType) ? selectedBloodType : null),
+                  decoration: InputDecoration(
+                    labelText: 'Kan Grubu',
+                    prefixIcon: const Icon(Icons.bloodtype_outlined),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: weightCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Kilo (kg)',
-                  prefixIcon: const Icon(Icons.monitor_weight_outlined),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  items: const [
+                    'A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', '0 Rh+', '0 Rh-'
+                  ].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => selectedBloodType = v);
+                  },
                 ),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                // ignore: deprecated_member_use
-                value: selectedGender,
-                decoration: InputDecoration(
-                  labelText: 'Cinsiyet',
-                  prefixIcon: const Icon(Icons.wc),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: allergyCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Alerjiler',
+                    prefixIcon: const Icon(Icons.warning_amber_rounded),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'M', child: Text('Erkek')),
-                  DropdownMenuItem(value: 'F', child: Text('Kadın')),
-                ],
-                onChanged: (v) {
-                  if (v != null) setState(() => selectedGender = v);
-                },
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: bioCtrl,
-                maxLines: 2,
-                maxLength: 100,
-                decoration: InputDecoration(
-                  labelText: 'Hakkımda',
-                  prefixIcon: const Icon(Icons.info_outline),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: contactCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Acil Durum Kişisi & No',
+                    prefixIcon: const Icon(Icons.contact_phone_rounded),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: bioCtrl,
+                  maxLines: 2,
+                  maxLength: 100,
+                  decoration: InputDecoration(
+                    labelText: 'Hakkımda',
+                    prefixIcon: const Icon(Icons.info_outline),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+              if (widget.mode == EditMode.metrics) ...[
+                TextField(
+                  controller: heightCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Boy (cm)',
+                    prefixIcon: const Icon(Icons.height),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: weightCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Kilo (kg)',
+                    prefixIcon: const Icon(Icons.monitor_weight_outlined),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
@@ -234,7 +314,17 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                     final ageVal = int.tryParse(ageCtrl.text) ?? 30;
                     final heightVal = double.tryParse(heightCtrl.text) ?? 170.0;
                     final weightVal = double.tryParse(weightCtrl.text) ?? 75.0;
-                    await widget.onSave(nameCtrl.text.trim(), bioCtrl.text.trim(), ageVal, selectedGender, heightVal, weightVal);
+                    await widget.onSave(
+                      nameCtrl.text.trim(), 
+                      bioCtrl.text.trim(), 
+                      ageVal, 
+                      selectedGender, 
+                      selectedBloodType, 
+                      allergyCtrl.text.trim(),
+                      contactCtrl.text.trim(),
+                      heightVal, 
+                      weightVal
+                    );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(

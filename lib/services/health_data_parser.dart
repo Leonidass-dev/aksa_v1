@@ -32,12 +32,18 @@ class HealthDataParser {
     final Map<String, double> activeCalBySrc = {};
     final Map<String, double> totalCalBySrc = {};
     final Map<String, double> distanceBySrc = {};
+    
+    // Veri tipi bazlı kaynak takibi
+    final Map<HealthDataType, Set<String>> typeSources = {};
+    final Set<String> allSources = {};
 
     // ── ADIM: Kaynak bazlı toplam ────
     for (var point in stepsData) {
       final val = _numericValue(point);
       final src = point.sourceName;
       stepsBySrc[src] = (stepsBySrc[src] ?? 0) + val;
+      allSources.add(src);
+      (typeSources[HealthDataType.STEPS] ??= {}).add(src);
     }
 
     // ── DİĞER METRİKLER ────
@@ -59,6 +65,8 @@ class HealthDataParser {
           : _numericValue(point);
       final src = point.sourceName;
       final time = point.dateFrom;
+      allSources.add(src);
+      (typeSources[point.type] ??= {}).add(src);
 
       switch (point.type) {
         case HealthDataType.STEPS:
@@ -144,17 +152,23 @@ class HealthDataParser {
         : (sleepDeepMin + sleepLightMin + sleepRemMin) / 60.0;
 
     // ── Nabız Seçim Mantığı ──
-    double finalHR = latestHeartRate;
-    DateTime? finalHRTime = hrBySrc.values.isNotEmpty 
-        ? hrBySrc.values.map((v) => v.$2).reduce((a, b) => a.isAfter(b) ? a : b)
-        : null;
+    // İyileştirme: Eğer aktif nabız (HEART_RATE) gelmiyorsa, dinlenik nabzı (RESTING_HEART_RATE) yedek olarak kullan.
+    double finalHR = latestHeartRate > 0 ? latestHeartRate : latestRestingHr;
+    DateTime? finalHRTime;
+
+    if (latestHeartRate > 0) {
+      finalHRTime = hrBySrc.values.map((v) => v.$2).reduce((a, b) => a.isAfter(b) ? a : b);
+    } else if (latestRestingHr > 0) {
+      finalHRTime = rhrBySrc.values.map((v) => v.$2).reduce((a, b) => a.isAfter(b) ? a : b);
+    }
 
     if (finalHR <= 0 && todayEntry != null) {
       finalHR = todayEntry.heartRate;
       finalHRTime = todayEntry.heartRateTime;
-      debugPrint("ℹ️ [HealthParser] Cihazdan yeni nabız gelmedi, eski veri korunuyor: $finalHR (Zaman: $finalHRTime)");
+      debugPrint("ℹ️ [HealthParser] Cihazdan yeni nabız/dinlenik nabız gelmedi, eski veri korunuyor: $finalHR (Zaman: $finalHRTime)");
     } else if (finalHR > 0) {
-      debugPrint("✅ [HealthParser] Cihazdan taze nabız alındı: $finalHR (Zaman: $finalHRTime)");
+      String typeStr = latestHeartRate > 0 ? "AKTİF" : "DİNLENİK";
+      debugPrint("✅ [HealthParser] Cihazdan taze $typeStr nabız alındı: $finalHR (Zaman: $finalHRTime)");
     }
 
     return ParsedHealthData(
@@ -174,6 +188,8 @@ class HealthDataParser {
       activeCalories: activeCalories,
       totalCalories: totalCalories,
       distanceM: distanceM,
+      allSources: allSources.toList(),
+      typeSources: typeSources.map((k, v) => MapEntry(k, v.toList())),
     );
   }
 
@@ -201,7 +217,8 @@ class HealthDataParser {
 
     const wearableKeywords = [
       'xiaomi', 'wearable', 'mi.fitness', 'zepp', 'garmin', 
-      'fitbit', 'samsung.health', 'polar', 'suunto', 'huawei', 'watch'
+      'fitbit', 'samsung.health', 'polar', 'suunto', 'huawei', 'watch',
+      'redmi', 'com.mi', 'band', 'pace'
     ];
 
     // Giyilebilir cihaz kaynaklarını ayıkla
@@ -230,7 +247,8 @@ class HealthDataParser {
     // Giyilebilir cihaz anahtar kelimeleri
     const wearableKeywords = [
       'xiaomi', 'wearable', 'mi.fitness', 'zepp', 'garmin', 
-      'fitbit', 'samsung.health', 'polar', 'suunto', 'huawei', 'watch'
+      'fitbit', 'samsung.health', 'polar', 'suunto', 'huawei', 'watch',
+      'redmi', 'com.mi', 'band', 'pace'
     ];
 
     final wearableSources = bySource.entries.where((e) {
@@ -266,6 +284,8 @@ class ParsedHealthData {
   final double systolic, diastolic, sleepHours;
   final double sleepDeepMin, sleepLightMin, sleepRemMin, sleepAwakeMin;
   final double activeCalories, totalCalories, distanceM;
+  final List<String> allSources;
+  final Map<HealthDataType, List<String>> typeSources;
 
   const ParsedHealthData({
     required this.steps, required this.heartRate, required this.restingHeartRate,
@@ -275,5 +295,7 @@ class ParsedHealthData {
     required this.sleepRemMin, required this.sleepAwakeMin,
     required this.activeCalories, required this.totalCalories,
     required this.distanceM,
+    this.allSources = const [],
+    this.typeSources = const {},
   });
 }

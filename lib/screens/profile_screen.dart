@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,7 +10,6 @@ import '../utils/bmi_utils.dart';
 import '../widgets/theme_aware_state.dart';
 import 'package:aksa_v1/services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
-import '../widgets/profile/quick_stats_card.dart';
 import '../widgets/profile/body_metrics_card.dart';
 import '../widgets/profile/health_goals_card.dart';
 import '../widgets/profile/preferences_card.dart';
@@ -20,9 +20,12 @@ import '../widgets/profile/health_goals_sheet.dart';
 import '../widgets/profile/weight_update_sheet.dart';
 import '../widgets/profile/profile_dialogs.dart';
 import '../widgets/profile/emergency_card.dart';
-import '../widgets/profile/device_status_card.dart';
 import '../services/health_service.dart';
 import '../constants/app_constants.dart';
+import '../widgets/profile/health_id_card.dart';
+import '../widgets/profile/activity_rings.dart';
+import '../widgets/profile/integrations_card.dart';
+import '../widgets/profile/device_center_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -60,6 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
 
   double _currentAvgSteps = 0;
   double _currentAvgSleep = 0;
+  StreamSubscription? _syncSub;
 
   @override
   void initState() {
@@ -67,6 +71,20 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     _loadUser();
     _loadGoals();
     _loadStats();
+
+    // Senkronizasyon tamamlandığında UI'ı güncelle
+    _syncSub = HealthService.syncUpdates.listen((_) {
+      if (mounted) {
+        _loadStats();
+        _loadUser(); // Belki kümülatif veriler değişmiştir
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadUser() async {
@@ -171,16 +189,22 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     return score.clamp(0.0, 1.0);
   }
 
-  void _showEditProfileSheet() {
+  void _showEditProfileSheet({EditMode mode = EditMode.identity}) {
     EditProfileSheet(
       fullName: _fullName, bio: _bio, age: _age,
-      gender: _gender, height: _height, weight: _userWeight,
+      gender: _gender, bloodType: _bloodType, 
+      allergies: _allergies, emergencyContact: _emergencyContact,
+      height: _height, weight: _userWeight,
+      mode: mode,
       onSaved: (result) {
         setState(() {
           _fullName = result.name;
           _bio = result.bio;
           _age = result.age;
           _gender = result.gender;
+          _bloodType = result.bloodType;
+          _allergies = result.allergies;
+          _emergencyContact = result.emergencyContact;
           _height = result.height;
           _userWeight = result.weight;
         });
@@ -210,49 +234,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     }
   }
 
-  void _showEmergencyEditDialog() {
-    final bloodController = TextEditingController(text: _bloodType);
-    final allergyController = TextEditingController(text: _allergies);
-    final contactController = TextEditingController(text: _emergencyContact);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Dijital Sağlık Kartı'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: bloodController, decoration: const InputDecoration(labelText: 'Kan Grubu (Örn: A Rh+)')),
-            TextField(controller: allergyController, decoration: const InputDecoration(labelText: 'Alerjiler')),
-            TextField(controller: contactController, decoration: const InputDecoration(labelText: 'Acil Durum Kişisi & No')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
-          ElevatedButton(
-            onPressed: () async {
-              final uid = FirebaseAuth.instance.currentUser?.uid;
-              if (uid != null) {
-                await FirebaseFirestore.instance.collection('users').doc(uid).update({
-                  'bloodType': bloodController.text,
-                  'allergies': allergyController.text,
-                  'emergencyContact': contactController.text,
-                });
-                if (!mounted) return;
-                setState(() {
-                  _bloodType = bloodController.text;
-                  _allergies = allergyController.text;
-                  _emergencyContact = contactController.text;
-                });
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Kaydet'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -268,25 +249,18 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
                     child: Column(
                       children: [
-                        QuickStatsCard(
-                          healthScore: _healthScore,
-                          activeDays: _activeDays,
-                          dataPoints: _dataPoints,
+                        // 1. Aktivite Halkaları (Hızlı Özet)
+                        ActivityRings(
+                          stepsProgress: _targetSteps > 0 ? (_currentAvgSteps / _targetSteps).clamp(0.0, 1.0) : 0.0,
+                          sleepProgress: _targetSleep > 0 ? (_currentAvgSleep / _targetSleep).clamp(0.0, 1.0) : 0.0,
+                          waterProgress: 0.7, 
+                          stepsLabel: '${_currentAvgSteps.toInt()} / ${(_targetSteps / 1000).toStringAsFixed(0)}k',
+                          sleepLabel: '${_currentAvgSleep.toStringAsFixed(1)} / ${_targetSleep.toInt()} sa',
+                          waterLabel: '1.4 / 2.0 L',
                         ),
-                        const SizedBox(height: 16),
-                        DeviceStatusCard(lastSync: _lastSyncTime),
-                        const SizedBox(height: 16),
-                        EmergencyCard(
-                          bloodType: _bloodType,
-                          allergies: _allergies,
-                          emergencyContact: _emergencyContact,
-                          onEdit: _showEmergencyEditDialog,
-                        ),
-                        if (_completionRate < 1.0) ...[
-                          const SizedBox(height: 16),
-                          _buildCompletionCard(),
-                        ],
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
+
+                        // 2. Vücut Metrikleri (Boy, Kilo, BMI)
                         BodyMetricsCard(
                           bmi: _bmi,
                           bmiCategory: _bmiCategory,
@@ -295,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           weight: _userWeight,
                           age: _age,
                           gender: _gender,
-                          onEdit: _showEditProfileSheet,
+                          onEdit: () => _showEditProfileSheet(mode: EditMode.metrics),
                           onWeightTap: () => WeightUpdateSheet(
                             currentWeight: _userWeight,
                             userHeight: _height,
@@ -304,11 +278,28 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           ).show(context),
                         ),
                         const SizedBox(height: 16),
+
+                        // 3. Sağlık Hedefleri
                         HealthGoalsCard(
                           goals: _buildGoalItems(),
                           onEdit: _showHealthGoalsSheet,
                         ),
                         const SizedBox(height: 16),
+
+                        const SizedBox(height: 20),
+
+                        // 5. Cihaz Merkezi (Dinamik Kaynak Takibi)
+                        DeviceCenterCard(
+                          data: HealthService.getLastSyncSourceInfo(),
+                          lastSyncTime: _lastSyncTime,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 6. Bağlantı Merkezi (En altta, sistem katmanı olarak)
+                        const IntegrationsCard(),
+                        const SizedBox(height: 20),
+
+                        // 6. Tercihler ve Bilgi
                         PreferencesCard(
                           notifications: _notifications,
                           onNotificationChanged: (v) => setState(() => _notifications = v),
@@ -320,7 +311,9 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           onTermsTap: () => ProfileDialogs.showTerms(context),
                           onPrivacyPolicyTap: () => ProfileDialogs.showPrivacyPolicy(context),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 32),
+                        
+                        // 7. Çıkış Butonu
                         const SignOutButton(),
                       ],
                     ),
@@ -345,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
 
   Widget _buildSliverHeader(BuildContext context) {
     return SliverAppBar(
-      expandedHeight: 200,
+      expandedHeight: 280,
       pinned: true,
       backgroundColor: AppColors.primary,
       flexibleSpace: FlexibleSpaceBar(
@@ -357,39 +350,27 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
             ),
           ),
           child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  Row(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Profilim', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      IconButton(onPressed: _showEditProfileSheet, icon: const Icon(Icons.edit_outlined, color: Colors.white)),
+                      const SizedBox(width: 48), // Denge için
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 32,
-                        backgroundImage: ImageUtils.getPhotoProvider(_photoUrl),
-                        child: _photoUrl.isEmpty ? const Icon(Icons.person, color: Colors.white, size: 32) : null,
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_fullName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                            Text(_email, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+                HealthIdCard(
+                  name: _fullName,
+                  bloodType: _bloodType,
+                  age: _age,
+                  gender: _gender,
+                  photoUrl: _photoUrl,
+                  onTap: () => _showEditProfileSheet(mode: EditMode.identity),
+                ),
+              ],
             ),
           ),
         ),

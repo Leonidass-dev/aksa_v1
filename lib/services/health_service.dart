@@ -26,6 +26,9 @@ class HealthServiceImpl implements IHealthService {
   Stream<bool> get syncUpdates => _syncUpdateController.stream;
   static void notifySync() => _syncUpdateController.add(true);
 
+  // Son senkronizasyon kaynak bilgileri
+  ParsedHealthData? _lastParsedData;
+
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
   String _dateKey(DateTime date) =>
@@ -108,7 +111,7 @@ class HealthServiceImpl implements IHealthService {
 
       final now = DateTime.now();
       final midnight = DateTime(now.year, now.month, now.day, 0, 0, 0);
-      final yesterdayNoon = midnight.subtract(const Duration(hours: 12));
+      final yesterdayNoon = midnight.subtract(const Duration(hours: 36));
       final endTime = now;
 
       // ── ADIM VERİSİ: Sadece bugünden çek (dünden sızma olmasın) ────
@@ -193,6 +196,8 @@ class HealthServiceImpl implements IHealthService {
         midnight: midnight,
         todayEntry: todayEntry,
       );
+
+      _lastParsedData = parsedData;
 
       final newEntry = HealthEntry(
         date: now,
@@ -348,6 +353,9 @@ class HealthServiceImpl implements IHealthService {
     double extra = (activeCalories / 100) * 100;
     return (base + extra).roundToDouble();
   }
+
+  @override
+  ParsedHealthData? getLastSyncSourceInfo() => _lastParsedData;
 }
 
 /// Test edilebilir Statik Facade yapısı.
@@ -371,5 +379,12 @@ class HealthService {
       return (_instance as HealthServiceImpl).syncUpdates;
     }
     return const Stream.empty();
+  }
+
+  static ParsedHealthData? getLastSyncSourceInfo() {
+    if (_instance is HealthServiceImpl) {
+      return (_instance as HealthServiceImpl).getLastSyncSourceInfo();
+    }
+    return null;
   }
 }
