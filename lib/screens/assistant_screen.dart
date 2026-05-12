@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import '../../services/api_service.dart';
-import '../../theme/app_theme.dart';
+import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 import 'package:go_router/go_router.dart';
 
 class ChatMessage {

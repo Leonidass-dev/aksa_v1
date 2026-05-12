@@ -83,6 +83,7 @@ class ApiServiceImpl implements IApiService {
     return null;
   }
 
+  @override
   Future<FoodAnalysisResult?> saveManualFood(String foodName, String portion) async {
     try {
       final headers = await _authHeaders();

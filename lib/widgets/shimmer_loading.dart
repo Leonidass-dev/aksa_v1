@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import '../theme/app_theme.dart';
 
 /// Shimmer efektli iskelet yükleme widget'ı.
 /// Tüm ekranlarda CircularProgressIndicator yerine kullanılır.

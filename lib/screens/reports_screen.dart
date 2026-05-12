@@ -720,30 +720,49 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
           const SizedBox(height: 12),
           // Comparative metric
           if (_activeTab != 'genel' && _timeframe == 'week' && data.length > 3)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.secondary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.secondary.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.trending_up, color: AppColors.secondary, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Geçen haftaya göre +%5 daha iyi!',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.w500,
+            Builder(builder: (context) {
+              // Verinin ilk yarısı vs ikinci yarısı karşılaştırması
+              final half = data.length ~/ 2;
+              final firstHalf = data.sublist(0, half);
+              final secondHalf = data.sublist(half);
+              final firstAvg = firstHalf.reduce((a, b) => a + b) / firstHalf.length;
+              final secondAvg = secondHalf.reduce((a, b) => a + b) / secondHalf.length;
+              
+              if (firstAvg == 0) return const SizedBox.shrink();
+              
+              final changePercent = ((secondAvg - firstAvg) / firstAvg * 100).round().abs();
+              final isImproved = secondAvg >= firstAvg;
+              final trendIcon = isImproved ? Icons.trending_up : Icons.trending_down;
+              final trendColor = isImproved ? AppColors.secondary : AppColors.accent;
+              final trendText = isImproved
+                  ? 'Dönem başına göre %$changePercent artış gösteriliyor'
+                  : 'Dönem başına göre %$changePercent azalış gösteriliyor';
+
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: trendColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: trendColor.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(trendIcon, color: trendColor, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        trendText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );

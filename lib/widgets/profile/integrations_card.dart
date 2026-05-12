@@ -102,7 +102,7 @@ class IntegrationsCard extends StatelessWidget {
         Switch(
           value: isConnected,
           onChanged: (v) {},
-          activeColor: AppColors.secondary,
+          activeThumbColor: AppColors.secondary,
         ),
       ],
     );

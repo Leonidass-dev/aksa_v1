@@ -2,26 +2,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
-import '../utils/image_utils.dart';
 import '../utils/bmi_utils.dart';
 import '../widgets/theme_aware_state.dart';
-import 'package:aksa_v1/services/auth_service.dart';
-import 'package:image_picker/image_picker.dart';
 import '../widgets/profile/body_metrics_card.dart';
 import '../widgets/profile/health_goals_card.dart';
 import '../widgets/profile/preferences_card.dart';
 import '../widgets/profile/about_card.dart';
 import '../widgets/profile/sign_out_button.dart';
 import '../widgets/profile/edit_profile_sheet.dart';
-import '../widgets/profile/health_goals_sheet.dart';
 import '../widgets/profile/weight_update_sheet.dart';
 import '../widgets/profile/profile_dialogs.dart';
-import '../widgets/profile/emergency_card.dart';
+import '../widgets/profile/health_goals_sheet.dart';
 import '../services/health_service.dart';
-import '../constants/app_constants.dart';
 import '../widgets/profile/health_id_card.dart';
 import '../widgets/profile/activity_rings.dart';
 import '../widgets/profile/integrations_card.dart';
@@ -37,7 +30,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   bool _notifications = true;
   String _fullName = '';
-  String _email = '';
   String _photoUrl = '';
   String _bio = '';
   int _age = 30;
@@ -45,15 +37,10 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   double _height = 170.0;
   double _userWeight = 75.0;
   bool _loading = true;
-  final ImagePicker _picker = ImagePicker();
 
   double _targetWeight = 68;
   double _targetSteps = 10000;
   double _targetSleep = 8;
-
-  String _activeDays = '0';
-  String _dataPoints = '0';
-  String _healthScore = '-';
 
   // Acil Durum Bilgileri
   String _bloodType = '';
@@ -92,7 +79,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     if (u == null) return;
     setState(() {
       _fullName = u.displayName ?? '';
-      _email = u.email ?? '';
       _photoUrl = u.photoURL ?? '';
     });
     try {
@@ -142,7 +128,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
           .collection('users').doc(u.uid)
           .collection('health_entries')
           .orderBy('date', descending: true).limit(30).get();
-      final count = entries.docs.length;
 
       double totalSteps = 0, totalSleep = 0;
       int validDays = 0;
@@ -157,8 +142,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
 
       if (mounted) {
         setState(() {
-          _activeDays = count.toString();
-          _dataPoints = (count * 5).toString();
           if (validDays > 0) {
             _currentAvgSteps = totalSteps / validDays;
             _currentAvgSleep = totalSleep / validDays;
@@ -178,16 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   String get _bmiCategory => BmiUtils.category(_bmi, _age);
   Color get _bmiColor => BmiUtils.color(_bmi, _age);
 
-  double get _completionRate {
-    double score = 0;
-    if (_fullName.isNotEmpty) score += 0.2;
-    if (_age > 0) score += 0.2;
-    if (_height > 0) score += 0.2;
-    if (_userWeight > 0) score += 0.2;
-    if (_bloodType.isNotEmpty) score += 0.1;
-    if (_emergencyContact.isNotEmpty) score += 0.1;
-    return score.clamp(0.0, 1.0);
-  }
+
 
   void _showEditProfileSheet({EditMode mode = EditMode.identity}) {
     EditProfileSheet(
@@ -223,16 +197,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     ).then((_) => _loadGoals());
   }
 
-  Future<void> _pickProfilePhoto() async {
-    try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-      if (image != null) {
-        setState(() => _photoUrl = image.path);
-      }
-    } catch (e) {
-      debugPrint('Fotoğraf seçme hatası: $e');
-    }
-  }
+
 
 
   @override
@@ -374,31 +339,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildCompletionCard() {
-    final pct = (_completionRate * 100).toInt();
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Profil Tamamlama', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-              Text('%$pct', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(value: _completionRate, backgroundColor: AppColors.primary.withValues(alpha: 0.1), valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary)),
-        ],
       ),
     );
   }

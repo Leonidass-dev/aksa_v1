@@ -143,13 +143,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     _isSyncing = true;
 
     try {
-      HapticFeedback.mediumImpact();
       await HealthService.syncFromDevice();
       if (mounted) await _loadTodayData();
     } catch (e) {
       debugPrint("Sessiz senkronizasyon hatası: $e");
     } finally {
-      if (mounted) _isSyncing = false;
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      } else {
+        _isSyncing = false;
+      }
     }
   }
 
@@ -168,18 +171,19 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _loadTodayData() async {
     if (!mounted) return;
-    setState(() => _isSyncing = true);
 
-    final profile = await UserProfileService.getProfile();
-    final pAge = profile?.age ?? AppConstants.defaultAge;
-    final pHeight = profile?.height ?? AppConstants.defaultHeight;
-    final pWeight = profile?.weight ?? AppConstants.defaultWeight;
-    final pGender = profile?.gender ?? AppConstants.defaultGender;
+    try {
+      final profile = await UserProfileService.getProfile();
+      final pAge = profile?.age ?? AppConstants.defaultAge;
+      final pHeight = profile?.height ?? AppConstants.defaultHeight;
+      final pWeight = profile?.weight ?? AppConstants.defaultWeight;
+      final pGender = profile?.gender ?? AppConstants.defaultGender;
 
-    final entry = await HealthService.getTodayEntry();
-    final todayData = entry ?? HealthEntry(date: DateTime.now());
+      final entry = await HealthService.getTodayEntry();
+      final todayData = entry ?? HealthEntry(date: DateTime.now());
 
-    if (mounted) {
+      if (!mounted) return;
+
       if (entry != null) {
         setState(() {
           _todayEntry = entry;
@@ -289,15 +293,17 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       if (mounted) {
         setState(() {
-          _isSyncing = false;
           _initialLoadDone = true;
           _lastSyncTime = DateTime.now();
         });
       }
+    } catch (e) {
+      debugPrint("_loadTodayData hatası: $e");
     }
   }
 
   Future<void> _handleManualSync() async {
+    HapticFeedback.mediumImpact();
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     scaffoldMessenger.showSnackBar(
       const SnackBar(
@@ -667,55 +673,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildHeaderAction({
-    required IconData icon,
-    required VoidCallback onTap,
-    bool isLoading = false,
-    bool hasBadge = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (isLoading)
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            else
-              Icon(icon, color: Colors.white, size: 24),
-            if (hasBadge)
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primary, width: 2),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildWellnessSummary(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

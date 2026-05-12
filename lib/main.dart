@@ -7,10 +7,6 @@ import 'firebase_options.dart'; // flutterfire configure ile otomatik oluşur
 import 'theme/app_theme.dart';
 import 'theme/theme_notifier.dart';
 import 'screens/onboarding/onboarding_wrapper.dart';
-import 'screens/onboarding/onboarding1_screen.dart';
-import 'screens/onboarding/onboarding2_screen.dart';
-import 'screens/onboarding/onboarding3_screen.dart';
-import 'screens/onboarding/onboarding4_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/forgot_password_screen.dart';

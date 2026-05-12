@@ -16,7 +16,6 @@ class AlertsScreen extends StatefulWidget {
 
 class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
   bool _loading = true;
-  bool _syncing = false;
   AnomalyApiResult? _result;
   String? _errorMsg;
   DateTime? _analyzedDate;
@@ -30,7 +29,6 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
   Future<void> _runAnomalyCheck() async {
     setState(() {
       _loading = true;
-      _syncing = true;
       _errorMsg = null;
     });
 
@@ -40,8 +38,6 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
     } catch (e) {
       debugPrint("Senkronizasyon hatası (geçiliyor): $e");
     }
-    
-    if (mounted) setState(() => _syncing = false);
 
     // Son 7 günün verisini Firestore'dan çek
     final entries = await HealthService.getLastNDays(8);
@@ -249,7 +245,7 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: 3,
-            separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
+            separatorBuilder: (_, _) => Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
             itemBuilder: (ctx, index) {
               final date = DateTime.now().subtract(Duration(days: index + 1));
               return ListTile(

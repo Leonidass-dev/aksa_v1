@@ -54,8 +54,12 @@ class EditProfileSheet extends StatelessWidget {
         onSave: (name, bio, age, gender, bloodType, allergies, emergencyContact, height, weight) async {
           final u = FirebaseAuth.instance.currentUser;
           if (u == null) return;
+
+          // Display name güncelle
           await u.updateDisplayName(name);
-          await FirebaseFirestore.instance.collection('users').doc(u.uid).update({
+
+          // Firestore'a kaydet — set(merge:true) kullanarak doküman yoksa oluşturur, varsa günceller
+          await FirebaseFirestore.instance.collection('users').doc(u.uid).set({
             'fullName': name,
             'bio': bio,
             'age': age,
@@ -65,11 +69,16 @@ class EditProfileSheet extends StatelessWidget {
             'emergencyContact': emergencyContact,
             'height': height,
             'weight': weight,
-          });
+          }, SetOptions(merge: true));
 
-          await ApiService.fetchRiskScore(
-            RiskApiRequest(age: age, gender: gender, height: height, weight: weight),
-          );
+          // Risk skoru opsiyonel — başarısız olması profil kaydını etkilememeli
+          try {
+            await ApiService.fetchRiskScore(
+              RiskApiRequest(age: age, gender: gender, height: height, weight: weight),
+            );
+          } catch (e) {
+            debugPrint('Profil güncelleme sonrası risk skoru hesaplanamadı: $e');
+          }
 
           onSaved(ProfileUpdateResult(
             name: name, bio: bio, age: age, gender: gender, 
@@ -160,6 +169,8 @@ class _EditProfileContentState extends State<_EditProfileContent> {
     ageCtrl.dispose();
     heightCtrl.dispose();
     weightCtrl.dispose();
+    allergyCtrl.dispose();
+    contactCtrl.dispose();
     super.dispose();
   }
 
@@ -314,26 +325,38 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                     final ageVal = int.tryParse(ageCtrl.text) ?? 30;
                     final heightVal = double.tryParse(heightCtrl.text) ?? 170.0;
                     final weightVal = double.tryParse(weightCtrl.text) ?? 75.0;
-                    await widget.onSave(
-                      nameCtrl.text.trim(), 
-                      bioCtrl.text.trim(), 
-                      ageVal, 
-                      selectedGender, 
-                      selectedBloodType, 
-                      allergyCtrl.text.trim(),
-                      contactCtrl.text.trim(),
-                      heightVal, 
-                      weightVal
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Profil güncellendi. Planlarınız yeni verilerle optimize edilecek.'),
-                          backgroundColor: AppColors.secondary,
-                          behavior: SnackBarBehavior.floating,
-                        ),
+                    try {
+                      await widget.onSave(
+                        nameCtrl.text.trim(), 
+                        bioCtrl.text.trim(), 
+                        ageVal, 
+                        selectedGender, 
+                        selectedBloodType, 
+                        allergyCtrl.text.trim(),
+                        contactCtrl.text.trim(),
+                        heightVal, 
+                        weightVal
                       );
-                      Navigator.pop(context);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Profil güncellendi. Planlarınız yeni verilerle optimize edilecek.'),
+                            backgroundColor: AppColors.secondary,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Profil kaydedilemedi: $e'),
+                            backgroundColor: AppColors.destructive,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
                     }
                   },
                   style: FilledButton.styleFrom(

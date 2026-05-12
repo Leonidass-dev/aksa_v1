@@ -63,11 +63,12 @@ class HealthServiceImpl implements IHealthService {
     final uid = _uid;
     if (uid == null) return false;
 
-    // Cooldown kontrolü: Eğer zorunlu (force) değilse ve 15 dakika geçmemişse atla
-    if (!force && _lastSyncTime != null) {
-      final diff = DateTime.now().difference(_lastSyncTime!);
+    // Cooldown kontrolü: Eğer zorunlu (force) değilse ve 1 dakikalık süre geçmemişse atla
+    final lastSync = _lastSyncTime;
+    if (!force && lastSync != null) {
+      final diff = DateTime.now().difference(lastSync);
       if (diff < _syncCooldown) {
-        debugPrint("Sağlık senkronizasyonu cooldown'da. Kalan süre: ${(_syncCooldown - diff).inMinutes} dk");
+        debugPrint("Sağlık senkronizasyonu cooldown'da. Kalan süre: ${(_syncCooldown - diff).inSeconds} sn");
         return true; 
       }
     }
@@ -94,7 +95,14 @@ class HealthServiceImpl implements IHealthService {
 
     try {
       // Health Connect SDK Durum Kontrolü (Android 11-13 için önemli)
-      final sdkStatus = await Health().getHealthConnectSdkStatus();
+      HealthConnectSdkStatus? sdkStatus;
+      try {
+        sdkStatus = await Health().getHealthConnectSdkStatus();
+      } catch (e) {
+        debugPrint("Health Connect SDK durum sorgulama hatası: $e");
+        return false;
+      }
+
       if (sdkStatus != HealthConnectSdkStatus.sdkAvailable) {
         debugPrint("Health Connect SDK uygun değil: $sdkStatus");
         return false;
@@ -302,8 +310,10 @@ class HealthServiceImpl implements IHealthService {
         .doc(dateKey)
         .get();
 
-    if (!doc.exists || doc.data() == null) return null;
-    return HealthEntry.fromJson(doc.data()!);
+    if (!doc.exists) return null;
+    final data = doc.data();
+    if (data == null) return null;
+    return HealthEntry.fromJson(data);
   }
 
   // ── Son N günün verilerini oku ────────────────────────────────

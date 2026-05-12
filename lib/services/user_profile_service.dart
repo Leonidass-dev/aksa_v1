@@ -76,10 +76,12 @@ class UserProfileServiceImpl implements IUserProfileService {
   /// Profil var mı kontrol et (onboarding atlandı mı?)
   @override
   Future<bool> profileExists() async {
-    if (_uid == null) return false;
-    final doc = await _db.collection('users').doc(_uid).get();
+    final uid = _uid;
+    if (uid == null) return false;
+    final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists) return false;
-    final data = doc.data()!;
+    final data = doc.data();
+    if (data == null) return false;
     // age > 0 ise profil kurulmuş sayıyoruz
     return (data['age'] ?? 0) > 0;
   }
@@ -96,10 +98,13 @@ class UserProfileServiceImpl implements IUserProfileService {
   /// Profili oku
   @override
   Future<UserProfile?> getProfile() async {
-    if (_uid == null) return null;
-    final doc = await _db.collection('users').doc(_uid).get();
+    final uid = _uid;
+    if (uid == null) return null;
+    final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists) return null;
-    return UserProfile.fromMap(_uid!, doc.data()!);
+    final data = doc.data();
+    if (data == null) return null;
+    return UserProfile.fromMap(uid, data);
   }
 }
 

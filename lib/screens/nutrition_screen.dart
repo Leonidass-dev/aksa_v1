@@ -7,7 +7,6 @@ import '../services/api_service.dart';
 import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/theme_aware_state.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'diet_plan_screen.dart';
 import '../widgets/nutrition/macro_nutrients_ring.dart';
 
@@ -118,44 +117,53 @@ class _NutritionScreenState extends State<NutritionScreen>
   }
 
   Future<void> _pickAndAnalyze(ImageSource source) async {
-    // API hızlandırması için resim boyutu ciddi şekilde sıkıştırıldı
-    final xfile = await _picker.pickImage(
-      source: source,
-      imageQuality: 50,
-      maxWidth: 500,
-      maxHeight: 500,
-    );
-    if (xfile == null) return;
+    try {
+      final xfile = await _picker.pickImage(
+        source: source,
+        imageQuality: 50,
+        maxWidth: 500,
+        maxHeight: 500,
+      );
+      if (xfile == null) return;
 
-    setState(() {
-      _analyzing = true;
-    });
+      if (!mounted) return;
+      setState(() => _analyzing = true);
 
-    final bytes = await xfile.readAsBytes();
-    final result = await ApiService.analyzeFoodImage(bytes);
+      final bytes = await xfile.readAsBytes();
+      final result = await ApiService.analyzeFoodImage(bytes);
 
-    if (result != null && mounted) {
-      setState(() {
-        _meals.insert(
-          0,
-          _MealEntry(
-            image: File(xfile.path),
-            result: result,
-            dateTime: DateTime.now(),
-            mealType: _getMealTypeFromTime(DateTime.now()),
+      if (!mounted) return;
+      setState(() => _analyzing = false);
+
+      if (result != null) {
+        setState(() {
+          _meals.insert(
+            0,
+            _MealEntry(
+              image: File(xfile.path),
+              result: result,
+              dateTime: DateTime.now(),
+              mealType: _getMealTypeFromTime(DateTime.now()),
+            ),
+          );
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Yemek analiz edilemedi. Tekrar deneyin.'),
+            backgroundColor: AppColors.destructive,
           ),
         );
-      });
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Yemek analiz edilemedi. Tekrar deneyin.'),
-          backgroundColor: AppColors.destructive,
-        ),
-      );
+      }
+    } catch (e) {
+      debugPrint("Nutrition Image Pick Error: $e");
+      if (mounted) {
+        setState(() => _analyzing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Görüntü işlenirken bir hata oluştu.')),
+        );
+      }
     }
-
-    if (mounted) setState(() => _analyzing = false);
   }
 
   void _showManualEntryDialog() {
@@ -607,7 +615,6 @@ class _NutritionScreenState extends State<NutritionScreen>
   }
 
   Widget _buildCalorieSummary(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final now = DateTime.now();
     final todayMeals = _meals.where((m) =>
         m.dateTime.year == now.year &&

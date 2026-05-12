@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:health/health.dart';
 import '../../theme/app_theme.dart';
 import '../common_widgets.dart';
-import '../../services/health_service.dart';
 import '../../services/health_data_parser.dart';
 
 class DeviceCenterCard extends StatelessWidget {

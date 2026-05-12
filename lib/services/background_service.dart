@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'api_service.dart';
-import '../models/api_models.dart';
 
 const fetchBackground = "fetchBackground";
 

@@ -67,25 +67,38 @@ class AuthServiceImpl implements IAuthService {
   @override
   Future<AuthResult> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn().timeout(const Duration(minutes: 2));
       if (googleUser == null) {
-        return AuthResult.error('Google girişi iptal edildi.');
+        return AuthResult.error('Google girişi iptal edildi veya bir hata oluştu.');
       }
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
+
+      if (idToken == null && accessToken == null) {
+        return AuthResult.error('Google kimlik doğrulama verileri alınamadı.');
+      }
 
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+        accessToken: accessToken,
+        idToken: idToken,
       );
 
       final userCredential = await _auth.signInWithCredential(credential);
-      return AuthResult.success(userCredential.user!);
+      final user = userCredential.user;
+      
+      if (user == null) {
+        return AuthResult.error('Firebase oturumu açılamadı.');
+      }
+
+      return AuthResult.success(user);
     } on FirebaseAuthException catch (e) {
       return AuthResult.error(_firebaseErrorMessage(e.code));
     } catch (e) {
-      return AuthResult.error('Google girişi başarısız: ${e.toString()}');
+      debugPrint("Google Sign-In Error: $e");
+      return AuthResult.error('Google girişi şu an yapılamıyor. Lütfen tekrar deneyin.');
     }
   }
 
@@ -190,7 +203,6 @@ class AuthServiceImpl implements IAuthService {
     }
   }
 
-  // ── Hesabı Kalıcı Olarak Sil (Hard Delete) ─────────────────────────────
   @override
   Future<bool> hardDeleteAccount() async {
     try {
