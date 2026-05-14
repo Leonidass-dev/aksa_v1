@@ -118,6 +118,30 @@ class ProfileDialogs {
     );
   }
 
+  static void showMedicalDisclaimer(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.destructive),
+            SizedBox(width: 8),
+            Text('Tıbbi Uyarı'),
+          ],
+        ),
+        content: const Text(
+          'Bu uygulama yapay zeka destekli genel sağlık analizleri sunar '
+          'ancak tıbbi bir teşhis, tedavi veya doktor tavsiyesi yerine geçmez.\n\n'
+          'Herhangi bir sağlık sorununuzda mutlaka bir sağlık profesyoneline başvurunuz.',
+          style: TextStyle(height: 1.4),
+        ),
+        actions: [
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Anladım')),
+        ],
+      ),
+    );
+  }
+
   static void showDeleteAccount(BuildContext context, VoidCallback onConfirm) {
     showDialog(
       context: context,

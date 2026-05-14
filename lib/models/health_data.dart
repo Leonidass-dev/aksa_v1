@@ -55,10 +55,13 @@ extension RiskLevelExtension on RiskLevel {
   /// API'den gelen string'i RiskLevel'a çevirir.
   /// Daha önce dashboard ve risk_score ekranlarında duplike edilmişti.
   static RiskLevel fromString(String level) {
-    switch (level) {
+    switch (level.trim().toLowerCase()) {
       case 'high':
+      case 'yüksek':
+      case 'yuksek':
         return RiskLevel.high;
       case 'medium':
+      case 'orta':
         return RiskLevel.medium;
       default:
         return RiskLevel.low;

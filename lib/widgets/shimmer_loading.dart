@@ -31,16 +31,16 @@ class ShimmerLoading extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (showHeader) ...[
-              _shimmerBox(width: 180, height: 24, radius: 8),
+              _shimmerBox(context, width: 180, height: 24, radius: 8),
               const SizedBox(height: 8),
-              _shimmerBox(width: 120, height: 14, radius: 6),
+              _shimmerBox(context, width: 120, height: 14, radius: 6),
               const SizedBox(height: 24),
             ],
             ...List.generate(
               itemCount,
               (index) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: _shimmerCard(height: itemHeight),
+                child: _shimmerCard(context, height: itemHeight),
               ),
             ),
           ],
@@ -49,17 +49,18 @@ class ShimmerLoading extends StatelessWidget {
     );
   }
 
-  Widget _shimmerCard({required double height}) {
+  Widget _shimmerCard(BuildContext context, {required double height}) {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
       ),
     );
   }
 
-  Widget _shimmerBox({
+  Widget _shimmerBox(
+    BuildContext context, {
     required double width,
     required double height,
     double radius = 4,
@@ -68,7 +69,7 @@ class ShimmerLoading extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(radius),
       ),
     );
@@ -98,7 +99,7 @@ class DashboardShimmer extends StatelessWidget {
             Container(
               height: 200,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(24),
               ),
             ),
@@ -108,7 +109,7 @@ class DashboardShimmer extends StatelessWidget {
               width: 140,
               height: 18,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(6),
               ),
             ),
@@ -125,7 +126,7 @@ class DashboardShimmer extends StatelessWidget {
                 6,
                 (_) => Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cs.surface,
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
@@ -136,7 +137,7 @@ class DashboardShimmer extends StatelessWidget {
             Container(
               height: 140,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
@@ -169,7 +170,7 @@ class NutritionShimmer extends StatelessWidget {
             Container(
               height: 100,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
@@ -182,7 +183,7 @@ class NutritionShimmer extends StatelessWidget {
                 child: Container(
                   height: 200,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cs.surface,
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),

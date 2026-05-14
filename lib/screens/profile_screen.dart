@@ -19,6 +19,9 @@ import '../widgets/profile/health_id_card.dart';
 import '../widgets/profile/activity_rings.dart';
 import '../widgets/profile/integrations_card.dart';
 import '../widgets/profile/device_center_card.dart';
+import '../widgets/profile/clinical_profile_card.dart';
+import '../widgets/profile/report_export_card.dart';
+import '../widgets/profile/profile_skeleton.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -42,14 +45,20 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   double _targetSteps = 10000;
   double _targetSleep = 8;
 
-  // Acil Durum Bilgileri
+  // Acil Durum Bilgileri ve Klinik
   String _bloodType = '';
-  String _allergies = '';
+  List<String> _allergies = [];
   String _emergencyContact = '';
+  String _dietPreference = '';
   DateTime? _lastSyncTime;
 
   double _currentAvgSteps = 0;
   double _currentAvgSleep = 0;
+  
+  // Su takibi
+  double _currentWaterMl = 0;
+  double _targetWaterMl = 2000;
+
   StreamSubscription? _syncSub;
 
   @override
@@ -94,8 +103,22 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
           _height = (data['height'] as num?)?.toDouble() ?? 170.0;
           _userWeight = (data['weight'] as num?)?.toDouble() ?? 75.0;
           _bloodType = data['bloodType'] ?? '';
-          _allergies = data['allergies'] ?? '';
+          if (data['allergies'] is String) {
+            _allergies = (data['allergies'] as String)
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
+          } else if (data['allergies'] is List) {
+            _allergies = (data['allergies'] as List).map((e) => e.toString()).toList();
+          } else {
+            _allergies = [];
+          }
+          _dietPreference = data['dietPreference'] ?? '';
           _emergencyContact = data['emergencyContact'] ?? '';
+          
+          // Su hedefini kiloya göre hesapla
+          _targetWaterMl = HealthService.calculateWaterTarget(_userWeight, 0);
         });
       }
     } catch (_) {}
@@ -149,12 +172,24 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
         });
       }
 
-      // Son senkronizasyon saatini al
+      // Son senkronizasyon saatini ve bugünkü su verisini al
       final todayEntry = await HealthService.getTodayEntry();
       if (mounted) {
-        setState(() => _lastSyncTime = todayEntry?.date);
+        setState(() {
+          _lastSyncTime = todayEntry?.date;
+          _currentWaterMl = todayEntry?.waterMl ?? 0;
+        });
       }
     } catch (_) {}
+  }
+
+  /// Pull-to-refresh handler
+  Future<void> _onRefresh() async {
+    await Future.wait([
+      _loadUser(),
+      _loadGoals(),
+      _loadStats(),
+    ]);
   }
 
   double get _bmi => BmiUtils.calculate(_height, _userWeight);
@@ -167,7 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     EditProfileSheet(
       fullName: _fullName, bio: _bio, age: _age,
       gender: _gender, bloodType: _bloodType, 
-      allergies: _allergies, emergencyContact: _emergencyContact,
+      allergies: _allergies.join(', '), emergencyContact: _emergencyContact,
       height: _height, weight: _userWeight,
       mode: mode,
       onSaved: (result) {
@@ -177,7 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
           _age = result.age;
           _gender = result.gender;
           _bloodType = result.bloodType;
-          _allergies = result.allergies;
+          _allergies = result.allergies.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
           _emergencyContact = result.emergencyContact;
           _height = result.height;
           _userWeight = result.weight;
@@ -198,93 +233,145 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
   }
 
 
+  // ── Section Header Builder ────────────────────────────────────
+  Widget _sectionHeader(String title, IconData icon) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 28, bottom: 12, left: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: cs.onSurfaceVariant.withValues(alpha: 0.6)),
+          const SizedBox(width: 8),
+          Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
+              color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
 
   @override
   Widget build(BuildContext context) {
+    // Su progress hesapla
+    final waterProgress = _targetWaterMl > 0 
+        ? (_currentWaterMl / _targetWaterMl).clamp(0.0, 1.0) 
+        : 0.0;
+    final waterLabel = '${(_currentWaterMl / 1000).toStringAsFixed(1)} / ${(_targetWaterMl / 1000).toStringAsFixed(1)} L';
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                _buildSliverHeader(context),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                    child: Column(
-                      children: [
-                        // 1. Aktivite Halkaları (Hızlı Özet)
-                        ActivityRings(
-                          stepsProgress: _targetSteps > 0 ? (_currentAvgSteps / _targetSteps).clamp(0.0, 1.0) : 0.0,
-                          sleepProgress: _targetSleep > 0 ? (_currentAvgSleep / _targetSleep).clamp(0.0, 1.0) : 0.0,
-                          waterProgress: 0.7, 
-                          stepsLabel: '${_currentAvgSteps.toInt()} / ${(_targetSteps / 1000).toStringAsFixed(0)}k',
-                          sleepLabel: '${_currentAvgSleep.toStringAsFixed(1)} / ${_targetSleep.toInt()} sa',
-                          waterLabel: '1.4 / 2.0 L',
-                        ),
-                        const SizedBox(height: 20),
+          ? const ProfileSkeleton()
+          : RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: AppColors.primary,
+              child: CustomScrollView(
+                slivers: [
+                  _buildSliverHeader(context),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ═══ SAĞLIK ÖZETİ ═══
+                          _sectionHeader('Sağlık Özeti', Icons.analytics_outlined),
 
-                        // 2. Vücut Metrikleri (Boy, Kilo, BMI)
-                        BodyMetricsCard(
-                          bmi: _bmi,
-                          bmiCategory: _bmiCategory,
-                          bmiColor: _bmiColor,
-                          height: _height,
-                          weight: _userWeight,
-                          age: _age,
-                          gender: _gender,
-                          onEdit: () => _showEditProfileSheet(mode: EditMode.metrics),
-                          onWeightTap: () => WeightUpdateSheet(
-                            currentWeight: _userWeight,
-                            userHeight: _height,
-                            userAge: _age,
-                            onSaved: (w) => setState(() => _userWeight = w),
-                          ).show(context),
-                        ),
-                        const SizedBox(height: 16),
+                          // 1. Aktivite Halkaları (Hızlı Özet)
+                          ActivityRings(
+                            stepsProgress: _targetSteps > 0 ? (_currentAvgSteps / _targetSteps).clamp(0.0, 1.0) : 0.0,
+                            sleepProgress: _targetSleep > 0 ? (_currentAvgSleep / _targetSleep).clamp(0.0, 1.0) : 0.0,
+                            waterProgress: waterProgress,
+                            stepsLabel: '${_currentAvgSteps.toInt()} / ${(_targetSteps / 1000).toStringAsFixed(0)}k',
+                            sleepLabel: '${_currentAvgSleep.toStringAsFixed(1)} / ${_targetSleep.toInt()} sa',
+                            waterLabel: waterLabel,
+                          ),
+                          const SizedBox(height: 16),
 
-                        // 3. Sağlık Hedefleri
-                        HealthGoalsCard(
-                          goals: _buildGoalItems(),
-                          onEdit: _showHealthGoalsSheet,
-                        ),
-                        const SizedBox(height: 16),
+                          BodyMetricsCard(
+                            bmi: _bmi,
+                            bmiCategory: _bmiCategory,
+                            bmiColor: _bmiColor,
+                            height: _height,
+                            weight: _userWeight,
+                            age: _age,
+                            gender: _gender,
+                            onEdit: () => _showEditProfileSheet(mode: EditMode.metrics),
+                            onWeightTap: () => WeightUpdateSheet(
+                              currentWeight: _userWeight,
+                              userHeight: _height,
+                              userAge: _age,
+                              onSaved: (w) => setState(() => _userWeight = w),
+                            ).show(context),
+                          ),
 
-                        const SizedBox(height: 20),
+                          // ═══ KLİNİK PROFİL ═══
+                          _sectionHeader('Klinik Profil', Icons.medical_services_outlined),
 
-                        // 5. Cihaz Merkezi (Dinamik Kaynak Takibi)
-                        DeviceCenterCard(
-                          data: HealthService.getLastSyncSourceInfo(),
-                          lastSyncTime: _lastSyncTime,
-                        ),
-                        const SizedBox(height: 16),
+                          ClinicalProfileCard(
+                            bloodType: _bloodType,
+                            allergies: _allergies,
+                            dietPreference: _dietPreference,
+                            onEdit: () => _showEditProfileSheet(mode: EditMode.identity),
+                          ),
+                          const SizedBox(height: 16),
 
-                        // 6. Bağlantı Merkezi (En altta, sistem katmanı olarak)
-                        const IntegrationsCard(),
-                        const SizedBox(height: 20),
+                          // 3. Sağlık Hedefleri
+                          HealthGoalsCard(
+                            goals: _buildGoalItems(),
+                            onEdit: _showHealthGoalsSheet,
+                          ),
+                          const SizedBox(height: 16),
 
-                        // 6. Tercihler ve Bilgi
-                        PreferencesCard(
-                          notifications: _notifications,
-                          onNotificationChanged: (v) => setState(() => _notifications = v),
-                          onPrivacyTap: () => ProfileDialogs.showPrivacy(context),
-                        ),
-                        const SizedBox(height: 16),
-                        AboutCard(
-                          onHelpTap: () => ProfileDialogs.showHelp(context),
-                          onTermsTap: () => ProfileDialogs.showTerms(context),
-                          onPrivacyPolicyTap: () => ProfileDialogs.showPrivacyPolicy(context),
-                        ),
-                        const SizedBox(height: 32),
-                        
-                        // 7. Çıkış Butonu
-                        const SignOutButton(),
-                      ],
+                          // 4. Sağlık Raporu Dışa Aktarma
+                          const ReportExportCard(),
+
+                          // ═══ CİHAZ & BAĞLANTILAR ═══
+                          _sectionHeader('Cihaz & Bağlantılar', Icons.devices_rounded),
+
+                          // 5. Cihaz Merkezi (Dinamik Kaynak Takibi)
+                          DeviceCenterCard(
+                            data: HealthService.getLastSyncSourceInfo(),
+                            lastSyncTime: _lastSyncTime,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // 6. Bağlantı Merkezi
+                          const IntegrationsCard(),
+
+                          // ═══ AYARLAR ═══
+                          _sectionHeader('Ayarlar', Icons.settings_outlined),
+
+                          // 7. Tercihler ve Bilgi
+                          PreferencesCard(
+                            notifications: _notifications,
+                            onNotificationChanged: (v) => setState(() => _notifications = v),
+                            onPrivacyTap: () => ProfileDialogs.showPrivacy(context),
+                          ),
+                          const SizedBox(height: 16),
+                          AboutCard(
+                            onHelpTap: () => ProfileDialogs.showHelp(context),
+                            onTermsTap: () => ProfileDialogs.showTerms(context),
+                            onPrivacyPolicyTap: () => ProfileDialogs.showPrivacyPolicy(context),
+                            onDisclaimerTap: () => ProfileDialogs.showMedicalDisclaimer(context),
+                          ),
+                          const SizedBox(height: 32),
+                          
+                          // 8. Çıkış Butonu
+                          const SignOutButton(),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
     );
   }
@@ -306,7 +393,12 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
       expandedHeight: 280,
       pinned: true,
       backgroundColor: AppColors.primary,
+      elevation: 0,
+      stretch: true,
+      centerTitle: true,
+      title: const Text('Profilim', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       flexibleSpace: FlexibleSpaceBar(
+        stretchModes: const [StretchMode.zoomBackground, StretchMode.blurBackground],
         background: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -315,18 +407,11 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
             ),
           ),
           child: SafeArea(
+            bottom: false,
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Profilim', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 48), // Denge için
-                    ],
-                  ),
-                ),
+                const SizedBox(height: 40),
                 HealthIdCard(
                   name: _fullName,
                   bloodType: _bloodType,

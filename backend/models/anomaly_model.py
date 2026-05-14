@@ -93,6 +93,12 @@ class AnomalyResult:
 
 _THRESHOLDS = {"high": 2.5, "medium": 1.5}
 
+# BUG-3 Fix: Fazlası iyi olan metrikler — yukarı sapma düşük önem alır
+_POSITIVE_METRICS = {"steps", "sleep_hours", "spo2"}
+
+# BUG-7 Fix: Kilo için daha yüksek threshold (günlük dalgalanma normal)
+_METRIC_THRESHOLDS = {"weight": 2.5}  # Diğerleri varsayılan _THRESHOLDS kullanır
+
 _METRIC_META = {
     "steps": ("Günlük Adım", "adım"),
     "sleep_hours": ("Uyku Süresi", "saat"),
@@ -158,7 +164,8 @@ def _describe(metric: str, z: float, today: float, avg: float, label: str, unit:
         ),
         "spo2": (
             f"Oksijen saturasyonunuz %{today:.0f}, ortalamanız %{avg:.0f}.",
-            "SpO₂ düşük. Derin nefes egzersizleri yapın veya doktora danışın."
+            "SpO₂ düşük. Derin nefes egzersizleri yapın veya doktora danışın." if today < avg
+            else "SpO₂ seviyeniz normal üzerinde, bu olumlu bir gösterge."
         ),
         "weight": (
             f"Kilonuz {today:.1f} kg, ortalamanız {avg:.1f} kg. {diff:.1f} kg fark var.",
@@ -293,9 +300,16 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_feat
                 continue
 
             z = abs(today_val - avg) / std
+            
+            # ── BUG-3 Fix: Pozitif metriklerde yukarı sapma önemini azalt ──
+            if metric in _POSITIVE_METRICS and today_val > avg:
+                z *= 0.4  # Pozitif sapma önemini azalt (ama tamamen yok etme)
+
+            # ── BUG-7 Fix: Metrik bazlı özel threshold ──
+            min_threshold = _METRIC_THRESHOLDS.get(metric, _THRESHOLDS["medium"])
             label, unit = _METRIC_META.get(metric, (metric, ""))
 
-            if z >= _THRESHOLDS["medium"]:
+            if z >= min_threshold:
                 desc, rec = _describe(metric, z, today_val, avg, label, unit)
                 anomalies.append(AnomalyItem(
                     metric=metric, metric_label=label,

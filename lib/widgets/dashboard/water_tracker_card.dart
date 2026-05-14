@@ -12,6 +12,7 @@ class WaterTrackerCard extends StatelessWidget {
 
   static const _waterColor = Color(0xFF3B82F6);
   static const _quickAddAmounts = [200, 330, 500];
+  static const _minusAmount = -200;
 
   const WaterTrackerCard({
     super.key,
@@ -101,7 +102,36 @@ class WaterTrackerCard extends StatelessWidget {
                         ),
                       ),
                     );
-                  }).toList(),
+                  }).toList()
+                    ..add(
+                      InkWell(
+                        onTap: () => _addWithUndo(context, _minusAmount.toDouble()),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.remove, size: 14, color: Colors.red),
+                              const SizedBox(width: 4),
+                              const Text(
+                                '200ml',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                 ),
               ],
             ),

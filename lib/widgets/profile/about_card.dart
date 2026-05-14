@@ -6,12 +6,14 @@ class AboutCard extends StatelessWidget {
   final VoidCallback onHelpTap;
   final VoidCallback onTermsTap;
   final VoidCallback onPrivacyPolicyTap;
+  final VoidCallback onDisclaimerTap;
 
   const AboutCard({
     super.key,
     required this.onHelpTap,
     required this.onTermsTap,
     required this.onPrivacyPolicyTap,
+    required this.onDisclaimerTap,
   });
 
   @override
@@ -21,6 +23,7 @@ class AboutCard extends StatelessWidget {
       ('Yardım ve Destek', onHelpTap),
       ('Kullanım Koşulları', onTermsTap),
       ('Gizlilik Politikası', onPrivacyPolicyTap),
+      ('Tıbbi Uyarı ve Sorumluluk Reddi', onDisclaimerTap),
     ];
     return AppCard(
       padding: const EdgeInsets.all(20),

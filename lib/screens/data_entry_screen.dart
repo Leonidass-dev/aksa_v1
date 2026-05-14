@@ -171,9 +171,9 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: _buildBPInput('Sistolik', _systolic, 80, 180, (v) => setState(() => _systolic = v))),
+                Expanded(child: _buildBPInput('Sistolik', _systolic, 80, 250, (v) => setState(() => _systolic = v))),
                 const SizedBox(width: 16),
-                Expanded(child: _buildBPInput('Diastolik', _diastolic, 40, 120, (v) => setState(() => _diastolic = v))),
+                Expanded(child: _buildBPInput('Diastolik', _diastolic, 40, 150, (v) => setState(() => _diastolic = v))),
               ],
             ),
           ],
@@ -214,7 +214,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             Slider(
               value: _weight,
               min: 40,
-              max: 150,
+              max: 250,
               onChanged: (v) => setState(() => _weight = v),
               activeColor: AppColors.accent,
             ),

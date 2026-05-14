@@ -19,33 +19,47 @@ class DeviceCenterCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     
     // Ana kaynağı belirle
-    String primaryBrand = "Bilinmeyen Cihaz";
-    String brandIcon = "📱";
+    String primaryBrand = "Veri Bekleniyor";
+    String brandIcon = "📵";
+    bool isRealWatch = false;
+    bool isPhoneOnly = false;
     
     if (data != null && data!.allSources.isNotEmpty) {
       final sources = data!.allSources.map((s) => s.toLowerCase()).toList();
       if (sources.any((s) => s.contains('xiaomi') || s.contains('mi.fitness') || s.contains('redmi'))) {
         primaryBrand = "Xiaomi / Redmi Watch";
         brandIcon = "⌚";
+        isRealWatch = true;
       } else if (sources.any((s) => s.contains('huawei'))) {
         primaryBrand = "Huawei Health";
         brandIcon = "⌚";
+        isRealWatch = true;
       } else if (sources.any((s) => s.contains('samsung'))) {
         primaryBrand = "Samsung Health";
         brandIcon = "⌚";
+        isRealWatch = true;
       } else if (sources.any((s) => s.contains('garmin'))) {
         primaryBrand = "Garmin Connect";
         brandIcon = "⌚";
+        isRealWatch = true;
       } else if (sources.any((s) => s.contains('fitness'))) {
         primaryBrand = "Google Fit";
+        brandIcon = "📱";
+        isPhoneOnly = true;
+      } else {
+        primaryBrand = "Sistem Sensörü";
+        brandIcon = "📱";
+        isPhoneOnly = true;
       }
     }
 
+
+
     return AppCard(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Row(
             children: [
               Container(
@@ -77,14 +91,25 @@ class DeviceCenterCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
+                  color: (isRealWatch ? AppColors.secondary : (isPhoneOnly ? AppColors.accent : AppColors.destructive)).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.check_circle, color: Colors.green, size: 12),
-                    SizedBox(width: 4),
-                    Text('Bağlı', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                    Icon(
+                      isRealWatch ? Icons.check_circle : (isPhoneOnly ? Icons.smartphone : Icons.error),
+                      color: isRealWatch ? AppColors.secondary : (isPhoneOnly ? AppColors.accent : AppColors.destructive),
+                      size: 12,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isRealWatch ? 'Saat Bağlı' : (isPhoneOnly ? 'Telefon Verisi' : 'Bağlantı Yok'),
+                      style: TextStyle(
+                        color: isRealWatch ? AppColors.secondary : (isPhoneOnly ? AppColors.accent : AppColors.destructive),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ),

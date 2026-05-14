@@ -389,6 +389,15 @@ async def get_chat_history(
     return list(result.scalars().all())
 
 
+async def clear_chat_history(db: AsyncSession, user: User) -> bool:
+    """Kullanıcının tüm chat geçmişini siler."""
+    from sqlalchemy import delete
+    stmt = delete(ChatMessage).where(ChatMessage.user_id == user.id)
+    await db.execute(stmt)
+    await db.commit()
+    return True
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  DAILY DIET PLANS (Caching)
 # ═══════════════════════════════════════════════════════════════════

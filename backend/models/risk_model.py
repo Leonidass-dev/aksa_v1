@@ -139,6 +139,12 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
         raw_sequence = latest_vector.tolist()
         logger.info("⚠️ M3 Risk Modeli: M2 verisi bulunamadı, fallback kullanılıyor.")
 
+    # ── BUG-8 Fix: Feature sayısı doğrulama ──
+    expected_features = getattr(_scaler, 'n_features_in_', latest_vector.shape[1])
+    if latest_vector.shape[1] != expected_features:
+        logger.warning(f"Feature uyuşmazlığı: {latest_vector.shape[1]} != {expected_features}, fallback'e geçiliyor.")
+        return _compute_risk_rules(snap)
+
     features_scaled = _scaler.transform(latest_vector)
 
     # ── XGBoost Tahmini ──
@@ -166,6 +172,13 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
 
     # XGBoost ve GRU tahminlerinin ağırlıklı ortalaması
     final_prob = (prob_high_xgb * 0.6) + (prob_high_gru * 0.4)
+
+    # ── BUG-1 Fix: Aktivite düzeltmesi ──
+    # Yüksek adım + yüksek nabız = egzersiz etkisi, hastalık değil
+    if snap.steps > 8000 and snap.heart_rate_avg > 85:
+        activity_discount = min(0.15, (snap.steps - 8000) / 100000)
+        final_prob = max(0.0, final_prob - activity_discount)
+        logger.info(f"🏃 Aktivite düzeltmesi uygulandı: -{activity_discount:.3f} (adım={int(snap.steps)}, nabız={snap.heart_rate_avg:.0f})")
 
     # Tez M3: Platt-benzeri sigmoid smoothing (kalibrasyon)
     # Ham olasılığı sigmoid ile yumuşat — aşırı uç değerleri merkeze çek
@@ -256,9 +269,15 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     score = 5.0  # Başlangıç: Minimum baz risk
     factors = []
     
+    # ── BUG-6 Fix: Boy metre/cm otomatik normalize ──
+    effective_height = snap.height
+    if 0 < effective_height < 3:
+        effective_height *= 100  # Metre → cm dönüşümü
+        logger.info(f"Boy otomatik düzeltildi: {snap.height} → {effective_height} cm")
+
     # 1. BMI (Vücut Kitle Endeksi) Hesaplama (Kilo / Boy^2)
-    if snap.weight > 0 and snap.height > 100:
-        height_m = snap.height / 100.0
+    if snap.weight > 0 and effective_height > 100:
+        height_m = effective_height / 100.0
         bmi = snap.weight / (height_m * height_m)
         
         # Yaşlılar için esnetilmiş WESAD/AHA eşiği
@@ -284,13 +303,15 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     # Saat 8'de 1000, öğlen 12'de 4000, akşam 20'de 8000 beklenir
     expected_steps = min(10000, max(1000, (current_hour - 6) * 600)) if current_hour > 6 else 500
     
-    if snap.steps < expected_steps:
+    # ── BUG-2 Fix: Sıfır adım = eksik veri, cezalandırma ──
+    if snap.steps <= 0:
+        pass  # Veri henüz gelmemiş — cezalandırma
+    elif snap.steps < expected_steps:
         step_diff = expected_steps - snap.steps
         step_risk = _normalize(step_diff, 0, expected_steps) * 12
         score += step_risk
         if step_risk > 3:
             factors.append(RiskFactor("Hareketsizlik", step_risk, f"Günlük {int(snap.steps)} adım — beklenen ~{int(expected_steps)}"))
-    # Eğer snap.steps == 0 ise, veri hiç gelmemiş olabilir ama akşam saatlerinde bu ciddi bir hareketsizlik göstergesidir.
 
     # 4. Uyku Hijyeni
     if snap.sleep_hours > 0:
@@ -301,6 +322,10 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         elif snap.sleep_hours > 9:
             score += 5
             factors.append(RiskFactor("Aşırı Uyku", 5.0, f"{snap.sleep_hours:.1f} saat — metabolik yavaşlama"))
+    elif current_hour >= 14:
+        # ── BUG-5 Fix: Öğleden sonra hâlâ uyku verisi yoksa uyarı ──
+        score += 8
+        factors.append(RiskFactor("Uyku Verisi Yok", 8.0, "Bugün uyku verisi algılanamadı"))
 
     # 5. Kalp Hızı (Dinlenik Nabız) — AHA: 60-100 Normal
     if snap.heart_rate_resting > 100:
@@ -347,12 +372,12 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         factors.append(RiskFactor("Otonom Stres", stress_risk, f"Yüksek stres: {snap.stress_level:.0f}/100"))
     
     # 9. Beslenme Mantığı (Tez M5 Entegrasyonu)
-    if snap.weight > 0 and snap.height > 100:
+    if snap.weight > 0 and effective_height > 100:
         # Bazal Metabolizma (Mifflin-St Jeor)
         if snap.gender == 'M':
-            bmr = 10 * snap.weight + 6.25 * snap.height - 5 * snap.age + 5
+            bmr = 10 * snap.weight + 6.25 * effective_height - 5 * snap.age + 5
         else:
-            bmr = 10 * snap.weight + 6.25 * snap.height - 5 * snap.age - 161
+            bmr = 10 * snap.weight + 6.25 * effective_height - 5 * snap.age - 161
             
         # Dinamik Limit: BMR + Hareket (Dakika başına ~4 kalori varsayımı veya direkt steps/20)
         daily_limit = bmr + (snap.steps / 20.0) 

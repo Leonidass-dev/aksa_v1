@@ -258,7 +258,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 AppButton(
                   text: 'Apple ile Kayıt Ol',
                   isOutlined: true,
-                  icon: const Icon(Icons.apple, color: Colors.black, size: 22),
+                  icon: Icon(Icons.apple, color: Theme.of(context).colorScheme.onSurface, size: 22),
                   isLoading: _loading,
                   onPressed: _signInWithApple,
                 ),

@@ -30,6 +30,8 @@ class User(Base):
     weight = Column(Float, nullable=True)       # kg
     gender = Column(String(10), nullable=True)  # M / F / O
     photo_url = Column(String(500), nullable=True)
+    allergies = Column(JSON, nullable=True)     # ["fıstık", "glüten"] vb.
+    diet_preference = Column(String(50), nullable=True) # "vegan", "vejetaryen", "ketojenik" vb.
     created_at = Column(DateTime(timezone=True), default=get_turkey_time)
     updated_at = Column(DateTime(timezone=True), default=get_turkey_time, onupdate=get_turkey_time)
 

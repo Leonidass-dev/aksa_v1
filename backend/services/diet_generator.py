@@ -26,6 +26,8 @@ Sen uzman bir klinik diyetisyen ve beslenme bilimcisisin. Görevin, aşağıdaki
 
 GİRDİ PARAMETRELERİ:
 - Profil: {age} yaş, {gender}, {height}cm, {weight}kg
+- Alerjiler: {allergies}
+- Diyet Tercihi: {diet_preference}
 - Klinik Risk Seviyesi: {risk_level}
 - Tanımlanmış Risk Faktörleri: {risk_factors}
 - M2 Sensör Verileri (Bugünkü Durum): {health_context}
@@ -62,10 +64,16 @@ Yanıtı SADECE aşağıdaki JSON yapısında döndür:
 async def generate_diet_plan(
     age: int, gender: str, height: float, weight: float,
     risk_level: str, risk_factors: str, health_context: str,
-    target_calories: int
+    target_calories: int,
+    allergies: list[str], diet_preference: str
 ) -> Optional[DietPlanResponse]:
+    
+    # Alerji stringini formatla
+    allergy_str = ", ".join(allergies) if allergies else "Yok"
+    
     prompt = DIET_PROMPT.format(
         age=age, gender=gender, height=height, weight=weight,
+        allergies=allergy_str, diet_preference=diet_preference,
         risk_level=risk_level, risk_factors=risk_factors,
         health_context=health_context, target_calories=target_calories
     )
@@ -88,12 +96,22 @@ async def generate_diet_plan(
         json_data = json.loads(cleaned_json)
         
         # MATEMATİK KORUMASI: LLM'ler toplama işleminde hata yapabilir.
-        # Öğünlerin toplamını alıp, UI'a o değeri yansıtıyoruz ki tutarsızlık olmasın.
+        # Öğünlerin toplamını alıp, hedef kaloriye eşitlemek için orantısal olarak dağıtıyoruz.
         if "meals" in json_data and isinstance(json_data["meals"], list):
             total_meal_cals = sum(meal.get("calories", 0) for meal in json_data["meals"])
-            # Sadece 0'dan büyükse ve mantıklıysa üzerine yaz
-            if total_meal_cals > 500:
-                json_data["daily_calories_target"] = total_meal_cals
+            if total_meal_cals > 0 and abs(total_meal_cals - target_calories) > 10:
+                scale_factor = target_calories / total_meal_cals
+                for meal in json_data["meals"]:
+                    meal["calories"] = int(meal.get("calories", 0) * scale_factor)
+                
+                # Yuvarlama farklarını kapatmak için kalanı ilk (veya en büyük) öğüne ekle
+                new_total = sum(meal.get("calories", 0) for meal in json_data["meals"])
+                diff = target_calories - new_total
+                if diff != 0 and len(json_data["meals"]) > 0:
+                    json_data["meals"][0]["calories"] += diff
+            
+            # Asla hedefini değiştirme, arayüzdeki (NutritionScreen) değer ile aynı kalsın.
+            json_data["daily_calories_target"] = target_calories
 
         return DietPlanResponse(**json_data)
 

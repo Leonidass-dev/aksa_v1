@@ -119,7 +119,7 @@ class HealthServiceImpl implements IHealthService {
 
       final now = DateTime.now();
       final midnight = DateTime(now.year, now.month, now.day, 0, 0, 0);
-      final yesterdayNoon = midnight.subtract(const Duration(hours: 36));
+      final yesterdayNoon = midnight.subtract(const Duration(hours: 12));
       final endTime = now;
 
       // ── ADIM VERİSİ: Sadece bugünden çek (dünden sızma olmasın) ────
@@ -361,7 +361,9 @@ class HealthServiceImpl implements IHealthService {
     double base = (weight * 35);
     // Yakılan her 100 aktif kalori için +100ml su ekle (Dinamik hedef)
     double extra = (activeCalories / 100) * 100;
-    return (base + extra).roundToDouble();
+    double target = (base + extra).roundToDouble();
+    // Maksimum su limiti (Su zehirlenmesi riskini önlemek için)
+    return target > 4500.0 ? 4500.0 : target;
   }
 
   @override
@@ -396,5 +398,24 @@ class HealthService {
       return (_instance as HealthServiceImpl).getLastSyncSourceInfo();
     }
     return null;
+  }
+
+  /// Health Connect SDK durumunu kontrol et.
+  /// Returns: 'available', 'unavailable', 'update_required', 'error'
+  static Future<String> checkHealthConnectStatus() async {
+    try {
+      final status = await Health().getHealthConnectSdkStatus();
+      switch (status) {
+        case HealthConnectSdkStatus.sdkAvailable:
+          return 'available';
+        case HealthConnectSdkStatus.sdkUnavailable:
+          return 'unavailable';
+        default:
+          return 'unavailable';
+      }
+    } catch (e) {
+      debugPrint('Health Connect SDK durum hatası: $e');
+      return 'error';
+    }
   }
 }

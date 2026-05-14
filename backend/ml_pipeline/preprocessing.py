@@ -64,10 +64,13 @@ class PreprocessorPipeline:
         # Hampel Filtresi + Median Filter (Gürültü)
         df_resampled['value'] = self.hampel_filter(df_resampled['value'], window_size=5, n_sigmas=3)
         
-        # medfilt için kernel_size kontrolü
+        # BUG-9 Fix: Tüm değerler NaN ise medfilt anlamsız sonuç üretir
         v = df_resampled['value'].fillna(0).values
-        if len(v) >= 3:
+        if len(v) >= 3 and np.any(v != 0):
             df_resampled['value'] = medfilt(v, kernel_size=3)
+        elif len(v) >= 3:
+            # Tüm değerler 0 — veri yok, boş bırak
+            df_resampled['value'] = np.nan
         else:
             df_resampled['value'] = v
         

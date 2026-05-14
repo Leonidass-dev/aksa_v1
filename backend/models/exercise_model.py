@@ -141,17 +141,23 @@ def _pick_plan_rules(req: ExerciseRequest) -> int:
     """Risk seviyesine göre basit kural tabanlı plan seçimi."""
     risk = req.risk_level.lower()
     if risk == "high":
-        return 0  # Sadece yürüyüş
+        return 0  # Sadece hafif mobilite
     elif risk == "medium":
-        return 1 if req.age > 50 else 0  # Yoga veya yürüyüş
+        # ── BUG-4 Fix: Yaşa göre kademeli egzersiz seviyesi ──
+        if req.age > 60:
+            return 1   # Yoga / denge
+        elif req.age > 40:
+            return 2   # Tempolu yürüyüş + core
+        else:
+            return 2   # Kardiyo + güç (ama HIIT değil)
     else:
         # Düşük risk — yaşa göre
         if req.age < 30:
             return 4  # HIIT
         elif req.age < 50:
-            return 2  # Koşu
+            return 3  # Koşu + güç
         else:
-            return 3  # Bisiklet
+            return 2  # Tempolu yürüyüş + core
 
 
 def _pick_plan_rnn(req: ExerciseRequest, records: list = None, ml_features: list[float] | None = None, last_feedback: str | None = None) -> int:
@@ -241,6 +247,11 @@ def _pick_plan_rnn(req: ExerciseRequest, records: list = None, ml_features: list
         if not (risk_val == 2) and not (risk_val == 1 and class_id >= 3):
             logger.info(f"Kullanıcı geri bildirimi 'too_easy' olduğu için zorluk {class_id}'den {class_id+1}'e artırıldı.")
             class_id += 1
+    # ── BUG-11 Fix: Son güvenlik kapısı — tüm ayarlamalardan sonra kontrol ──
+    if risk_val == 2 and class_id > 1:
+        class_id = 1
+    elif risk_val == 1 and class_id > 3:
+        class_id = 3
             
     return class_id
 

@@ -331,6 +331,25 @@ class ApiServiceImpl implements IApiService {
     return [];
   }
 
+  // ── Chat Geçmişi Temizle ──────────────────────────────────────────────
+  @override
+  Future<bool> clearChatHistory() async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .delete(
+            Uri.parse('$_baseUrl/assistant/history'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Chat history clear hatası: $e');
+      return false;
+    }
+  }
+
   // ── Sağlık Verisi Backend Sync ────────────────────────────────
   @override
   Future<bool> syncHealthToBackend(HealthEntry entry) async {
@@ -371,6 +390,35 @@ class ApiServiceImpl implements IApiService {
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('Health sync hatası: $e');
+      return false;
+    }
+  }
+
+  // ── Kullanıcı Profili Senkronizasyonu ────────────────────────────
+  @override
+  Future<bool> syncProfileToBackend(dynamic profile) async {
+    try {
+      final headers = await _authHeaders();
+      final body = {
+        'age': profile.age,
+        'height': profile.height,
+        'weight': profile.weight,
+        'gender': profile.gender,
+        'allergies': profile.allergies,
+        'diet_preference': profile.dietPreference,
+      };
+
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/user/profile'),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Profile sync hatası: $e');
       return false;
     }
   }
@@ -423,7 +471,9 @@ class ApiService {
   static Future<List<MealHistoryItem>> fetchMealHistory({int limit = 30}) => _instance.fetchMealHistory(limit: limit);
   static Future<AssistantChatResponse?> sendAssistantMessage(String message) => _instance.sendAssistantMessage(message);
   static Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50}) => _instance.fetchChatHistory(limit: limit);
+  static Future<bool> clearChatHistory() => _instance.clearChatHistory();
   static Future<bool> syncHealthToBackend(HealthEntry entry) => _instance.syncHealthToBackend(entry);
+  static Future<bool> syncProfileToBackend(dynamic profile) => _instance.syncProfileToBackend(profile);
   static Future<bool> deleteUserFromBackend() => _instance.deleteUserFromBackend();
   static Future<FoodAnalysisResult?> saveManualFood(String foodName, String portion) => _instance.saveManualFood(foodName, portion);
 }

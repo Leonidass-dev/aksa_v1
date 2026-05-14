@@ -227,7 +227,7 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: selectedGender,
+                        initialValue: selectedGender,
                         decoration: InputDecoration(
                           labelText: 'Cinsiyet',
                           prefixIcon: const Icon(Icons.wc),
@@ -246,16 +246,16 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedBloodType.isEmpty ? null : (const [
-                    'A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', '0 Rh+', '0 Rh-'
-                  ].contains(selectedBloodType) ? selectedBloodType : null),
+                  initialValue: selectedBloodType.isEmpty ? null : (const [
+                    'A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', 'O Rh+', 'O Rh-'
+                  ].contains(selectedBloodType.replaceAll('0', 'O')) ? selectedBloodType.replaceAll('0', 'O') : null),
                   decoration: InputDecoration(
                     labelText: 'Kan Grubu',
                     prefixIcon: const Icon(Icons.bloodtype_outlined),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   items: const [
-                    'A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', '0 Rh+', '0 Rh-'
+                    'A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', 'O Rh+', 'O Rh-'
                   ].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
@@ -299,7 +299,7 @@ class _EditProfileContentState extends State<_EditProfileContent> {
               if (widget.mode == EditMode.metrics) ...[
                 TextField(
                   controller: heightCtrl,
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: 'Boy (cm)',
                     prefixIcon: const Icon(Icons.height),
@@ -309,7 +309,7 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: weightCtrl,
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: 'Kilo (kg)',
                     prefixIcon: const Icon(Icons.monitor_weight_outlined),
@@ -323,8 +323,8 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                 child: FilledButton(
                   onPressed: () async {
                     final ageVal = int.tryParse(ageCtrl.text) ?? 30;
-                    final heightVal = double.tryParse(heightCtrl.text) ?? 170.0;
-                    final weightVal = double.tryParse(weightCtrl.text) ?? 75.0;
+                    final heightVal = double.tryParse(heightCtrl.text.replaceAll(',', '.')) ?? 170.0;
+                    final weightVal = double.tryParse(weightCtrl.text.replaceAll(',', '.')) ?? 75.0;
                     try {
                       await widget.onSave(
                         nameCtrl.text.trim(), 

@@ -65,11 +65,16 @@ class HealthGoalsCard extends StatelessWidget {
                       Expanded(
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: g.progress,
-                            minHeight: 6,
-                            backgroundColor: cs.outlineVariant.withValues(alpha: 0.3),
-                            valueColor: AlwaysStoppedAnimation<Color>(g.color),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.0, end: g.progress),
+                            duration: const Duration(milliseconds: 1000),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, value, _) => LinearProgressIndicator(
+                              value: value,
+                              minHeight: 6,
+                              backgroundColor: cs.outlineVariant.withValues(alpha: 0.3),
+                              valueColor: AlwaysStoppedAnimation<Color>(g.color),
+                            ),
                           ),
                         ),
                       ),

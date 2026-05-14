@@ -182,17 +182,32 @@ class _AssistantScreenState extends State<AssistantScreen> {
                             actions: [
                               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
                               ElevatedButton(
-                                onPressed: () {
+                                onPressed: () async {
                                   Navigator.pop(ctx);
-                                  setState(() {
-                                    _messages.clear();
-                                    _hasUserMessages = false;
-                                    _messages.add(ChatMessage(
-                                      text: "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
-                                      isUser: false,
-                                      timestamp: DateTime.now(),
-                                    ));
-                                  });
+                                  
+                                  // ScaffoldMessenger'ı async gap öncesi yakala
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  
+                                  // Backend'den geçmişi sil
+                                  final success = await ApiService.clearChatHistory();
+                                  
+                                  if (mounted) {
+                                    if (success) {
+                                      setState(() {
+                                        _messages.clear();
+                                        _hasUserMessages = false;
+                                        _messages.add(ChatMessage(
+                                          text: "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
+                                          isUser: false,
+                                          timestamp: DateTime.now(),
+                                        ));
+                                      });
+                                    } else {
+                                      messenger.showSnackBar(
+                                        const SnackBar(content: Text('Sohbet geçmişi silinirken bir hata oluştu.')),
+                                      );
+                                    }
+                                  }
                                 },
                                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.destructive),
                                 child: const Text('Temizle'),

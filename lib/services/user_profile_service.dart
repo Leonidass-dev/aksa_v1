@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'interfaces/i_user_profile_service.dart';
+import 'api_service.dart';
 
 
 /// Firestore users/{uid} dökümanında saklanan kullanıcı sağlık profili.
@@ -15,6 +16,8 @@ class UserProfile {
   final String gender; // 'M' | 'F' | 'O'
   final String? photoUrl;
   final String? bio;
+  final List<String>? allergies;
+  final String? dietPreference;
 
   const UserProfile({
     required this.uid,
@@ -26,6 +29,8 @@ class UserProfile {
     required this.gender,
     this.photoUrl,
     this.bio,
+    this.allergies,
+    this.dietPreference,
   });
 
   Map<String, dynamic> toMap() => {
@@ -38,21 +43,37 @@ class UserProfile {
     'gender': gender,
     'photoUrl': photoUrl ?? '',
     'bio': bio ?? '',
+    'allergies': allergies ?? [],
+    'dietPreference': dietPreference ?? '',
     'updatedAt': FieldValue.serverTimestamp(),
   };
 
-  factory UserProfile.fromMap(String uid, Map<String, dynamic> m) =>
-      UserProfile(
-        uid: uid,
-        fullName: m['fullName'] ?? '',
-        email: m['email'] ?? '',
-        age: (m['age'] ?? 25) as int,
-        height: (m['height'] ?? 170).toDouble(),
-        weight: (m['weight'] ?? 70).toDouble(),
-        gender: m['gender'] ?? 'M',
-        photoUrl: m['photoUrl'] as String?,
-        bio: m['bio'] as String?,
-      );
+  factory UserProfile.fromMap(String uid, Map<String, dynamic> m) {
+    List<String>? parsedAllergies;
+    if (m['allergies'] is String) {
+      parsedAllergies = (m['allergies'] as String)
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    } else if (m['allergies'] is List) {
+      parsedAllergies = (m['allergies'] as List).map((e) => e.toString()).toList();
+    }
+
+    return UserProfile(
+      uid: uid,
+      fullName: m['fullName'] ?? '',
+      email: m['email'] ?? '',
+      age: (m['age'] ?? 25) as int,
+      height: (m['height'] ?? 170).toDouble(),
+      weight: (m['weight'] ?? 70).toDouble(),
+      gender: m['gender'] ?? 'M',
+      photoUrl: m['photoUrl'] as String?,
+      bio: m['bio'] as String?,
+      allergies: parsedAllergies,
+      dietPreference: m['dietPreference'] as String?,
+    );
+  }
 
   /// Profil tamamlama oranını hesaplar (0.0 - 1.0)
   double get completionRate {
@@ -93,6 +114,9 @@ class UserProfileServiceImpl implements IUserProfileService {
         .collection('users')
         .doc(profile.uid)
         .set(profile.toMap(), SetOptions(merge: true));
+        
+    // Profile güncellendiğinde backend'e de (PostgreSQL) senkronize et
+    await ApiService.syncProfileToBackend(profile);
   }
 
   /// Profili oku

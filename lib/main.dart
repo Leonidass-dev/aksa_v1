@@ -84,7 +84,6 @@ String? _authGuard(BuildContext context, GoRouterState state) {
     '/login',
     '/register',
     '/forgot-password',
-    '/profile-setup',
   ];
 
   if (!isAuth && !publicRoutes.contains(loc)) {

@@ -274,19 +274,16 @@ async def get_diet_plan(
     user = await crud.get_or_create_user(db, uid)
     today = date.today()
 
-    # 0. Önbellek Kontrolü (Günde 1 kez oluşturma kuralı)
-    cached_plan = await crud.get_daily_diet_plan(db, user, today)
-    if cached_plan:
-        return DietPlanResponse(**cached_plan.plan_data)
-    
     # 1. Kullanıcı Profili ve Kalori Hedefi
     age = user.age if user.age else 30
     weight = user.weight if user.weight else 70.0
     height = user.height if user.height else 170.0
     gender = user.gender if user.gender else "Erkek"
+    allergies = user.allergies if user.allergies else []
+    diet_preference = user.diet_preference if user.diet_preference else "Standart"
     
     # Mifflin-St Jeor BMR Formülü (Modern Standart - Mobil Uygulama ile Senkronize)
-    if gender.lower() == "erkek":
+    if gender.lower() in ["erkek", "m"]:
         bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
     else:
         bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161
@@ -351,12 +348,24 @@ async def get_diet_plan(
         target_calories = 3500
         calc_method += " -> Capped at Max 3500"
 
+    # 0. Önbellek Kontrolü (Kalori hedefine göre dinamik geçersiz kılma)
+    cached_plan = await crud.get_daily_diet_plan(db, user, today)
+    if cached_plan:
+        cached_target = cached_plan.plan_data.get("daily_calories_target", 0)
+        # Eğer kalori hedefi ±300 kcal'den fazla değişmediyse önbelleği kullan
+        if abs(cached_target - target_calories) < 300:
+            logger.info(f"🎯 M5 Diyet Planlayıcı: Önbellekten dönüyor. Hedef kalori: {target_calories}")
+            return DietPlanResponse(**cached_plan.plan_data)
+        else:
+            logger.info(f"🎯 M5 Diyet Planlayıcı: Kalori hedefi değişti ({cached_target} -> {target_calories}). Plan yeniden oluşturuluyor.")
+
     logger.info(f"🎯 M5 Diyet Planlayıcı: Kullanıcı {user.firebase_uid} için hedef kalori: {target_calories} ({calc_method})")
             
     plan = await generate_diet_plan(
         age, gender, height, weight,
         risk_level, risk_factors, health_context,
-        target_calories
+        target_calories,
+        allergies, diet_preference
     )
     
     if not plan:

@@ -225,3 +225,13 @@ async def chat_history(
         )
         for m in messages
     ]
+
+@router.delete("/history")
+async def clear_chat_history(
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Kullanıcının chat geçmişini siler."""
+    user = await crud.get_or_create_user(db, uid)
+    await crud.clear_chat_history(db, user)
+    return {"message": "Chat geçmişi temizlendi."}

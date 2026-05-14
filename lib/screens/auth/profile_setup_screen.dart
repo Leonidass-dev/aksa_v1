@@ -241,13 +241,17 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             suffixText: 'cm',
           ),
           validator: (v) {
-            final n = double.tryParse(v ?? '');
+            final n = double.tryParse((v ?? '').replaceAll(',', '.'));
             if (n == null || n < 100 || n > 250) {
               return '100–250 cm arası girin';
             }
             return null;
           },
-          onChanged: (v) => _height = double.tryParse(v) ?? _height,
+          onChanged: (v) {
+            setState(() {
+              _height = double.tryParse(v.replaceAll(',', '.')) ?? _height;
+            });
+          },
         ),
         const SizedBox(height: 24),
         Text(
@@ -267,11 +271,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             suffixText: 'kg',
           ),
           validator: (v) {
-            final n = double.tryParse(v ?? '');
+            final n = double.tryParse((v ?? '').replaceAll(',', '.'));
             if (n == null || n < 20 || n > 300) return '20–300 kg arası girin';
             return null;
           },
-          onChanged: (v) => _weight = double.tryParse(v) ?? _weight,
+          onChanged: (v) {
+            setState(() {
+              _weight = double.tryParse(v.replaceAll(',', '.')) ?? _weight;
+            });
+          },
         ),
         const SizedBox(height: 28),
         // BMI önizlemesi

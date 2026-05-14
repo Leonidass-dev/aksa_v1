@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../models/health_data.dart';
 import '../services/health_service.dart';
@@ -46,13 +47,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   AnomalyApiResult? _anomalyResult; // Modül 7: Anomali Sonuçları
   bool _isAnomalyDismissed = false;
   StreamSubscription? _syncSubscription;
-  Timer? _refreshTimer;
+  StreamSubscription? _userSubscription;
+
+
+  // Health Connect durum kontrolü
+  String _hcStatus = 'checking'; // 'available', 'unavailable', 'update_required', 'error'
+  bool _hcBannerDismissed = false;
 
   String get _greeting {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Günaydın';
-    if (hour < 18) return 'Tünaydın';
-    return 'İyi Akşamlar';
+    if (hour >= 5 && hour < 12) return 'Günaydın';
+    if (hour >= 12 && hour < 18) return 'Tünaydın';
+    if (hour >= 18 && hour < 22) return 'İyi Akşamlar';
+    return 'İyi Geceler';
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────
@@ -62,7 +69,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadUserName();
+    _checkHealthConnectStatus();
     _silentSyncAndLoad();
+    
+    // Kullanıcı profil değişikliklerini dinle
+    _userSubscription = FirebaseAuth.instance.userChanges().listen((user) {
+      if (mounted) _loadUserName();
+    });
     
     // Canlı veri güncellemelerini dinle
     _syncSubscription = HealthService.syncUpdates.listen((event) {
@@ -72,17 +85,19 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     });
 
-    // Her 3 dakikada bir otomatik senkronizasyon yap
-    _refreshTimer = Timer.periodic(const Duration(minutes: 3), (timer) {
-      if (mounted && !_isSyncing) {
-        _silentSyncAndLoad();
-      }
-    });
+
     
     // Uygulama yüklendikten sonra (frame render edildikten sonra) disclaimer kontrolü yap
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkMedicalDisclaimer();
     });
+  }
+
+  Future<void> _checkHealthConnectStatus() async {
+    final status = await HealthService.checkHealthConnectStatus();
+    if (mounted) {
+      setState(() => _hcStatus = status);
+    }
   }
 
   Future<void> _checkMedicalDisclaimer() async {
@@ -124,7 +139,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _syncSubscription?.cancel();
-    _refreshTimer?.cancel();
+    _userSubscription?.cancel();
+
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -196,7 +212,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       // BESLENME ENTEGRASYONU (Tez Modül 5)
-      final mealHistory = await ApiService.fetchMealHistory(limit: 20);
+      final mealHistory = await ApiService.fetchMealHistory(limit: 100);
       final now = DateTime.now();
       final todayMeals = mealHistory.where((m) {
         final d = DateTime.parse(m.analyzedAt).toLocal();
@@ -208,26 +224,44 @@ class _DashboardScreenState extends State<DashboardScreen>
           ? 70.0 
           : todayMeals.fold(0.0, (s, m) => s + m.healthScore) / todayMeals.length;
 
-      final result = await ApiService.fetchRiskScore(
-        RiskApiRequest(
-          age: pAge,
-          gender: pGender,
-          height: pHeight,
-          weight: pWeight,
-          steps: todayData.steps,
-          sleepHours: todayData.sleepHours,
-          systolic: todayData.systolic,
-          diastolic: todayData.diastolic,
-          heartRateResting: todayData.restingHeartRate > 0
-              ? todayData.restingHeartRate
-              : todayData.heartRate,
-          heartRateAvg: todayData.heartRate,
-          spo2: todayData.spo2,
-          stressLevel: todayData.stressLevel,
-          consumedCalories: consumedCals,
-          nutritionScore: avgNutriScore,
-        ),
-      );
+      try {
+        final result = await ApiService.fetchRiskScore(
+          RiskApiRequest(
+            age: pAge,
+            gender: pGender,
+            height: pHeight,
+            weight: pWeight,
+            steps: todayData.steps,
+            sleepHours: todayData.sleepHours,
+            systolic: todayData.systolic,
+            diastolic: todayData.diastolic,
+            heartRateResting: todayData.restingHeartRate > 0
+                ? todayData.restingHeartRate
+                : todayData.heartRate,
+            heartRateAvg: todayData.heartRate,
+            spo2: todayData.spo2,
+            stressLevel: todayData.stressLevel,
+            consumedCalories: consumedCals,
+            nutritionScore: avgNutriScore,
+          ),
+        );
+
+        if (result != null && mounted) {
+          setState(() {
+            _riskResult = RiskResult(
+              score: result.score,
+              level: RiskLevelExtension.fromString(result.level),
+              topFactors: result.topFactors
+                  .map((f) => RiskFactor(name: f.name, contribution: f.contribution, description: f.description))
+                  .toList(),
+              modelVersion: result.modelVersion,
+              windowEnd: DateTime.now(),
+            );
+          });
+        }
+      } catch (e) {
+        debugPrint("Risk skoru hesaplama hatası: $e");
+      }
 
       if (mounted) {
         setState(() => _waterTarget = HealthService.calculateWaterTarget(pWeight, todayData.activeCalories));
@@ -261,19 +295,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         debugPrint("Anomali kontrol hatası: $e");
       }
 
-      if (result != null && mounted) {
-        setState(() {
-          _riskResult = RiskResult(
-            score: result.score,
-            level: RiskLevelExtension.fromString(result.level),
-            topFactors: result.topFactors
-                .map((f) => RiskFactor(name: f.name, contribution: f.contribution, description: f.description))
-                .toList(),
-            modelVersion: result.modelVersion,
-            windowEnd: DateTime.now(),
-          );
-        });
-      }
+
 
       // Haftalık risk geçmişi (Backend API'den çek)
       try {
@@ -291,14 +313,15 @@ class _DashboardScreenState extends State<DashboardScreen>
         debugPrint('Haftalık risk geçmişi hatası: $e');
       }
 
+    } catch (e) {
+      debugPrint("_loadTodayData ana hata: $e");
+    } finally {
       if (mounted) {
         setState(() {
           _initialLoadDone = true;
           _lastSyncTime = DateTime.now();
         });
       }
-    } catch (e) {
-      debugPrint("_loadTodayData hatası: $e");
     }
   }
 
@@ -387,6 +410,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Health Connect kurulum banner'ı
+                    if (_hcStatus != 'available' && _hcStatus != 'checking' && !_hcBannerDismissed) ...[
+                      _buildHealthConnectBanner(context),
+                      const SizedBox(height: 16),
+                    ],
                     if (_anomalyResult?.hasAnomaly == true && !_isAnomalyDismissed) ...[
                       AnomalyBanner(
                         anomalyResult: _anomalyResult!,
@@ -673,7 +701,98 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-
+  Widget _buildHealthConnectBanner(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isUpdate = _hcStatus == 'update_required';
+    final bannerColor = isUpdate ? AppColors.accent : AppColors.primary;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            bannerColor.withValues(alpha: 0.12),
+            bannerColor.withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: bannerColor.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: bannerColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isUpdate ? Icons.system_update_rounded : Icons.health_and_safety_rounded,
+                  color: bannerColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isUpdate ? 'Health Connect Güncellemesi Gerekli' : 'Health Connect Gerekli',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: cs.onSurface),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isUpdate
+                          ? 'Akıllı saatinizden veri almaya devam etmek için Health Connect\'i güncellemeniz gerekiyor.'
+                          : 'Akıllı saat verilerinizi otomatik almak için Health Connect uygulamasını telefonunuza yükleyin.',
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _hcBannerDismissed = true),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.close_rounded, size: 18, color: cs.onSurfaceVariant),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () async {
+                const marketUrl = 'market://details?id=com.google.android.apps.healthdata';
+                const webUrl = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
+                final marketUri = Uri.parse(marketUrl);
+                if (await canLaunchUrl(marketUri)) {
+                  await launchUrl(marketUri, mode: LaunchMode.externalApplication);
+                } else {
+                  await launchUrl(Uri.parse(webUrl), mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: Icon(isUpdate ? Icons.system_update_rounded : Icons.download_rounded, size: 18),
+              label: Text(isUpdate ? 'Health Connect\'i Güncelle' : 'Play Store\'dan Yükle'),
+              style: FilledButton.styleFrom(
+                backgroundColor: bannerColor,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildWellnessSummary(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

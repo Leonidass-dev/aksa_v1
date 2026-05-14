@@ -157,7 +157,7 @@ class TestRecommendations:
     def test_model_version_set(self):
         snap = HealthSnapshot(age=30, height=175)
         result = _compute_risk_rules(snap)
-        assert result.model_version == "expert-v1.2"
+        assert result.model_version == "v1.2"
 
 
 if __name__ == "__main__":

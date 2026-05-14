@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
-class ActivityRings extends StatelessWidget {
+class ActivityRings extends StatefulWidget {
   final double stepsProgress; // 0.0 to 1.0
   final double sleepProgress; // 0.0 to 1.0
   final double waterProgress; // 0.0 to 1.0
@@ -22,37 +22,72 @@ class ActivityRings extends StatelessWidget {
   });
 
   @override
+  State<ActivityRings> createState() => _ActivityRingsState();
+}
+
+class _ActivityRingsState extends State<ActivityRings>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 140,
-            height: 140,
-            child: CustomPaint(
-              painter: _RingsPainter(
-                steps: stepsProgress,
-                sleep: sleepProgress,
-                water: waterProgress,
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final progress = _animation.value;
+        return AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 140,
+                height: 140,
+                child: CustomPaint(
+                  painter: _RingsPainter(
+                    steps: widget.stepsProgress * progress,
+                    sleep: widget.sleepProgress * progress,
+                    water: widget.waterProgress * progress,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildLegendItem(context, 'Adım', widget.stepsLabel, AppColors.stepsIndigo, Icons.directions_walk_rounded),
+                    const SizedBox(height: 12),
+                    _buildLegendItem(context, 'Uyku', widget.sleepLabel, AppColors.sleepPurple, Icons.bedtime_rounded),
+                    const SizedBox(height: 12),
+                    _buildLegendItem(context, 'Su', widget.waterLabel, AppColors.waterBlue, Icons.water_drop_rounded),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 24),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildLegendItem(context, 'Adım', stepsLabel, AppColors.stepsIndigo, Icons.directions_walk_rounded),
-                const SizedBox(height: 12),
-                _buildLegendItem(context, 'Uyku', sleepLabel, AppColors.sleepPurple, Icons.bedtime_rounded),
-                const SizedBox(height: 12),
-                _buildLegendItem(context, 'Su', waterLabel, AppColors.waterBlue, Icons.water_drop_rounded),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -125,13 +160,15 @@ class _RingsPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     canvas.drawCircle(center, radius, backgroundPaint);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -pi / 2,
-      2 * pi * progress.clamp(0.01, 0.999), // 0.01 to avoid visual glitch, 0.999 to show end cap
-      false,
-      progressPaint,
-    );
+    if (progress > 0.005) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -pi / 2,
+        2 * pi * progress.clamp(0.01, 0.999),
+        false,
+        progressPaint,
+      );
+    }
   }
 
   @override

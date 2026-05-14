@@ -25,7 +25,13 @@ class HealthDataParser {
     final Map<String, (double, DateTime)> sysBySrc = {};
     final Map<String, (double, DateTime)> diaBySrc = {};
     
-    double totalSleepMin = 0, sleepDeepMin = 0, sleepLightMin = 0, sleepRemMin = 0, sleepAwakeMin = 0;
+    // Uyku metrikleri için kaynak bazlı toplam
+    final Map<String, double> sleepAsleepBySrc = {};
+    final Map<String, double> sleepSessionBySrc = {};
+    final Map<String, double> sleepDeepBySrc = {};
+    final Map<String, double> sleepLightBySrc = {};
+    final Map<String, double> sleepRemBySrc = {};
+    final Map<String, double> sleepAwakeBySrc = {};
 
     // Kümülatif metrikler için kaynak bazlı toplam
     final Map<String, double> stepsBySrc = {};
@@ -49,16 +55,10 @@ class HealthDataParser {
     // ── DİĞER METRİKLER ────
     for (var point in healthData) {
       final isSleep = _sleepTypes.contains(point.type);
-      final isCumulative = [
-        HealthDataType.STEPS,
-        HealthDataType.ACTIVE_ENERGY_BURNED,
-        HealthDataType.TOTAL_CALORIES_BURNED,
-        HealthDataType.DISTANCE_DELTA,
-      ].contains(point.type);
-
-      // Kümülatif veriler (Adım, Kalori, Mesafe) sadece bugün (midnight sonrası) için toplanır.
-      // Anlık veriler (Nabız, Tansiyon) ise 36 saatlik penceredeki "en son" değer olarak alınır.
-      if (isCumulative && point.dateFrom.isBefore(midnight)) continue;
+      
+      // Uyku dışındaki TÜM veriler (Kümülatif ve Anlık) sadece BUGÜN (midnight sonrası) geçerlidir.
+      // Dünden sızan (kalori, adım, nabız) veriler bugün risk skorunu bozmamalı.
+      if (!isSleep && point.dateFrom.isBefore(midnight)) continue;
 
       final val = isSleep
           ? point.dateTo.difference(point.dateFrom).inMinutes.toDouble()
@@ -106,24 +106,22 @@ class HealthDataParser {
           }
           break;
         case HealthDataType.SLEEP_ASLEEP:
-          totalSleepMin += val;
+          sleepAsleepBySrc[src] = (sleepAsleepBySrc[src] ?? 0) + val;
           break;
         case HealthDataType.SLEEP_SESSION:
-          // Session genelde toplam süreyi kapsar, eğer ASLEEP gelmezse yedek olarak kullanılabilir.
-          // Burada sadece en büyük session süresini baz alacağız (genelde bir tane olur).
-          if (val > totalSleepMin) totalSleepMin = val;
+          sleepSessionBySrc[src] = (sleepSessionBySrc[src] ?? 0) + val;
           break;
         case HealthDataType.SLEEP_DEEP:
-          sleepDeepMin += val;
+          sleepDeepBySrc[src] = (sleepDeepBySrc[src] ?? 0) + val;
           break;
         case HealthDataType.SLEEP_LIGHT:
-          sleepLightMin += val;
+          sleepLightBySrc[src] = (sleepLightBySrc[src] ?? 0) + val;
           break;
         case HealthDataType.SLEEP_REM:
-          sleepRemMin += val;
+          sleepRemBySrc[src] = (sleepRemBySrc[src] ?? 0) + val;
           break;
         case HealthDataType.SLEEP_AWAKE:
-          sleepAwakeMin += val;
+          sleepAwakeBySrc[src] = (sleepAwakeBySrc[src] ?? 0) + val;
           break;
         default:
           break;
@@ -136,6 +134,16 @@ class HealthDataParser {
     final totalCalories = _resolveSourceValue(totalCalBySrc, useMax: true);
     final distanceM = _resolveSourceValue(distanceBySrc, useMax: true);
 
+    // Uyku metriklerinin çözümlenmesi (Aynı anda birden fazla kaynaktan gelen çakışmaları önlemek için)
+    final sleepAsleepResolved = _resolveSourceValue(sleepAsleepBySrc, useMax: true);
+    final sleepSessionResolved = _resolveSourceValue(sleepSessionBySrc, useMax: true);
+    final sleepDeepMin = _resolveSourceValue(sleepDeepBySrc, useMax: true);
+    final sleepLightMin = _resolveSourceValue(sleepLightBySrc, useMax: true);
+    final sleepRemMin = _resolveSourceValue(sleepRemBySrc, useMax: true);
+    final sleepAwakeMin = _resolveSourceValue(sleepAwakeBySrc, useMax: true);
+
+    double finalTotalSleepMin = sleepAsleepResolved > 0 ? sleepAsleepResolved : sleepSessionResolved;
+
     // Anlık metrikler için giyilebilir öncelikli son değer seçimi
     final latestHeartRate = _resolveLatestValue(hrBySrc);
     final latestRestingHr = _resolveLatestValue(rhrBySrc);
@@ -147,8 +155,8 @@ class HealthDataParser {
       debugPrint("Adım kaynakları: $stepsBySrc → Seçilen: $totalSteps");
     }
 
-    final sleepHrs = totalSleepMin > 0
-        ? totalSleepMin / 60.0
+    final sleepHrs = finalTotalSleepMin > 0
+        ? finalTotalSleepMin / 60.0
         : (sleepDeepMin + sleepLightMin + sleepRemMin) / 60.0;
 
     // ── Nabız Seçim Mantığı ──
