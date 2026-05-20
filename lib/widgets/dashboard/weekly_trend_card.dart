@@ -7,13 +7,24 @@ import '../../theme/app_theme.dart';
 class WeeklyTrendCard extends StatelessWidget {
   final List<double> weeklyData;
 
-  static const _days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-
   const WeeklyTrendCard({super.key, required this.weeklyData});
+
+  List<String> _getDynamicDays() {
+    final now = DateTime.now();
+    const trDays = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    final List<String> result = [];
+    for (int i = 6; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      result.add(trDays[date.weekday - 1]);
+    }
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final dynamicDays = _getDynamicDays();
+    
     return AppCard(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -35,7 +46,7 @@ class WeeklyTrendCard extends StatelessWidget {
                 ),
               ),
               Row(
-                children: _days.map((day) {
+                children: dynamicDays.map((day) {
                   return Padding(
                     padding: const EdgeInsets.only(left: 6),
                     child: Text(

@@ -367,6 +367,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     final today = _weeklyData.last;
     final yesterday = _weeklyData[_weeklyData.length - 2];
     
+    // Mantıksal Hata Çözümü: 0.0 değeri (veri yokluğu) yanlış trend oluşturmasını engeller.
+    if (today == 0.0) return 'Veri Bekleniyor';
+    if (yesterday == 0.0) return 'Hesaplanıyor';
+    
     if (today > yesterday + 5) return 'Artıyor';
     if (today < yesterday - 5) return 'Azalıyor';
     return 'Stabil';
