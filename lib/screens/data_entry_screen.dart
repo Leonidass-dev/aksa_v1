@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
@@ -49,6 +50,14 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
   }
 
   Future<void> _handleSave() async {
+    // Mantıksal Hata Çözümü: Tıbben imkansız tansiyon değerini engelle
+    if (_diastolic >= _systolic) {
+      setState(() {
+        _errorMessage = 'Hata: Küçük tansiyon, Büyük tansiyondan büyük veya eşit olamaz.';
+      });
+      return;
+    }
+
     setState(() {
       _saving = true;
       _errorMessage = null;
@@ -99,7 +108,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
           ),
         );
       } catch (e) {
-        debugPrint('Risk skoru hesaplanamadı (veri kaydedildi): $e');
+        AppLogger.debug('Risk skoru hesaplanamadı (veri kaydedildi): $e');
       }
 
       if (mounted) {

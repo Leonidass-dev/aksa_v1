@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
@@ -97,7 +98,7 @@ class AuthServiceImpl implements IAuthService {
     } on FirebaseAuthException catch (e) {
       return AuthResult.error(_firebaseErrorMessage(e.code));
     } catch (e) {
-      debugPrint("Google Sign-In Error: $e");
+      AppLogger.debug("Google Sign-In Error: $e");
       return AuthResult.error('Google girişi şu an yapılamıyor. Lütfen tekrar deneyin.');
     }
   }
@@ -153,7 +154,7 @@ class AuthServiceImpl implements IAuthService {
     } on FirebaseAuthException catch (e) {
       return AuthResult.error(_firebaseErrorMessage(e.code));
     } catch (e) {
-      debugPrint("Apple Login Error: $e");
+      AppLogger.debug("Apple Login Error: $e");
       return AuthResult.error('Cihazınızda Apple ile giriş desteklenmiyor olabilir. Lütfen başka bir yöntem deneyin.');
     }
   }
@@ -212,7 +213,7 @@ class AuthServiceImpl implements IAuthService {
       // 1. Backend'den kalıcı olarak sil
       final backendSuccess = await ApiService.deleteUserFromBackend();
       if (!backendSuccess) {
-        debugPrint("Backend deletion failed, but proceeding to delete Firebase auth");
+        AppLogger.debug("Backend deletion failed, but proceeding to delete Firebase auth");
       }
 
       // 2. Firestore verilerini sil
@@ -225,7 +226,7 @@ class AuthServiceImpl implements IAuthService {
       await signOut();
       return true;
     } catch (e) {
-      debugPrint('Hard delete error: $e');
+      AppLogger.debug('Hard delete error: $e');
       return false;
     }
   }
@@ -242,7 +243,7 @@ class AuthServiceImpl implements IAuthService {
       });
       return true;
     } catch (e) {
-      debugPrint('Restore account error: $e');
+      AppLogger.debug('Restore account error: $e');
       return false;
     }
   }

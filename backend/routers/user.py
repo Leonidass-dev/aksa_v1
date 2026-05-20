@@ -13,6 +13,7 @@ import crud
 
 router = APIRouter()
 
+
 class UserProfileRequest(BaseModel):
     age: int | None = None
     height: float | None = None
@@ -21,9 +22,11 @@ class UserProfileRequest(BaseModel):
     allergies: list[str] | None = None
     diet_preference: str | None = None
 
+
 class DeleteUserResponse(BaseModel):
     success: bool
     message: str
+
 
 @router.delete("/user", response_model=DeleteUserResponse)
 async def delete_account(
@@ -36,14 +39,17 @@ async def delete_account(
     """
     user = await crud.get_or_create_user(db, uid)
     success = await crud.delete_user_completely(db, user)
-    
+
     if success:
-        return DeleteUserResponse(success=True, message="Kullanıcı hesabı başarıyla silindi.")
+        return DeleteUserResponse(
+            success=True, message="Kullanıcı hesabı başarıyla silindi."
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Kullanıcı silinirken bir hata oluştu."
+            detail="Kullanıcı silinirken bir hata oluştu.",
         )
+
 
 @router.post("/user/profile")
 async def sync_user_profile(
@@ -56,7 +62,7 @@ async def sync_user_profile(
     Alerji ve diyet tercihleri de burada güncellenir.
     """
     user = await crud.get_or_create_user(db, uid)
-    
+
     if req.age is not None:
         user.age = req.age
     if req.height is not None:
@@ -69,8 +75,8 @@ async def sync_user_profile(
         user.allergies = req.allergies
     if req.diet_preference is not None:
         user.diet_preference = req.diet_preference
-        
+
     await db.commit()
     await db.refresh(user)
-    
+
     return {"success": True, "message": "Profil güncellendi."}

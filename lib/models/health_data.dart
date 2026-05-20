@@ -49,7 +49,7 @@ class RiskResult {
   });
 }
 
-enum RiskLevel { low, medium, high }
+enum RiskLevel { low, medium, high, unknown }
 
 extension RiskLevelExtension on RiskLevel {
   /// API'den gelen string'i RiskLevel'a çevirir.
@@ -63,6 +63,8 @@ extension RiskLevelExtension on RiskLevel {
       case 'medium':
       case 'orta':
         return RiskLevel.medium;
+      case 'unknown':
+        return RiskLevel.unknown;
       default:
         return RiskLevel.low;
     }
@@ -76,6 +78,8 @@ extension RiskLevelExtension on RiskLevel {
         return 'Orta Risk';
       case RiskLevel.high:
         return 'Yüksek Risk';
+      case RiskLevel.unknown:
+        return 'Hesaplanamadı';
     }
   }
 
@@ -87,6 +91,8 @@ extension RiskLevelExtension on RiskLevel {
         return 'Medium Risk';
       case RiskLevel.high:
         return 'High Risk';
+      case RiskLevel.unknown:
+        return 'Insufficient Data';
     }
   }
 
@@ -99,6 +105,8 @@ extension RiskLevelExtension on RiskLevel {
         return AppColors.accent;
       case RiskLevel.high:
         return AppColors.destructive;
+      case RiskLevel.unknown:
+        return AppColors.mutedForeground;
     }
   }
 
@@ -111,6 +119,8 @@ extension RiskLevelExtension on RiskLevel {
         return Icons.warning_amber_outlined;
       case RiskLevel.high:
         return Icons.error_outline;
+      case RiskLevel.unknown:
+        return Icons.help_outline;
     }
   }
 }

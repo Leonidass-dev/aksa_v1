@@ -1,3 +1,5 @@
+import 'package:aksa_v1/utils/app_logger.dart';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -38,15 +40,25 @@ void main() async {
     await NotificationService.init();
     await NotificationService.scheduleNudges();
   } catch (e) {
-    debugPrint('Bildirim servisi başlatılamadı (Hata: $e). Uygulama devam ediyor.');
+    AppLogger.debug('Bildirim servisi başlatılamadı (Hata: $e). Uygulama devam ediyor.');
   }
 
   try {
     // Arkaplan Anomali Tespiti (WorkManager)
     await BackgroundService.initialize();
   } catch (e) {
-    debugPrint('Arkaplan servisi başlatılamadı (Hata: $e). Uygulama devam ediyor.');
+    AppLogger.debug('Arkaplan servisi başlatılamadı (Hata: $e). Uygulama devam ediyor.');
   }
+
+  // ── Global Error Handling ──
+  FlutterError.onError = (FlutterErrorDetails details) {
+    AppLogger.error('Flutter Framework Hatası: ${details.exception}', error: details.exception, stackTrace: details.stack);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.error('Asenkron (Platform) Hatası: $error', error: error, stackTrace: stack);
+    return true; 
+  };
 
   runApp(const AksaApp());
 }

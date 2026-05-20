@@ -4,7 +4,6 @@ Hibrit: XGBoost + GRU varsa kullanır, yoksa kural tabanlı fallback.
 """
 
 import datetime
-from datetime import timezone
 from dataclasses import dataclass, field, replace
 import numpy as np
 import os
@@ -17,16 +16,20 @@ logger = logging.getLogger(__name__)
 _HAS_ML = False
 try:
     import torch
-    import torch.nn as nn
-    import xgboost as xgb
+    import torch.nn as nn  # noqa: F401
+    import xgboost as xgb  # noqa: F401
     import joblib
     import shap
+
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from ml_models.gru_model import RiskGRU
+
     _HAS_ML = True
     logger.info("✅ Risk modeli: XGBoost + GRU (ve SHAP) yüklendi")
 except ImportError as e:
-    logger.warning(f"⚠️  ML kütüphaneleri yüklenemedi ({e}) — Kural tabanlı fallback aktif")
+    logger.warning(
+        f"⚠️  ML kütüphaneleri yüklenemedi ({e}) — Kural tabanlı fallback aktif"
+    )
 
 # Model cache
 _xgb_model = None
@@ -42,10 +45,15 @@ def _load_models():
     _models_loaded = True  # Tekrar denemeyi önle (başarısız yükleme döngüsü)
     try:
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        _xgb_model = joblib.load(os.path.join(base_path, 'ml_models', 'risk_xgboost.pkl'))
-        _scaler = joblib.load(os.path.join(base_path, 'ml_models', 'risk_scaler.pkl'))
+        _xgb_model = joblib.load(
+            os.path.join(base_path, "ml_models", "risk_xgboost.pkl")
+        )
+        _scaler = joblib.load(os.path.join(base_path, "ml_models", "risk_scaler.pkl"))
         _gru_model = RiskGRU(input_size=9, hidden_size=32, num_classes=3)
-        state_dict = torch.load(os.path.join(base_path, 'ml_models', 'risk_gru.pt'), map_location=torch.device('cpu'))
+        state_dict = torch.load(
+            os.path.join(base_path, "ml_models", "risk_gru.pt"),
+            map_location=torch.device("cpu"),
+        )
         _gru_model.load_state_dict(state_dict)
         _gru_model.eval()
         logger.info("✅ Risk ML modelleri belleğe yüklendi")
@@ -96,25 +104,72 @@ def _normalize(value: float, low: float, high: float) -> float:
     return max(0.0, min(1.0, (value - low) / (high - low)))
 
 
-def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = None) -> RiskResult:
+def _has_actionable_vitals(snap: HealthSnapshot) -> bool:
+    """En az bir günlük vital ölçümü olmalı; yoksa skor üretilmez."""
+    has_hr = snap.heart_rate_avg > 0 or snap.heart_rate_resting > 0
+    has_activity = snap.steps > 0
+    has_sleep = snap.sleep_hours > 0
+    has_bp = snap.systolic > 0 or snap.diastolic > 0
+    has_spo2 = snap.spo2 > 0
+    return has_hr or has_activity or has_sleep or has_bp or has_spo2
+
+
+def _has_real_ml_features(ml_features: list[float] | list[list[float]] | None) -> bool:
+    if not ml_features:
+        return False
+    if isinstance(ml_features[0], list):
+        return len(ml_features) > 0
+    return len(ml_features) == 9
+
+
+def _compute_risk_insufficient(snap: HealthSnapshot) -> RiskResult:
+    """Sensör verisi yetersiz — sentetik ML veya yaş/BMI ile şişirilmiş skor üretme."""
+    return RiskResult(
+        score=0.0,
+        level="unknown",
+        top_factors=[
+            RiskFactor(
+                "Yetersiz Sağlık Verisi",
+                0.0,
+                "Bugün nabız, adım, uyku veya tansiyon verisi algılanamadı. "
+                "Saatinizi senkronize edin veya manuel veri girin.",
+            )
+        ],
+        recommendations=[
+            "Health Connect üzerinden saatinizi senkronize edin.",
+            "En az bir vital ölçüm (nabız, adım veya uyku) olmadan risk skoru hesaplanmaz.",
+        ],
+        model_version="insufficient-data",
+    )
+
+
+def _compute_risk_ml(
+    snap: HealthSnapshot, ml_features: list[float] | None = None
+) -> RiskResult:
     """Hibrit Füzyon: XGBoost + GRU"""
     _load_models()
 
     # ── Guard Clause: Model veya Scaler yüklenemezse fallback ──
     if _xgb_model is None or _scaler is None:
-        logger.warning("⚠️ XGBoost veya Scaler yüklenemedi, kural tabanlı fallback'e geçiliyor.")
+        logger.warning(
+            "⚠️ XGBoost veya Scaler yüklenemedi, kural tabanlı fallback'e geçiliyor."
+        )
         return _compute_risk_rules(snap)
 
     # ── M2 Pipeline verisini işle ──
-    is_sequence = ml_features and len(ml_features) > 0 and isinstance(ml_features[0], list)
-    
+    is_sequence = (
+        ml_features and len(ml_features) > 0 and isinstance(ml_features[0], list)
+    )
+
     if is_sequence:
         # Gerçek zaman dizisi geldi! (M2 Düzeltme)
         raw_sequence = ml_features
         latest_vector = np.array([raw_sequence[-1]])
         hr_mean = raw_sequence[-1][0]
         steps_window = raw_sequence[-1][5]
-        logger.info(f"🎯 M3 Risk Modeli: {len(raw_sequence)} pencerelik GERÇEK zaman serisi işleniyor.")
+        logger.info(
+            f"🎯 M3 Risk Modeli: {len(raw_sequence)} pencerelik GERÇEK zaman serisi işleniyor."
+        )
     elif ml_features and len(ml_features) == 9:
         # Eski 1D format veya tekil veri
         latest_vector = np.array([ml_features])
@@ -122,27 +177,18 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
         steps_window = ml_features[5]
         raw_sequence = [ml_features]
     else:
-        # Fallback (WESAD dinlenme baseline)
-        hr_mean = snap.heart_rate_avg if snap.heart_rate_avg else 72.0
-        hr_min = snap.heart_rate_resting if snap.heart_rate_resting else 60.0
-        hr_max = hr_mean + 15.0
-        hr_std = 5.0
-        steps_window = snap.steps / 16 if snap.steps else 200.0
-        steps_active = max(1, int(snap.active_minutes / 16)) if snap.active_minutes else 2
-        steps_max = 20.0
-        missing_pct = 0.0
-
-        latest_vector = np.array([[
-            hr_mean, hr_mean, hr_min, hr_max, hr_std,  # Medyan yerine ortalama (fallback)
-            steps_window, steps_active, steps_max, missing_pct
-        ]])
-        raw_sequence = latest_vector.tolist()
-        logger.info("⚠️ M3 Risk Modeli: M2 verisi bulunamadı, fallback kullanılıyor.")
+        # M2 yokken sentetik 72 bpm vektörü üretme — kural motoruna veya yetersiz veriye düş
+        logger.info("⚠️ M3: M2 pipeline verisi yok, ML atlanıyor.")
+        if _has_actionable_vitals(snap):
+            return _compute_risk_rules(snap)
+        return _compute_risk_insufficient(snap)
 
     # ── BUG-8 Fix: Feature sayısı doğrulama ──
-    expected_features = getattr(_scaler, 'n_features_in_', latest_vector.shape[1])
+    expected_features = getattr(_scaler, "n_features_in_", latest_vector.shape[1])
     if latest_vector.shape[1] != expected_features:
-        logger.warning(f"Feature uyuşmazlığı: {latest_vector.shape[1]} != {expected_features}, fallback'e geçiliyor.")
+        logger.warning(
+            f"Feature uyuşmazlığı: {latest_vector.shape[1]} != {expected_features}, fallback'e geçiliyor."
+        )
         return _compute_risk_rules(snap)
 
     features_scaled = _scaler.transform(latest_vector)
@@ -156,15 +202,17 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
     if _gru_model is not None:
         # Tüm diziyi ölçekle
         seq_scaled = _scaler.transform(raw_sequence)
-        
+
         # Eğer dizi 5'ten kısaysa başını son elemanla pad et (sıcak başlangıç)
         if len(seq_scaled) < 5:
             padding = np.tile(seq_scaled[0], (5 - len(seq_scaled), 1))
             seq_final = np.vstack([padding, seq_scaled])
         else:
             seq_final = seq_scaled[-5:]
-            
-        features_t = torch.tensor(seq_final, dtype=torch.float32).unsqueeze(0)  # (1, 5, 9)
+
+        features_t = torch.tensor(seq_final, dtype=torch.float32).unsqueeze(
+            0
+        )  # (1, 5, 9)
         with torch.no_grad():
             out_gru = _gru_model(features_t)
             probs_gru = torch.softmax(out_gru, dim=1).numpy()[0]
@@ -178,7 +226,9 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
     if snap.steps > 8000 and snap.heart_rate_avg > 85:
         activity_discount = min(0.15, (snap.steps - 8000) / 100000)
         final_prob = max(0.0, final_prob - activity_discount)
-        logger.info(f"🏃 Aktivite düzeltmesi uygulandı: -{activity_discount:.3f} (adım={int(snap.steps)}, nabız={snap.heart_rate_avg:.0f})")
+        logger.info(
+            f"🏃 Aktivite düzeltmesi uygulandı: -{activity_discount:.3f} (adım={int(snap.steps)}, nabız={snap.heart_rate_avg:.0f})"
+        )
 
     # Tez M3: Platt-benzeri sigmoid smoothing (kalibrasyon)
     # Ham olasılığı sigmoid ile yumuşat — aşırı uç değerleri merkeze çek
@@ -200,7 +250,7 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
     try:
         explainer = shap.TreeExplainer(_xgb_model)
         shap_values = explainer.shap_values(features_scaled)
-        
+
         # SHAP değerlerini al
         # XGBoost multi-class çıktısı sürüme göre liste veya 3D array dönebilir
         sv = None
@@ -220,18 +270,26 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
         # sv'nin sayısal olduğundan ve tek boyutlu (features,) olduğundan emin ol
         if sv is not None:
             sv = np.array(sv, dtype=float).flatten()
-            if sv.ndim > 1: sv = sv[0]
-        
+            if sv.ndim > 1:
+                sv = sv[0]
+
         feature_names = [
-            "Ortalama Nabız", "Medyan Nabız", "Min Nabız", "Maks Nabız", "Nabız Std",
-            "Günlük Adım", "Aktif Süre", "Maks Adım Yoğunluğu", "Eksik Veri Oranı"
+            "Ortalama Nabız",
+            "Medyan Nabız",
+            "Min Nabız",
+            "Maks Nabız",
+            "Nabız Std",
+            "Günlük Adım",
+            "Aktif Süre",
+            "Maks Adım Yoğunluğu",
+            "Eksik Veri Oranı",
         ]
-        
+
         # Mutlak değerlerle önem oranlarını (%) bul
         sv_abs = np.abs(sv).flatten()
         total_sv = np.sum(sv_abs) + 1e-9
         sv_flat = np.array(sv).flatten()
-        
+
         for i, val in enumerate(sv_flat):
             if i >= len(feature_names):
                 break
@@ -240,21 +298,40 @@ def _compute_risk_ml(snap: HealthSnapshot, ml_features: list[float] | None = Non
                 direction = "Artış" if val > 0 else "Azalış"
                 desc = f"Sağlık verilerinizdeki {direction} yönlü değişim"
                 factors.append(RiskFactor(feature_names[i], round(float(pct), 1), desc))
-                
+
         factors.sort(key=lambda x: x.contribution, reverse=True)
     except Exception as e:
-        logger.warning(f"SHAP explainer hesaplanırken hata: {e}. Fallback kurallarına dönülüyor.")
+        logger.warning(
+            f"SHAP explainer hesaplanırken hata: {e}. Fallback kurallarına dönülüyor."
+        )
         if hr_mean > 95:
             hr_contribution = min(20.0, (hr_mean - 95) * 2.0 + 5.0)
-            factors.append(RiskFactor("Nabız", hr_contribution, f"Yüksek ortalama nabız: {hr_mean:.0f}"))
+            factors.append(
+                RiskFactor(
+                    "Nabız", hr_contribution, f"Yüksek ortalama nabız: {hr_mean:.0f}"
+                )
+            )
         if steps_window < 300:
-            factors.append(RiskFactor("Hareketsizlik", 15.0, f"Düşük aktivite: {steps_window:.0f} adım/saat"))
-            
+            factors.append(
+                RiskFactor(
+                    "Hareketsizlik",
+                    15.0,
+                    f"Düşük aktivite: {steps_window:.0f} adım/saat",
+                )
+            )
+
     if not factors:
-        factors.append(RiskFactor("Genel", 0.0, "Veriler normal sınırlar içinde veya risk dağılımı dengeli"))
+        factors.append(
+            RiskFactor(
+                "Genel",
+                0.0,
+                "Veriler normal sınırlar içinde veya risk dağılımı dengeli",
+            )
+        )
 
     return RiskResult(
-        score=score, level=level,
+        score=score,
+        level=level,
         top_factors=factors[:5],
         recommendations=_generate_recommendations(factors, level),
         model_version="v1.2",
@@ -268,7 +345,7 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     """
     score = 5.0  # Başlangıç: Minimum baz risk
     factors = []
-    
+
     # ── BUG-6 Fix: Boy metre/cm otomatik normalize ──
     effective_height = snap.height
     if 0 < effective_height < 3:
@@ -279,10 +356,10 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     if snap.weight > 0 and effective_height > 100:
         height_m = effective_height / 100.0
         bmi = snap.weight / (height_m * height_m)
-        
+
         # Yaşlılar için esnetilmiş WESAD/AHA eşiği
         threshold = 27.0 if snap.age > 65 else 25.0
-        
+
         if bmi > threshold:
             bmi_penalty = min(20, (bmi - threshold) * 1.5)
             score += bmi_penalty
@@ -293,16 +370,20 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     if snap.age > 45:
         age_penalty = (snap.age - 45) * 0.4
         score += age_penalty
-        factors.append(RiskFactor("Yaş", age_penalty, f"Yaşa bağlı risk artışı ({snap.age})"))
+        factors.append(
+            RiskFactor("Yaş", age_penalty, f"Yaşa bağlı risk artışı ({snap.age})")
+        )
 
     # 3. Adım ve Aktivite (Sedanter Yaşam)
     # Tez M3: Zaman duyarlı risk analizi (Sabah saatlerinde düşük adım normaldir)
     current_hour = datetime.datetime.now().hour
-    
+
     # Saat bazlı beklenen adım: sabah düşük, akşam yüksek
     # Saat 8'de 1000, öğlen 12'de 4000, akşam 20'de 8000 beklenir
-    expected_steps = min(10000, max(1000, (current_hour - 6) * 600)) if current_hour > 6 else 500
-    
+    expected_steps = (
+        min(10000, max(1000, (current_hour - 6) * 600)) if current_hour > 6 else 500
+    )
+
     # ── BUG-2 Fix: Sıfır adım = eksik veri, cezalandırma ──
     if snap.steps <= 0:
         pass  # Veri henüz gelmemiş — cezalandırma
@@ -311,27 +392,53 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         step_risk = _normalize(step_diff, 0, expected_steps) * 12
         score += step_risk
         if step_risk > 3:
-            factors.append(RiskFactor("Hareketsizlik", step_risk, f"Günlük {int(snap.steps)} adım — beklenen ~{int(expected_steps)}"))
+            factors.append(
+                RiskFactor(
+                    "Hareketsizlik",
+                    step_risk,
+                    f"Günlük {int(snap.steps)} adım — beklenen ~{int(expected_steps)}",
+                )
+            )
 
     # 4. Uyku Hijyeni
     if snap.sleep_hours > 0:
         if snap.sleep_hours < 6:
             sleep_risk = _normalize(6 - snap.sleep_hours, 0, 6) * 15
             score += sleep_risk
-            factors.append(RiskFactor("Yetersiz Uyku", sleep_risk, f"{snap.sleep_hours:.1f} saat — dinlenme yetersiz"))
+            factors.append(
+                RiskFactor(
+                    "Yetersiz Uyku",
+                    sleep_risk,
+                    f"{snap.sleep_hours:.1f} saat — dinlenme yetersiz",
+                )
+            )
         elif snap.sleep_hours > 9:
             score += 5
-            factors.append(RiskFactor("Aşırı Uyku", 5.0, f"{snap.sleep_hours:.1f} saat — metabolik yavaşlama"))
+            factors.append(
+                RiskFactor(
+                    "Aşırı Uyku",
+                    5.0,
+                    f"{snap.sleep_hours:.1f} saat — metabolik yavaşlama",
+                )
+            )
     elif current_hour >= 14:
         # ── BUG-5 Fix: Öğleden sonra hâlâ uyku verisi yoksa uyarı ──
         score += 8
-        factors.append(RiskFactor("Uyku Verisi Yok", 8.0, "Bugün uyku verisi algılanamadı"))
+        factors.append(
+            RiskFactor("Uyku Verisi Yok", 8.0, "Bugün uyku verisi algılanamadı")
+        )
 
     # 5. Kalp Hızı (Dinlenik Nabız) — AHA: 60-100 Normal
     if snap.heart_rate_resting > 100:
         hr_risk = _normalize(snap.heart_rate_resting, 100, 150) * 15
         score += hr_risk
-        factors.append(RiskFactor("Taşikardi Riski", hr_risk, f"Yüksek dinlenik nabız: {snap.heart_rate_resting:.0f} bpm"))
+        factors.append(
+            RiskFactor(
+                "Taşikardi Riski",
+                hr_risk,
+                f"Yüksek dinlenik nabız: {snap.heart_rate_resting:.0f} bpm",
+            )
+        )
 
     # 6. Kan Basıncı (Tansiyon) — AHA Standartları
     if snap.systolic > 0 or snap.diastolic > 0:
@@ -339,7 +446,7 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
         dia = snap.diastolic
         bp_score = 0
         bp_label = ""
-        
+
         if sys >= 180 or dia >= 120:
             bp_score = 30
             bp_label = "Hipertansif Kriz"
@@ -353,45 +460,71 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
             bp_score = 5
             bp_label = "Yükseliş Eğilimi"
         # 120/80 ve altı = Normal, ceza yok
-        
+
         if bp_score > 0:
             score += bp_score
-            factors.append(RiskFactor("Hipertansiyon", bp_score, f"{bp_label}: {sys:.0f}/{dia:.0f} mmHg"))
+            factors.append(
+                RiskFactor(
+                    "Hipertansiyon", bp_score, f"{bp_label}: {sys:.0f}/{dia:.0f} mmHg"
+                )
+            )
 
     # 7. Oksijen Saturasyonu (SpO2)
     if snap.spo2 > 0:
         if snap.spo2 < 95:
             spo2_risk = _normalize(95 - snap.spo2, 0, 10) * 25
             score += spo2_risk
-            factors.append(RiskFactor("Hipoksi İşareti", spo2_risk, f"Düşük SpO₂: %{snap.spo2:.0f}"))
+            factors.append(
+                RiskFactor(
+                    "Hipoksi İşareti", spo2_risk, f"Düşük SpO₂: %{snap.spo2:.0f}"
+                )
+            )
 
     # 8. Stres (HRV Bazlı)
     if snap.stress_level > 65:
         stress_risk = _normalize(snap.stress_level, 65, 100) * 10
         score += stress_risk
-        factors.append(RiskFactor("Otonom Stres", stress_risk, f"Yüksek stres: {snap.stress_level:.0f}/100"))
-    
+        factors.append(
+            RiskFactor(
+                "Otonom Stres",
+                stress_risk,
+                f"Yüksek stres: {snap.stress_level:.0f}/100",
+            )
+        )
+
     # 9. Beslenme Mantığı (Tez M5 Entegrasyonu)
     if snap.weight > 0 and effective_height > 100:
         # Bazal Metabolizma (Mifflin-St Jeor)
-        if snap.gender == 'M':
+        if snap.gender == "M":
             bmr = 10 * snap.weight + 6.25 * effective_height - 5 * snap.age + 5
         else:
             bmr = 10 * snap.weight + 6.25 * effective_height - 5 * snap.age - 161
-            
+
         # Dinamik Limit: BMR + Hareket (Dakika başına ~4 kalori varsayımı veya direkt steps/20)
-        daily_limit = bmr + (snap.steps / 20.0) 
-        
+        daily_limit = bmr + (snap.steps / 20.0)
+
         if snap.consumed_calories > (daily_limit + 300):
             surplus = snap.consumed_calories - daily_limit
             nutrition_penalty = min(15, (surplus / 100) * 2)
             score += nutrition_penalty
-            factors.append(RiskFactor("Kalori Aşımı", nutrition_penalty, f"Limitin {int(surplus)} kalori üzerinde tüketim"))
-        
+            factors.append(
+                RiskFactor(
+                    "Kalori Aşımı",
+                    nutrition_penalty,
+                    f"Limitin {int(surplus)} kalori üzerinde tüketim",
+                )
+            )
+
         if snap.nutrition_score < 50:
             quality_penalty = (50 - snap.nutrition_score) * 0.2
             score += quality_penalty
-            factors.append(RiskFactor("Düşük Besin Kalitesi", quality_penalty, "İşlenmiş veya düşük skorlu gıda tüketimi"))
+            factors.append(
+                RiskFactor(
+                    "Düşük Besin Kalitesi",
+                    quality_penalty,
+                    "İşlenmiş veya düşük skorlu gıda tüketimi",
+                )
+            )
 
     # 10. SINERJİ (Birden fazla yüksek riskin çarpan etkisi)
     # Tez M3: Kritik vakaların birleşimi daha dengeli hesaplanmalı
@@ -399,7 +532,13 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     if high_risks >= 2:
         synergy_bonus = score * 0.05  # %5 sinerjik bonus (eskisi %10 idi)
         score += synergy_bonus
-        factors.append(RiskFactor("Sinerjik Risk", synergy_bonus, f"{high_risks} farklı kritik faktör çakışması"))
+        factors.append(
+            RiskFactor(
+                "Sinerjik Risk",
+                synergy_bonus,
+                f"{high_risks} farklı kritik faktör çakışması",
+            )
+        )
 
     score = max(0, min(100, score))
 
@@ -417,7 +556,8 @@ def _compute_risk_rules(snap: HealthSnapshot) -> RiskResult:
     factors.sort(key=lambda f: f.contribution, reverse=True)
 
     return RiskResult(
-        score=round(score, 1), level=level,
+        score=round(score, 1),
+        level=level,
         top_factors=factors[:5],
         recommendations=_generate_recommendations(factors, level),
         model_version="v1.2",
@@ -431,40 +571,52 @@ def _clean_data(snap: HealthSnapshot) -> HealthSnapshot:
     Orijinal dataclass'ı değiştirmez — temiz bir kopya döndürür.
     """
     updates = {}
-    
+
     # 1. Kalp Hızı Temizleme [40, 220]
     if snap.heart_rate_avg > 0:
-        updates['heart_rate_avg'] = max(40.0, min(220.0, snap.heart_rate_avg))
+        updates["heart_rate_avg"] = max(40.0, min(220.0, snap.heart_rate_avg))
     if snap.heart_rate_resting > 0:
-        updates['heart_rate_resting'] = max(35.0, min(150.0, snap.heart_rate_resting))
-        
+        updates["heart_rate_resting"] = max(35.0, min(150.0, snap.heart_rate_resting))
+
     # 2. SpO2 Temizleme [%70, %100]
     if snap.spo2 > 0:
-        updates['spo2'] = max(70.0, min(100.0, snap.spo2))
-        
+        updates["spo2"] = max(70.0, min(100.0, snap.spo2))
+
     # 3. Adım Sayısı (Günde 50k adımı geçen veri muhtemelen hatalıdır)
     if snap.steps > 0:
-        updates['steps'] = min(50000.0, snap.steps)
-        
-    # 4. Kilo ve Boy Mantık Kontrolü
+        updates["steps"] = min(50000.0, snap.steps)
+
+    # 4. Profil Verileri Mantık Kontrolü
     if snap.weight > 0:
-        updates['weight'] = max(30.0, min(250.0, snap.weight))
-        
+        updates["weight"] = max(30.0, min(250.0, snap.weight))
+    
+    # Mantıksal Hata Çözümü: Uç yaş ve boy değerlerini sınırla
+    updates["age"] = max(10, min(120, snap.age))
+    if snap.height > 0:
+        updates["height"] = max(100.0, min(250.0, snap.height))
+
     # 5. Tansiyon Kırpma
     if snap.systolic > 0:
-        updates['systolic'] = max(70.0, min(220.0, snap.systolic))
+        updates["systolic"] = max(70.0, min(220.0, snap.systolic))
     if snap.diastolic > 0:
-        updates['diastolic'] = max(40.0, min(130.0, snap.diastolic))
-        
+        updates["diastolic"] = max(40.0, min(130.0, snap.diastolic))
+
     return replace(snap, **updates)
 
 
-def compute_risk(snap: HealthSnapshot, ml_features: list[float] | None = None) -> RiskResult:
+def compute_risk(
+    snap: HealthSnapshot, ml_features: list[float] | None = None
+) -> RiskResult:
     """Ana fonksiyon — Önce veriyi temizler (M2), sonra analiz eder (M3)."""
     # M2: Preprocessing adımı
     clean_snap = _clean_data(snap)
-    
-    if _HAS_ML:
+
+    if not _has_actionable_vitals(clean_snap):
+        return _compute_risk_insufficient(clean_snap)
+
+    has_ml_input = _has_real_ml_features(ml_features)
+
+    if _HAS_ML and has_ml_input:
         try:
             return _compute_risk_ml(clean_snap, ml_features=ml_features)
         except Exception as e:
@@ -478,21 +630,35 @@ def _generate_recommendations(factors: list[RiskFactor], level: str) -> list[str
     for f in factors:
         if f.contribution < 5:
             continue
-            
+
         if "Hipertansiyon" in f.name:
-            recs.append("Tansiyonunuz yüksek seyrediyor. Tuz kullanımını azaltın ve doktorunuza danışın.")
+            recs.append(
+                "Tansiyonunuz yüksek seyrediyor. Tuz kullanımını azaltın ve doktorunuza danışın."
+            )
         if "Hipoksi" in f.name:
-            recs.append("Oksijen seviyeniz düşük. Eğer semptomunuz varsa (nefes darlığı) acil yardım isteyin.")
+            recs.append(
+                "Oksijen seviyeniz düşük. Eğer semptomunuz varsa (nefes darlığı) acil yardım isteyin."
+            )
         if "BMI" in f.name:
-            recs.append("Dengeli beslenme ve düzenli kalori kontrolü ile kilonuzu ideal sınıra çekmeye çalışın.")
+            recs.append(
+                "Dengeli beslenme ve düzenli kalori kontrolü ile kilonuzu ideal sınıra çekmeye çalışın."
+            )
         if "Taşikardi" in f.name:
-            recs.append("Dinlenik nabzınız yüksek. Kahve tüketimini azaltın ve stres yönetimi yapın.")
+            recs.append(
+                "Dinlenik nabzınız yüksek. Kahve tüketimini azaltın ve stres yönetimi yapın."
+            )
         if "Adım" in f.name or "Hareketsizlik" in f.name:
-            recs.append("Günde en az 30 dakika orta tempolu yürüyüş yapmayı alışkanlık edinin.")
+            recs.append(
+                "Günde en az 30 dakika orta tempolu yürüyüş yapmayı alışkanlık edinin."
+            )
         if "Uyku" in f.name:
-            recs.append("Uyku kalitesini artırmak için yatmadan 2 saat önce ekran kullanımını bırakın.")
-            
+            recs.append(
+                "Uyku kalitesini artırmak için yatmadan 2 saat önce ekran kullanımını bırakın."
+            )
+
     if not recs:
-        recs.append("Tüm göstergeler harika! Mevcut yaşam tarzınızı korumaya devam edin.")
-        
+        recs.append(
+            "Tüm göstergeler harika! Mevcut yaşam tarzınızı korumaya devam edin."
+        )
+
     return list(dict.fromkeys(recs))[:4]  # Duplicate'leri temizle

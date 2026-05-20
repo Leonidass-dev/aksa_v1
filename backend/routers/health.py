@@ -18,6 +18,7 @@ router = APIRouter()
 
 # ── Request / Response Modelleri ───────────────────────────────────
 
+
 class HealthRecordRequest(BaseModel):
     record_date: str = Field(
         default_factory=lambda: date.today().isoformat(),
@@ -25,13 +26,23 @@ class HealthRecordRequest(BaseModel):
     )
     # Aktivite
     steps: float = Field(default=0, ge=0, description="Günlük adım sayısı")
-    active_calories: float = Field(default=0, ge=0, description="Aktif yakılan kalori (kcal)")
-    total_calories: float = Field(default=0, ge=0, description="Toplam yakılan kalori (kcal)")
-    distance_m: float = Field(default=0, ge=0, description="Yürüme/koşma mesafesi (metre)")
+    active_calories: float = Field(
+        default=0, ge=0, description="Aktif yakılan kalori (kcal)"
+    )
+    total_calories: float = Field(
+        default=0, ge=0, description="Toplam yakılan kalori (kcal)"
+    )
+    distance_m: float = Field(
+        default=0, ge=0, description="Yürüme/koşma mesafesi (metre)"
+    )
 
     # Kardiyovasküler
-    heart_rate: float = Field(default=0, ge=0, le=250, description="Ortalama nabız (bpm)")
-    resting_heart_rate: float = Field(default=0, ge=0, le=250, description="Dinlenik nabız (bpm)")
+    heart_rate: float = Field(
+        default=0, ge=0, le=250, description="Ortalama nabız (bpm)"
+    )
+    resting_heart_rate: float = Field(
+        default=0, ge=0, le=250, description="Dinlenik nabız (bpm)"
+    )
     spo2: float = Field(default=0, ge=0, le=100, description="Kan oksijeni (%)")
 
     # Tansiyon
@@ -39,14 +50,18 @@ class HealthRecordRequest(BaseModel):
     diastolic: float = Field(default=0, ge=0, le=200, description="Diastolik (mmHg)")
 
     # Uyku (detaylı)
-    sleep_hours: float = Field(default=0, ge=0, le=24, description="Toplam uyku süresi (saat)")
+    sleep_hours: float = Field(
+        default=0, ge=0, le=24, description="Toplam uyku süresi (saat)"
+    )
     sleep_deep_min: float = Field(default=0, ge=0, description="Derin uyku (dk)")
     sleep_light_min: float = Field(default=0, ge=0, description="Hafif uyku (dk)")
     sleep_rem_min: float = Field(default=0, ge=0, description="REM uyku (dk)")
     sleep_awake_min: float = Field(default=0, ge=0, description="Uyanıklık süresi (dk)")
 
     # Stres & Vücut
-    stress_level: float = Field(default=0, ge=0, le=100, description="Stres seviyesi (0-100)")
+    stress_level: float = Field(
+        default=0, ge=0, le=100, description="Stres seviyesi (0-100)"
+    )
     weight: float = Field(default=0, ge=0, le=500, description="Kilo (kg)")
 
     # Yeni Özellikler
@@ -54,7 +69,9 @@ class HealthRecordRequest(BaseModel):
     mood: str = Field(default="neutral", description="Ruh hali")
 
     # Meta
-    source: str = Field(default="manual", description="Veri kaynağı: manual | health_connect")
+    source: str = Field(
+        default="manual", description="Veri kaynağı: manual | health_connect"
+    )
 
 
 class HealthRecordResponse(BaseModel):
@@ -111,6 +128,7 @@ def _record_to_response(r) -> HealthRecordResponse:
 
 
 # ── Endpoint'ler ──────────────────────────────────────────────────
+
 
 @router.post("/health", response_model=HealthRecordResponse)
 async def save_health(

@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -53,7 +54,7 @@ class HealthServiceImpl implements IHealthService {
     try {
       await ApiService.syncHealthToBackend(entry);
     } catch (e) {
-      debugPrint("Backend sync hatası: $e");
+      AppLogger.debug("Backend sync hatası: $e");
     }
   }
 
@@ -68,7 +69,7 @@ class HealthServiceImpl implements IHealthService {
     if (!force && lastSync != null) {
       final diff = DateTime.now().difference(lastSync);
       if (diff < _syncCooldown) {
-        debugPrint("Sağlık senkronizasyonu cooldown'da. Kalan süre: ${(_syncCooldown - diff).inSeconds} sn");
+        AppLogger.debug("Sağlık senkronizasyonu cooldown'da. Kalan süre: ${(_syncCooldown - diff).inSeconds} sn");
         return true; 
       }
     }
@@ -99,12 +100,12 @@ class HealthServiceImpl implements IHealthService {
       try {
         sdkStatus = await Health().getHealthConnectSdkStatus();
       } catch (e) {
-        debugPrint("Health Connect SDK durum sorgulama hatası: $e");
+        AppLogger.debug("Health Connect SDK durum sorgulama hatası: $e");
         return false;
       }
 
       if (sdkStatus != HealthConnectSdkStatus.sdkAvailable) {
-        debugPrint("Health Connect SDK uygun değil: $sdkStatus");
+        AppLogger.debug("Health Connect SDK uygun değil: $sdkStatus");
         return false;
       }
 
@@ -113,7 +114,7 @@ class HealthServiceImpl implements IHealthService {
         permissions: permissions,
       );
       if (!authorized) {
-        debugPrint("Health Connect izini reddedildi.");
+        AppLogger.debug("Health Connect izini reddedildi.");
         return false;
       }
 
@@ -159,8 +160,8 @@ class HealthServiceImpl implements IHealthService {
           ).timeout(const Duration(seconds: 10));
       healthData = Health().removeDuplicates(healthData);
 
-      debugPrint("\n🚀 [AKSA HEALTH] SENKRONİZASYON BAŞLADI");
-      debugPrint("📊 Toplam Ham Veri: ${healthData.length + stepsData.length} nokta");
+      AppLogger.debug("\n🚀 [AKSA HEALTH] SENKRONİZASYON BAŞLADI");
+      AppLogger.debug("📊 Toplam Ham Veri: ${healthData.length + stepsData.length} nokta");
       
       for (var p in [...stepsData, ...healthData]) {
         String valText = p.value.toString();
@@ -193,7 +194,7 @@ class HealthServiceImpl implements IHealthService {
         }
 
         final timeStr = "${p.dateFrom.hour.toString().padLeft(2, '0')}:${p.dateFrom.minute.toString().padLeft(2, '0')}";
-        debugPrint("$emoji [${p.typeString.padRight(15)}] | Değer: ${valText.padRight(6)} | Zaman: $timeStr | Kaynak: $source");
+        AppLogger.debug("$emoji [${p.typeString.padRight(15)}] | Değer: ${valText.padRight(6)} | Zaman: $timeStr | Kaynak: $source");
       }
 
       final todayEntry = await getTodayEntry();
@@ -233,13 +234,13 @@ class HealthServiceImpl implements IHealthService {
 
       await saveHealthEntry(newEntry);
       
-      debugPrint("\n╔══════════ SAĞLIK ÖZETİ ══════════╗");
-      debugPrint("║ 👣 Adım    : ${parsedData.steps.toInt().toString().padRight(18)} ║");
-      debugPrint("║ \u2764\ufe0f Nabız   : ${parsedData.heartRate.toInt().toString().padRight(18)} ║");
-      debugPrint("║ \ud83e\ude78 Oksijen : %${parsedData.spo2.toInt().toString().padRight(17)} ║");
-      debugPrint("║ \ud83d\udd25 Kalori  : ${parsedData.activeCalories.toInt().toString().padRight(18)} ║");
-      debugPrint("${"║ \ud83d\udccf Mesafe  : ${parsedData.distanceM.toInt().toString()}m".padRight(35)}║");
-      debugPrint("╚══════════════════════════════════╝\n");
+      AppLogger.debug("\n╔══════════ SAĞLIK ÖZETİ ══════════╗");
+      AppLogger.debug("║ 👣 Adım    : ${parsedData.steps.toInt().toString().padRight(18)} ║");
+      AppLogger.debug("║ \u2764\ufe0f Nabız   : ${parsedData.heartRate.toInt().toString().padRight(18)} ║");
+      AppLogger.debug("║ \ud83e\ude78 Oksijen : %${parsedData.spo2.toInt().toString().padRight(17)} ║");
+      AppLogger.debug("║ \ud83d\udd25 Kalori  : ${parsedData.activeCalories.toInt().toString().padRight(18)} ║");
+      AppLogger.debug("${"║ \ud83d\udccf Mesafe  : ${parsedData.distanceM.toInt().toString()}m".padRight(35)}║");
+      AppLogger.debug("╚══════════════════════════════════╝\n");
       
       // ── Tez Modül 2: Ham Verileri Pipeline'a Gönder ──────────────
       final hrPoints = healthData
@@ -268,7 +269,7 @@ class HealthServiceImpl implements IHealthService {
           stepsData: stepsPoints,
         );
         if (success) {
-          debugPrint("Pipeline Veri İşleme Başarılı. Analizler tetikleniyor...");
+          AppLogger.debug("Pipeline Veri İşleme Başarılı. Analizler tetikleniyor...");
           // Veri işlendiği anda anomali kontrolünü arka planda başlatabiliriz
           // Dashboard listener'ı varsa o da tetiklenecek
         }
@@ -282,7 +283,7 @@ class HealthServiceImpl implements IHealthService {
 
       return true;
     } catch (e) {
-      debugPrint("Sağlık verisi eşitleme hatası: $e");
+      AppLogger.debug("Sağlık verisi eşitleme hatası: $e");
       return false;
     }
   }
@@ -414,7 +415,7 @@ class HealthService {
           return 'unavailable';
       }
     } catch (e) {
-      debugPrint('Health Connect SDK durum hatası: $e');
+      AppLogger.debug('Health Connect SDK durum hatası: $e');
       return 'error';
     }
   }

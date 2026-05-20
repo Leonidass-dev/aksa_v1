@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -49,11 +50,11 @@ class ApiServiceImpl implements IApiService {
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        debugPrint("ML Pipeline (Preprocessing) başarıyla tamamlandı.");
+        AppLogger.debug("ML Pipeline (Preprocessing) başarıyla tamamlandı.");
         return true;
       }
     } catch (e) {
-      debugPrint('ML Pipeline hatası: $e');
+      AppLogger.error('ML Pipeline hatası: $e');
     }
     return false;
   }
@@ -78,7 +79,7 @@ class ApiServiceImpl implements IApiService {
         return FoodAnalysisResult.fromJson(jsonDecode(response.body));
       }
     } catch (e) {
-      debugPrint('Food analysis hatası: $e');
+      AppLogger.error('Food analysis hatası: $e');
     }
     return null;
   }
@@ -103,7 +104,7 @@ class ApiServiceImpl implements IApiService {
         return FoodAnalysisResult.fromJson(data);
       }
     } catch (e) {
-      debugPrint('Manual food save hatası: $e');
+      AppLogger.error('Manual food save hatası: $e');
     }
     return null;
   }
@@ -124,7 +125,7 @@ class ApiServiceImpl implements IApiService {
         );
       }
     } catch (e) {
-      debugPrint('Diet plan API hatası: $e');
+      AppLogger.error('Diet plan API hatası: $e');
     }
     return null;
   }
@@ -148,7 +149,7 @@ class ApiServiceImpl implements IApiService {
         );
       }
     } catch (e) {
-      debugPrint('Anomaly API hatası: $e');
+      AppLogger.error('Anomaly API hatası: $e');
     }
     return null;
   }
@@ -171,7 +172,7 @@ class ApiServiceImpl implements IApiService {
         );
       }
     } catch (e) {
-      debugPrint('Exercise API hatası: $e');
+      AppLogger.error('Exercise API hatası: $e');
     }
     return null;
   }
@@ -190,7 +191,7 @@ class ApiServiceImpl implements IApiService {
         return true;
       }
     } catch (e) {
-      debugPrint('Exercise Feedback API hatası: $e');
+      AppLogger.error('Exercise Feedback API hatası: $e');
     }
     return false;
   }
@@ -228,7 +229,7 @@ class ApiServiceImpl implements IApiService {
         return RiskApiResult.fromJson(jsonDecode(response.body));
       }
     } catch (e) {
-      debugPrint('Demo risk API hatası: $e');
+      AppLogger.error('Demo risk API hatası: $e');
     }
     return null;
   }
@@ -252,7 +253,7 @@ class ApiServiceImpl implements IApiService {
         return list.map((e) => RiskHistoryItem.fromJson(e)).toList();
       }
     } catch (e) {
-      debugPrint('Risk history hatası: $e');
+      AppLogger.error('Risk history hatası: $e');
     }
     return [];
   }
@@ -276,7 +277,7 @@ class ApiServiceImpl implements IApiService {
         return list.map((e) => MealHistoryItem.fromJson(e)).toList();
       }
     } catch (e) {
-      debugPrint('Meal history hatası: $e');
+      AppLogger.error('Meal history hatası: $e');
     }
     return [];
   }
@@ -302,7 +303,7 @@ class ApiServiceImpl implements IApiService {
         );
       }
     } catch (e) {
-      debugPrint('Assistant API hatası: $e');
+      AppLogger.error('Assistant API hatası: $e');
     }
     return null;
   }
@@ -326,7 +327,7 @@ class ApiServiceImpl implements IApiService {
         return list.map((e) => ChatHistoryItem.fromJson(e)).toList();
       }
     } catch (e) {
-      debugPrint('Chat history hatası: $e');
+      AppLogger.error('Chat history hatası: $e');
     }
     return [];
   }
@@ -345,7 +346,7 @@ class ApiServiceImpl implements IApiService {
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint('Chat history clear hatası: $e');
+      AppLogger.error('Chat history clear hatası: $e');
       return false;
     }
   }
@@ -389,7 +390,7 @@ class ApiServiceImpl implements IApiService {
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint('Health sync hatası: $e');
+      AppLogger.error('Health sync hatası: $e');
       return false;
     }
   }
@@ -418,7 +419,7 @@ class ApiServiceImpl implements IApiService {
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint('Profile sync hatası: $e');
+      AppLogger.error('Profile sync hatası: $e');
       return false;
     }
   }
@@ -437,7 +438,7 @@ class ApiServiceImpl implements IApiService {
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint('Backend user delete hatası: $e');
+      AppLogger.error('Backend user delete hatası: $e');
       return false;
     }
   }

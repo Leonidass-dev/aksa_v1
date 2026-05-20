@@ -1,5 +1,3 @@
-import os
-import httpx
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from pydantic import BaseModel, Field
@@ -17,12 +15,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 class ChatRequest(BaseModel):
-    message: str = Field(description="Kullanıcının yazdığı mesaj (örn: başım ağrıyor, ne yapmalıyım?)")
+    message: str = Field(
+        description="Kullanıcının yazdığı mesaj (örn: başım ağrıyor, ne yapmalıyım?)"
+    )
+
 
 class ChatResponse(BaseModel):
     reply: str
     is_safe: bool = True
+
 
 class ChatHistoryItem(BaseModel):
     id: int
@@ -30,6 +33,7 @@ class ChatHistoryItem(BaseModel):
     content: str
     is_safe: bool
     created_at: str
+
 
 PROMPT = """
 Sen "AKSA" isimli, bilgili ve şefkatli bir yapay zeka sağlık asistanısın.
@@ -53,6 +57,7 @@ VERİ KULLANIMI:
 Kullanıcının Mesajı: 
 """
 
+
 async def _bg_update_memory(user_id: int, old_memory: str, req_msg: str, ai_reply: str):
     """Arkaplanda çalışıp kullanıcının kalıcı AI hafızasını günceller."""
     try:
@@ -61,6 +66,7 @@ async def _bg_update_memory(user_id: int, old_memory: str, req_msg: str, ai_repl
             await crud.update_user_memory(db, user_id, new_summary)
     except Exception as e:
         logger.error(f"Hafıza güncellenirken hata oluştu: {e}")
+
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_assistant(
@@ -83,17 +89,25 @@ async def chat_with_assistant(
 
         # ── Zengin Bağlam (Context) Oluşturma ──
         context_parts = ["--- KULLANICININ BUGÜNKÜ SAĞLIK VERİLERİ VE HAFIZA ---"]
-        
+
         if user_memory.memory_summary:
-            context_parts.append(f"🧠 KULLANICI PROFİLİ (Geçmişten Öğrenilenler):\n{user_memory.memory_summary}\n")
+            context_parts.append(
+                f"🧠 KULLANICI PROFİLİ (Geçmişten Öğrenilenler):\n{user_memory.memory_summary}\n"
+            )
 
         # Profil Bilgileri
         if user.age or user.weight or user.height:
             profile_info = []
-            if user.age: profile_info.append(f"Yaş: {user.age}")
-            if user.gender: profile_info.append(f"Cinsiyet: {'Erkek' if user.gender == 'M' else 'Kadın'}")
-            if user.height: profile_info.append(f"Boy: {user.height} cm")
-            if user.weight: profile_info.append(f"Kilo: {user.weight} kg")
+            if user.age:
+                profile_info.append(f"Yaş: {user.age}")
+            if user.gender:
+                profile_info.append(
+                    f"Cinsiyet: {'Erkek' if user.gender == 'M' else 'Kadın'}"
+                )
+            if user.height:
+                profile_info.append(f"Boy: {user.height} cm")
+            if user.weight:
+                profile_info.append(f"Kilo: {user.weight} kg")
             if user.weight and user.height and user.height > 0:
                 bmi = user.weight / ((user.height / 100) ** 2)
                 profile_info.append(f"BMI (VKE): {bmi:.1f}")
@@ -103,7 +117,9 @@ async def chat_with_assistant(
             # Aktivite
             context_parts.append(f"👣 Adım: {int(today_record.steps)}")
             if today_record.active_calories > 0:
-                context_parts.append(f"🔥 Aktif Kalori: {int(today_record.active_calories)} kcal")
+                context_parts.append(
+                    f"🔥 Aktif Kalori: {int(today_record.active_calories)} kcal"
+                )
             if today_record.distance_m > 0:
                 context_parts.append(f"📏 Mesafe: {int(today_record.distance_m)} m")
 
@@ -111,21 +127,28 @@ async def chat_with_assistant(
             if today_record.heart_rate > 0:
                 context_parts.append(f"❤️ Nabız: {int(today_record.heart_rate)} bpm")
             if today_record.resting_heart_rate > 0:
-                context_parts.append(f"💓 Dinlenik Nabız: {int(today_record.resting_heart_rate)} bpm")
+                context_parts.append(
+                    f"💓 Dinlenik Nabız: {int(today_record.resting_heart_rate)} bpm"
+                )
             if today_record.spo2 > 0:
                 context_parts.append(f"🩸 SpO2: %{int(today_record.spo2)}")
 
             # Tansiyon
             if today_record.systolic > 0 or today_record.diastolic > 0:
-                context_parts.append(f"⚖️ Tansiyon: {int(today_record.systolic)}/{int(today_record.diastolic)} mmHg")
+                context_parts.append(
+                    f"⚖️ Tansiyon: {int(today_record.systolic)}/{int(today_record.diastolic)} mmHg"
+                )
 
             # Uyku
             if today_record.sleep_hours > 0:
                 sleep_info = f"🌙 Uyku: {today_record.sleep_hours:.1f} saat"
                 details = []
-                if today_record.sleep_deep_min > 0: details.append(f"Derin: {int(today_record.sleep_deep_min)} dk")
-                if today_record.sleep_light_min > 0: details.append(f"Hafif: {int(today_record.sleep_light_min)} dk")
-                if today_record.sleep_rem_min > 0: details.append(f"REM: {int(today_record.sleep_rem_min)} dk")
+                if today_record.sleep_deep_min > 0:
+                    details.append(f"Derin: {int(today_record.sleep_deep_min)} dk")
+                if today_record.sleep_light_min > 0:
+                    details.append(f"Hafif: {int(today_record.sleep_light_min)} dk")
+                if today_record.sleep_rem_min > 0:
+                    details.append(f"REM: {int(today_record.sleep_rem_min)} dk")
                 if details:
                     sleep_info += f" ({', '.join(details)})"
                 context_parts.append(sleep_info)
@@ -139,7 +162,9 @@ async def chat_with_assistant(
             if today_record.mood and today_record.mood != "neutral":
                 context_parts.append(f"😊 Ruh Hali: {today_record.mood}")
         else:
-            context_parts.append("⚠️ Bugüne ait sensör verisi henüz senkronize edilmemiş.")
+            context_parts.append(
+                "⚠️ Bugüne ait sensör verisi henüz senkronize edilmemiş."
+            )
 
         # Bugünkü Yemekler
         if today_meals:
@@ -148,16 +173,25 @@ async def chat_with_assistant(
             total_carbs = sum(m.carbs_g for m in today_meals)
             total_fat = sum(m.fat_g for m in today_meals)
             meal_names = [m.food_name for m in today_meals]
-            context_parts.append(f"🍽️ Bugün Yenen ({len(today_meals)} öğün): {', '.join(meal_names)}")
-            context_parts.append(f"🔢 Toplam Alınan Kalori: {total_cal} kcal (P: {total_protein:.0f}g, K: {total_carbs:.0f}g, Y: {total_fat:.0f}g)")
+            context_parts.append(
+                f"🍽️ Bugün Yenen ({len(today_meals)} öğün): {', '.join(meal_names)}"
+            )
+            context_parts.append(
+                f"🔢 Toplam Alınan Kalori: {total_cal} kcal (P: {total_protein:.0f}g, K: {total_carbs:.0f}g, Y: {total_fat:.0f}g)"
+            )
         else:
             context_parts.append("🍽️ Bugün henüz öğün kaydı yok.")
 
         # Risk Skoru
         if latest_risk:
-            context_parts.append(f"📊 Risk Skoru: {latest_risk.score}/100 ({latest_risk.level_label})")
+            context_parts.append(
+                f"📊 Risk Skoru: {latest_risk.score}/100 ({latest_risk.level_label})"
+            )
             if latest_risk.top_factors:
-                factor_names = [f.get("name", "") if isinstance(f, dict) else "" for f in latest_risk.top_factors[:3]]
+                factor_names = [
+                    f.get("name", "") if isinstance(f, dict) else ""
+                    for f in latest_risk.top_factors[:3]
+                ]
                 context_parts.append(f"⚠️ Risk Faktörleri: {', '.join(factor_names)}")
 
         context_parts.append("--- VERİ SONU ---")
@@ -174,36 +208,33 @@ async def chat_with_assistant(
 
         # AI Çağrısı (Merkezi Servis Üzerinden)
         full_prompt = f"{context}\n\nKullanıcı: {req.message}"
-        
+
         reply = await ask_text(
-            prompt=full_prompt,
-            system_prompt=PROMPT,
-            history=history,
-            json_mode=False
+            prompt=full_prompt, system_prompt=PROMPT, history=history, json_mode=False
         )
 
         if not reply:
-            raise HTTPException(status_code=502, detail="Yapay zeka servisi şu an yanıt veremiyor.")
+            raise HTTPException(
+                status_code=502, detail="Yapay zeka servisi şu an yanıt veremiyor."
+            )
 
         # Asistan yanıtını DB'ye kaydet
         await crud.save_chat_message(db, user, role="assistant", content=reply)
 
         # Arkaplanda hafızayı güncelle
         background_tasks.add_task(
-            _bg_update_memory,
-            user.id,
-            user_memory.memory_summary,
-            req.message,
-            reply
+            _bg_update_memory, user.id, user_memory.memory_summary, req.message, reply
         )
 
         return ChatResponse(reply=reply)
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Assistant Chat Error")
-        raise HTTPException(status_code=500, detail="Bir hata oluştu, lütfen tekrar deneyin.")
+        raise HTTPException(
+            status_code=500, detail="Bir hata oluştu, lütfen tekrar deneyin."
+        )
 
 
 @router.get("/history", response_model=list[ChatHistoryItem])
@@ -225,6 +256,7 @@ async def chat_history(
         )
         for m in messages
     ]
+
 
 @router.delete("/history")
 async def clear_chat_history(

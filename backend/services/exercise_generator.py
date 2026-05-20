@@ -1,11 +1,11 @@
 import json
 import logging
 from typing import Optional
-from models.exercise_model import ExercisePlanResponse, ExerciseItem, ExerciseRequest
+from models.exercise_model import ExercisePlanResponse, ExerciseRequest
 
 logger = logging.getLogger(__name__)
 
-from services.ai_service import ask_text
+from services.ai_service import ask_text  # noqa: E402
 
 
 EXERCISE_PROMPT = """
@@ -69,16 +69,24 @@ Sınıf 4 (OPTİMAL): HIIT, ağırlık antrenmanı, devre antrenmanı (circuit),
 }}
 """
 
+
 async def generate_dynamic_plan(
-    req: ExerciseRequest, 
-    class_id: int, 
-    health_context: str
+    req: ExerciseRequest, class_id: int, health_context: str
 ) -> Optional[ExercisePlanResponse]:
     """Yapay zeka kullanarak dinamik ve kişiselleştirilmiş egzersiz planı üretir."""
 
     # Bugünün tarihini ve gününü al
     from datetime import datetime
-    tr_days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+
+    tr_days = [
+        "Pazartesi",
+        "Salı",
+        "Çarşamba",
+        "Perşembe",
+        "Cuma",
+        "Cumartesi",
+        "Pazar",
+    ]
     now = datetime.now()
     day_name = tr_days[now.weekday()]
     current_date_str = f"{now.strftime('%d.%m.%Y')} {day_name}"
@@ -91,14 +99,14 @@ async def generate_dynamic_plan(
         class_id=class_id,
         risk_level=req.risk_level,
         health_context=health_context,
-        current_date=current_date_str
+        current_date=current_date_str,
     )
 
     # AI Çağrısı (Merkezi Servis Üzerinden)
     raw_text = await ask_text(
         prompt=prompt,
         system_prompt="Sen uzman bir spor fizyoloğu ve kinesiyologsun. Yanıtlarını tamamen Türkçe ve anlaşılır bir dille ver. 'Set', 'Reps' gibi terimler yerine 'Tekrar', 'Dizi' gibi Türkçe karşılıkları kullan.",
-        json_mode=True
+        json_mode=True,
     )
 
     if not raw_text:
@@ -107,8 +115,9 @@ async def generate_dynamic_plan(
     try:
         # JSON temizleme
         from services.ai_service import clean_json_string
+
         cleaned_json = clean_json_string(raw_text)
-            
+
         json_data = json.loads(cleaned_json)
         return ExercisePlanResponse(**json_data)
 

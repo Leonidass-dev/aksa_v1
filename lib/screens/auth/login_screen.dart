@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -92,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } catch (e) {
-      debugPrint("Check deletion error: $e");
+      AppLogger.debug("Check deletion error: $e");
     }
 
     // Normal login flow

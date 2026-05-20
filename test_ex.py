@@ -1,5 +1,3 @@
-import requests
-import json
 
 data = {
     "age": 30,
@@ -15,5 +13,5 @@ try:
     # Or just hit the endpoint, wait, we need auth.
     # The endpoint uses `Depends(get_current_user)`.
     pass
-except Exception as e:
+except Exception:
     pass

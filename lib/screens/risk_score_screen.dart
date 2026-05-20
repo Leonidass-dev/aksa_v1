@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/health_data.dart';
@@ -121,7 +122,7 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
         }
       } catch (_) {}
     } catch (e) {
-      debugPrint("RiskScoreScreen Hata: $e");
+      AppLogger.debug("RiskScoreScreen Hata: $e");
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -462,6 +463,8 @@ class _RiskScoreScreenState extends State<RiskScoreScreen>
         return 'Bazı göstergeler dikkat gerektiriyor. Önerileri inceleyip adımlar atmanız önerilir.';
       case RiskLevel.high:
         return 'Sağlık göstergelerinizde önemli sapmalar var. Bir sağlık profesyoneline danışmanız önerilir.';
+      case RiskLevel.unknown:
+        return 'Sağlık göstergeleriniz şu an için hesaplanamadı.';
     }
   }
 

@@ -95,12 +95,15 @@ def main():
     def force_kill(pid):
         try:
             subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except: pass
+        except Exception:
+            pass
 
     def signal_handler(sig, frame):
         print("\n[*] Kapatiliyor...")
-        if flutter_process: force_kill(flutter_process.pid)
-        if backend_process: force_kill(backend_process.pid)
+        if flutter_process:
+            force_kill(flutter_process.pid)
+        if backend_process:
+            force_kill(backend_process.pid)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -110,8 +113,10 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        if flutter_process: force_kill(flutter_process.pid)
-        if backend_process: force_kill(backend_process.pid)
+        if flutter_process:
+            force_kill(flutter_process.pid)
+        if backend_process:
+            force_kill(backend_process.pid)
 
         print("[*] Gorusmek uzere!")
 

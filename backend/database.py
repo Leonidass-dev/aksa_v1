@@ -4,7 +4,6 @@ SQLAlchemy Async Engine + Session Factory
 """
 
 import os
-import asyncio
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
@@ -27,7 +26,10 @@ connect_args = {}
 
 if "sslmode=require" in DATABASE_URL:
     import ssl
-    DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "").replace("&sslmode=require", "")
+
+    DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "").replace(
+        "&sslmode=require", ""
+    )
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -39,6 +41,7 @@ engine = create_async_engine(
     echo=False,
     connect_args=connect_args,
     pool_pre_ping=True,
+    pool_recycle=3600,
 )
 
 async_session = async_sessionmaker(
@@ -47,8 +50,10 @@ async_session = async_sessionmaker(
     expire_on_commit=False,
 )
 
+
 class Base(DeclarativeBase):
     pass
+
 
 async def get_db():
     async with async_session() as session:
@@ -57,13 +62,9 @@ async def get_db():
         finally:
             await session.close()
 
+
 async def init_db():
     """Uygulama başlarken tabloları oluşturur."""
-    from db_models import (
-        User, HealthRecord, RiskScore,
-        MealRecord, ExercisePlan, ChatMessage,
-        UserMemory, DailyDietPlan,
-    )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

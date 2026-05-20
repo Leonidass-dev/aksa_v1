@@ -1,8 +1,7 @@
 import os
 import httpx
-import json
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,21 +20,23 @@ OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "llava")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-import re
+import re  # noqa: E402
+
 
 def clean_json_string(raw_text: str) -> str:
     """Metin içindeki JSON bloğunu güvenle çıkarır ve Markdown temizler."""
     # Markdown json bloğunu bul
-    match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_text)
     if match:
         return match.group(1).strip()
-    
+
     # Süslü veya köşeli parantez içini bul (Fallback)
-    match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', raw_text)
+    match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", raw_text)
     if match:
         return match.group(1).strip()
-        
+
     return raw_text.strip()
+
 
 async def summarize_memory(old_memory: str, new_user_msg: str, new_ai_msg: str) -> str:
     """Eski hafızayı yeni sohbetle birleştirip özetler."""
@@ -46,13 +47,18 @@ async def summarize_memory(old_memory: str, new_user_msg: str, new_ai_msg: str) 
         "Yalnızca kalıcı ve önemli bilgileri tut, gereksiz sohbet detaylarını at. Sadece Türkçe metin dön."
     )
     prompt = f"Eski Hafıza:\n{old_memory}\n\nYeni Konuşma:\nKullanıcı: {new_user_msg}\nAsistan: {new_ai_msg}"
-    
+
     # Kendi ask_text fonksiyonumuzu kullanarak özetletiyoruz
     new_memory = await ask_text(prompt, system_prompt=system_prompt)
     return new_memory or old_memory
 
 
-async def ask_text(prompt: str, system_prompt: str = "Sen uzman bir sağlık asistanısın. Yanıtlarını SADECE Türkçe olarak ver. Teknik terimlerin doğrudan Türkçe karşılıklarını kullan. Asla İngilizce kelime karıştırma.", history: List[Dict] = None, json_mode: bool = False) -> Optional[str]:
+async def ask_text(
+    prompt: str,
+    system_prompt: str = "Sen uzman bir sağlık asistanısın. Yanıtlarını SADECE Türkçe olarak ver. Teknik terimlerin doğrudan Türkçe karşılıklarını kullan. Asla İngilizce kelime karıştırma.",
+    history: List[Dict] = None,
+    json_mode: bool = False,
+) -> Optional[str]:
     """
     General purpose text generation with fallback logic.
     Providers: Ollama -> Groq -> Gemini
@@ -64,45 +70,58 @@ async def ask_text(prompt: str, system_prompt: str = "Sen uzman bir sağlık asi
         try:
             if provider == "ollama":
                 res = await _call_ollama(prompt, system_prompt, history, json_mode)
-                if res: return res
+                if res:
+                    return res
             elif provider == "groq" and GROQ_API_KEY:
                 res = await _call_groq(prompt, system_prompt, history, json_mode)
-                if res: return res
+                if res:
+                    return res
             elif provider == "gemini" and GEMINI_API_KEY:
                 res = await _call_gemini(prompt, system_prompt, history)
-                if res: return res
+                if res:
+                    return res
         except Exception as e:
             logger.error(f"Provider {provider} failed: {e}")
             continue
-    
+
     return None
 
-async def ask_vision(prompt: str, image_base64: str, json_mode: bool = True) -> Optional[str]:
+
+async def ask_vision(
+    prompt: str, image_base64: str, json_mode: bool = True
+) -> Optional[str]:
     """
     Vision analysis with fallback logic.
     """
     # Kararlılık için Gemini 1.5 Flash birincil, Groq yedek olarak ayarlandı.
     providers = ["gemini", "groq"]
-    
+
     for provider in providers:
         try:
             if provider == "gemini" and GEMINI_API_KEY:
                 res = await _call_gemini_vision(prompt, image_base64)
-                if res: return res
+                if res:
+                    return res
             elif provider == "groq" and GROQ_API_KEY:
                 res = await _call_groq_vision(prompt, image_base64, json_mode)
-                if res: return res
+                if res:
+                    return res
             elif provider == "ollama":
                 res = await _call_ollama_vision(prompt, image_base64, json_mode)
-                if res: return res
+                if res:
+                    return res
         except Exception as e:
             logger.error(f"Vision Provider {provider} failed: {e}")
             continue
     return None
 
+
 # --- Helper Methods ---
 
-async def _call_ollama(prompt: str, system: str, history: List[Dict], json_mode: bool) -> Optional[str]:
+
+async def _call_ollama(
+    prompt: str, system: str, history: List[Dict], json_mode: bool
+) -> Optional[str]:
     url = f"{OLLAMA_BASE_URL}/api/chat"
     messages = [{"role": "system", "content": system}]
     if history:
@@ -113,7 +132,7 @@ async def _call_ollama(prompt: str, system: str, history: List[Dict], json_mode:
         "model": OLLAMA_MODEL,
         "messages": messages,
         "stream": False,
-        "options": {"temperature": 0.4}
+        "options": {"temperature": 0.4},
     }
     if json_mode:
         payload["format"] = "json"
@@ -124,7 +143,10 @@ async def _call_ollama(prompt: str, system: str, history: List[Dict], json_mode:
             return resp.json()["message"]["content"]
     return None
 
-async def _call_groq(prompt: str, system: str, history: List[Dict], json_mode: bool) -> Optional[str]:
+
+async def _call_groq(
+    prompt: str, system: str, history: List[Dict], json_mode: bool
+) -> Optional[str]:
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
     messages = [{"role": "system", "content": system}]
     if history:
@@ -134,7 +156,7 @@ async def _call_groq(prompt: str, system: str, history: List[Dict], json_mode: b
     payload = {
         "model": "llama-3.3-70b-versatile" if json_mode else "llama-3.1-8b-instant",
         "messages": messages,
-        "temperature": 0.4
+        "temperature": 0.4,
     }
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
@@ -144,6 +166,7 @@ async def _call_groq(prompt: str, system: str, history: List[Dict], json_mode: b
         if resp.status_code == 200:
             return resp.json()["choices"][0]["message"]["content"]
     return None
+
 
 async def _call_gemini(prompt: str, system: str, history: List[Dict]) -> Optional[str]:
     url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
@@ -156,7 +179,7 @@ async def _call_gemini(prompt: str, system: str, history: List[Dict]) -> Optiona
 
     payload = {
         "contents": [{"parts": [{"text": full_prompt}]}],
-        "generationConfig": {"temperature": 0.4}
+        "generationConfig": {"temperature": 0.4},
     }
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(url, json=payload)
@@ -164,18 +187,22 @@ async def _call_gemini(prompt: str, system: str, history: List[Dict]) -> Optiona
             return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     return None
 
+
 # --- Vision Helpers ---
+
 
 async def _call_gemini_vision(prompt: str, image_base64: str) -> Optional[str]:
     url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
     payload = {
-        "contents": [{
-            "parts": [
-                {"text": prompt},
-                {"inlineData": {"mimeType": "image/jpeg", "data": image_base64}}
-            ]
-        }],
-        "generationConfig": {"temperature": 0.2}
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt},
+                    {"inlineData": {"mimeType": "image/jpeg", "data": image_base64}},
+                ]
+            }
+        ],
+        "generationConfig": {"temperature": 0.2},
     }
     async with httpx.AsyncClient(timeout=90.0) as client:
         try:
@@ -183,23 +210,33 @@ async def _call_gemini_vision(prompt: str, image_base64: str) -> Optional[str]:
             if resp.status_code == 200:
                 return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
             else:
-                logger.error(f"Gemini Vision API Hatası ({resp.status_code}): {resp.text}")
+                logger.error(
+                    f"Gemini Vision API Hatası ({resp.status_code}): {resp.text}"
+                )
         except Exception as e:
             logger.error(f"Gemini Vision Bağlantı Hatası: {e}")
     return None
 
-async def _call_groq_vision(prompt: str, image_base64: str, json_mode: bool) -> Optional[str]:
+
+async def _call_groq_vision(
+    prompt: str, image_base64: str, json_mode: bool
+) -> Optional[str]:
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
     payload = {
         "model": "meta-llama/llama-4-scout-17b-16e-instruct",
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-            ]
-        }],
-        "temperature": 0.2
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+                    },
+                ],
+            }
+        ],
+        "temperature": 0.2,
     }
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
@@ -210,22 +247,23 @@ async def _call_groq_vision(prompt: str, image_base64: str, json_mode: bool) -> 
             if resp.status_code == 200:
                 return resp.json()["choices"][0]["message"]["content"]
             else:
-                logger.error(f"Groq Vision API Hatası ({resp.status_code}): {resp.text}")
+                logger.error(
+                    f"Groq Vision API Hatası ({resp.status_code}): {resp.text}"
+                )
         except Exception as e:
             logger.error(f"Groq Vision Bağlantı Hatası: {e}")
     return None
 
-async def _call_ollama_vision(prompt: str, image_base64: str, json_mode: bool) -> Optional[str]:
+
+async def _call_ollama_vision(
+    prompt: str, image_base64: str, json_mode: bool
+) -> Optional[str]:
     url = f"{OLLAMA_BASE_URL}/api/chat"
     payload = {
         "model": OLLAMA_VISION_MODEL,
-        "messages": [{
-            "role": "user",
-            "content": prompt,
-            "images": [image_base64]
-        }],
+        "messages": [{"role": "user", "content": prompt, "images": [image_base64]}],
         "stream": False,
-        "options": {"temperature": 0.2}
+        "options": {"temperature": 0.2},
     }
     if json_mode:
         payload["format"] = "json"

@@ -6,7 +6,7 @@ Geliştirme modunda auth devre dışı bırakılabilir.
 import os
 import logging
 from typing import Optional
-from fastapi import Header, HTTPException, Depends
+from fastapi import Header, HTTPException
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -43,7 +43,7 @@ async def get_current_user(
 ) -> str:
     """
     Firebase ID token doğrular ve uid döner.
-    
+
     - Token yoksa veya Firebase başlatılmamışsa → dev mode UID döner.
     - Token geçersizse → 401 Unauthorized.
     """
@@ -61,11 +61,12 @@ async def get_current_user(
         try:
             import base64
             import json
+
             # JWT formatı: header.payload.signature
-            payload_b64 = token.split('.')[1]
+            payload_b64 = token.split(".")[1]
             # Base64 padding ekle
             payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
-            payload_json = base64.urlsafe_b64decode(payload_b64).decode('utf-8')
+            payload_json = base64.urlsafe_b64decode(payload_b64).decode("utf-8")
             decoded_unverified = json.loads(payload_json)
             # Firebase token'ında uid genelde 'user_id' alanındadır
             extracted_uid = decoded_unverified.get("user_id", DEV_MODE_UID)
@@ -78,7 +79,9 @@ async def get_current_user(
         decoded = firebase_auth.verify_id_token(token)
         return decoded["uid"]
     except firebase_auth.ExpiredIdTokenError:
-        raise HTTPException(status_code=401, detail="Token süresi dolmuş. Lütfen tekrar giriş yapın.")
+        raise HTTPException(
+            status_code=401, detail="Token süresi dolmuş. Lütfen tekrar giriş yapın."
+        )
     except firebase_auth.InvalidIdTokenError:
         raise HTTPException(status_code=401, detail="Geçersiz token.")
     except Exception as e:

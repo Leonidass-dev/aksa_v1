@@ -45,10 +45,9 @@ class RiskFactorResponse(BaseModel):
     description: str
 
 
-
 class RiskResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
-    
+
     score: float
     level: str
     level_label: str
@@ -59,7 +58,7 @@ class RiskResponse(BaseModel):
 
 class RiskHistoryItem(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
-    
+
     id: int
     score: float
     level: str
@@ -74,6 +73,7 @@ LEVEL_LABELS = {
     "low": "Düşük Risk",
     "medium": "Orta Risk",
     "high": "Yüksek Risk",
+    "unknown": "Hesaplanamadı",
 }
 
 
@@ -111,7 +111,11 @@ async def calculate_risk(
     # Veritabanından bugünün M2 pipeline temizlik sonuçlarını çek
     user = await crud.get_or_create_user(db, uid)
     today_record = await crud.get_today_health(db, user)
-    ml_features = today_record.ml_features if today_record and hasattr(today_record, 'ml_features') else None
+    ml_features = (
+        today_record.ml_features
+        if today_record and hasattr(today_record, "ml_features")
+        else None
+    )
 
     result = compute_risk(snap, ml_features=ml_features)
     level_label = LEVEL_LABELS.get(result.level, result.level)
@@ -127,7 +131,8 @@ async def calculate_risk(
 
     # DB'ye kaydet (user zaten yukarıda çekildi)
     await crud.save_risk_score(
-        db, user,
+        db,
+        user,
         score=result.score,
         level=result.level,
         level_label=level_label,
@@ -174,9 +179,16 @@ async def risk_history(
 def demo_risk():
     """Demo veriyle risk skoru — bağlantı testi için."""
     snap = HealthSnapshot(
-        steps=6500, sleep_hours=6.0, heart_rate_resting=78,
-        systolic=128, diastolic=84, spo2=97, stress_level=45,
-        age=28, gender="M", height=178,
+        steps=6500,
+        sleep_hours=6.0,
+        heart_rate_resting=78,
+        systolic=128,
+        diastolic=84,
+        spo2=97,
+        stress_level=45,
+        age=28,
+        gender="M",
+        height=178,
     )
     result = compute_risk(snap)
     return RiskResponse(
@@ -184,7 +196,9 @@ def demo_risk():
         level=result.level,
         level_label=LEVEL_LABELS.get(result.level, result.level),
         top_factors=[
-            RiskFactorResponse(name=f.name, contribution=f.contribution, description=f.description)
+            RiskFactorResponse(
+                name=f.name, contribution=f.contribution, description=f.description
+            )
             for f in result.top_factors
         ],
         recommendations=result.recommendations,

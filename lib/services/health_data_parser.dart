@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:health/health.dart';
 import '../models/health_entry.dart';
 
@@ -152,7 +152,7 @@ class HealthDataParser {
     final latestDiastolic = _resolveLatestValue(diaBySrc);
 
     if (stepsBySrc.isNotEmpty) {
-      debugPrint("Adım kaynakları: $stepsBySrc → Seçilen: $totalSteps");
+      AppLogger.debug("Adım kaynakları: $stepsBySrc → Seçilen: $totalSteps");
     }
 
     final sleepHrs = finalTotalSleepMin > 0
@@ -173,10 +173,10 @@ class HealthDataParser {
     if (finalHR <= 0 && todayEntry != null) {
       finalHR = todayEntry.heartRate;
       finalHRTime = todayEntry.heartRateTime;
-      debugPrint("ℹ️ [HealthParser] Cihazdan yeni nabız/dinlenik nabız gelmedi, eski veri korunuyor: $finalHR (Zaman: $finalHRTime)");
+      AppLogger.debug("ℹ️ [HealthParser] Cihazdan yeni nabız/dinlenik nabız gelmedi, eski veri korunuyor: $finalHR (Zaman: $finalHRTime)");
     } else if (finalHR > 0) {
       String typeStr = latestHeartRate > 0 ? "AKTİF" : "DİNLENİK";
-      debugPrint("✅ [HealthParser] Cihazdan taze $typeStr nabız alındı: $finalHR (Zaman: $finalHRTime)");
+      AppLogger.debug("✅ [HealthParser] Cihazdan taze $typeStr nabız alındı: $finalHR (Zaman: $finalHRTime)");
     }
 
     return ParsedHealthData(

@@ -18,8 +18,10 @@ _HAS_ML = False
 try:
     import torch
     import joblib
+
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from ml_models.lstm_ae_model import LSTMAutoencoder
+
     _HAS_ML = True
     logger.info("✅ Anomali modeli: LSTM-AE yüklendi")
 except ImportError as e:
@@ -28,10 +30,13 @@ except ImportError as e:
 _HAS_SHAP = False
 try:
     import shap
+
     _HAS_SHAP = True
     logger.info("✅ SHAP kütüphanesi hazır (Açıklanabilir XAI aktif)")
 except ImportError:
-    logger.warning("⚠️  SHAP kütüphanesi yok. pip install shap kurarak aktif edebilirsiniz.")
+    logger.warning(
+        "⚠️  SHAP kütüphanesi yok. pip install shap kurarak aktif edebilirsiniz."
+    )
 
 _ae_model = None
 _ae_scaler = None
@@ -46,11 +51,14 @@ def _load_ae():
     _ae_loaded = True  # Tekrar denemeyi önle
     try:
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        _ae_scaler = joblib.load(os.path.join(base_path, 'ml_models', 'ae_scaler.pkl'))
-        with open(os.path.join(base_path, 'ml_models', 'ae_threshold.txt'), 'r') as f:
+        _ae_scaler = joblib.load(os.path.join(base_path, "ml_models", "ae_scaler.pkl"))
+        with open(os.path.join(base_path, "ml_models", "ae_threshold.txt"), "r") as f:
             _ae_threshold = float(f.read().strip())
         _ae_model = LSTMAutoencoder(input_size=9, hidden_size=16)
-        state_dict = torch.load(os.path.join(base_path, 'ml_models', 'lstm_ae.pt'), map_location=torch.device('cpu'))
+        state_dict = torch.load(
+            os.path.join(base_path, "ml_models", "lstm_ae.pt"),
+            map_location=torch.device("cpu"),
+        )
         _ae_model.load_state_dict(state_dict)
         _ae_model.eval()
         logger.info("✅ LSTM-AE modeli belleğe yüklendi")
@@ -130,7 +138,9 @@ def _severity(z: float) -> str:
     return "low"
 
 
-def _describe(metric: str, z: float, today: float, avg: float, label: str, unit: str) -> tuple[str, str]:
+def _describe(
+    metric: str, z: float, today: float, avg: float, label: str, unit: str
+) -> tuple[str, str]:
     direction = "yüksek" if today > avg else "düşük"
     diff = abs(today - avg)
 
@@ -138,42 +148,50 @@ def _describe(metric: str, z: float, today: float, avg: float, label: str, unit:
         "steps": (
             f"Bugün {int(today)} adım attınız, 7 günlük ortalamanız {int(avg)}. "
             f"Normal seviyenizin {direction} tarafındasınız.",
-            "Kısa yürüyüşler yaparak adım sayınızı artırın." if today < avg
-            else "Aktif kaldınız, bu tempoya devam edin!"
+            "Kısa yürüyüşler yaparak adım sayınızı artırın."
+            if today < avg
+            else "Aktif kaldınız, bu tempoya devam edin!",
         ),
         "sleep_hours": (
             f"Bu gece {today:.1f} saat uyudunuz, ortalamanız {avg:.1f} saat. "
             f"Normalden {diff:.1f} saat {direction}.",
-            "Düzenli uyku saatleri belirleyin ve yatak odasını karanlık tutun." if today < avg
-            else "Fazla uyku yorgunluk belirtisi olabilir."
+            "Düzenli uyku saatleri belirleyin ve yatak odasını karanlık tutun."
+            if today < avg
+            else "Fazla uyku yorgunluk belirtisi olabilir.",
         ),
         "heart_rate": (
             f"Ortalama nabzınız {today:.0f} bpm, 7 günlük ortalamanız {avg:.0f} bpm.",
-            "Stres veya kafein alımını gözden geçirin." if today > avg
-            else "Nabzınız düşük seyretmiş, iyi dinlenmişsinizdir."
+            "Stres veya kafein alımını gözden geçirin."
+            if today > avg
+            else "Nabzınız düşük seyretmiş, iyi dinlenmişsinizdir.",
         ),
         "systolic": (
             f"Sistolik tansiyonunuz {today:.0f} mmHg, ortalamanız {avg:.0f} mmHg.",
-            "Tuz alımını azaltın ve doktora danışın." if today > avg
-            else "Düşük sinyali; bol sıvı tüketin."
+            "Tuz alımını azaltın ve doktora danışın."
+            if today > avg
+            else "Düşük sinyali; bol sıvı tüketin.",
         ),
         "diastolic": (
             f"Diastolik tansiyonunuz {today:.0f} mmHg, ortalamanız {avg:.0f} mmHg.",
-            "Dinlenin ve gerekirse doktora başvurun." if today > avg
-            else "Sıvı alımınıza dikkat edin."
+            "Dinlenin ve gerekirse doktora başvurun."
+            if today > avg
+            else "Sıvı alımınıza dikkat edin.",
         ),
         "spo2": (
             f"Oksijen saturasyonunuz %{today:.0f}, ortalamanız %{avg:.0f}.",
-            "SpO₂ düşük. Derin nefes egzersizleri yapın veya doktora danışın." if today < avg
-            else "SpO₂ seviyeniz normal üzerinde, bu olumlu bir gösterge."
+            "SpO₂ düşük. Derin nefes egzersizleri yapın veya doktora danışın."
+            if today < avg
+            else "SpO₂ seviyeniz normal üzerinde, bu olumlu bir gösterge.",
         ),
         "weight": (
             f"Kilonuz {today:.1f} kg, ortalamanız {avg:.1f} kg. {diff:.1f} kg fark var.",
-            "Kilo dalgalanmaları normal olabilir; büyük farklar beslenmeyi gözden geçirin."
+            "Kilo dalgalanmaları normal olabilir; büyük farklar beslenmeyi gözden geçirin.",
         ),
     }
 
-    desc, rec = descriptions.get(metric, (f"{label} değerinizde sapma var.", "Değerlerinizi takip edin."))
+    desc, rec = descriptions.get(
+        metric, (f"{label} değerinizde sapma var.", "Değerlerinizi takip edin.")
+    )
     if isinstance(rec, tuple):
         rec = rec[0]
     return desc, rec
@@ -185,46 +203,58 @@ def _get_shap_contributions(x_t: Any) -> list[tuple[str, float]]:
         return []
 
     try:
+
         class MSEWrapper(torch.nn.Module):
             def __init__(self, ae):
                 super().__init__()
                 self.ae = ae
+
             def forward(self, x):
                 recon = self.ae(x)
                 # Batch başına ortalama MSE
-                return torch.mean((recon - x)**2, dim=2) 
-        
+                return torch.mean((recon - x) ** 2, dim=2)
+
         wrapper = MSEWrapper(_ae_model).eval()
-        
+
         # Referans arkaplan verisi (modeli şaşırtmayacak 0 etrafında ölçeklenmiş boş bir tensör)
         bg_data = torch.zeros((5, x_t.size(1), 9), dtype=torch.float32)
         explainer = shap.GradientExplainer(wrapper, bg_data)
-        
+
         shap_values = explainer.shap_values(x_t)
-        
+
         if isinstance(shap_values, list):
             sv = shap_values[0]
         else:
             sv = shap_values
-            
+
         sv_abs = np.abs(sv.reshape(-1))
         total = np.sum(sv_abs) + 1e-9
         sv_pct = (sv_abs / total) * 100
-        
+
         feature_names = [
-            "Ortalama Nabız", "Medyan Nabız", "Min Nabız", "Maks Nabız", "Nabız Std",
-            "Günlük Adım", "Aktif Süre", "Maks Adım Yoğunluğu", "Eksik Veri Oranı"
+            "Ortalama Nabız",
+            "Medyan Nabız",
+            "Min Nabız",
+            "Maks Nabız",
+            "Nabız Std",
+            "Günlük Adım",
+            "Aktif Süre",
+            "Maks Adım Yoğunluğu",
+            "Eksik Veri Oranı",
         ]
-        
+
         # İlk 9 özelliği al (seq_len>1 durumunda tekrar eden özellikler olabilir)
-        importance = list(zip(feature_names, sv_pct[:len(feature_names)]))
+        importance = list(zip(feature_names, sv_pct[: len(feature_names)]))
         importance.sort(key=lambda x: x[1], reverse=True)
         return importance[:3]  # En çok etki eden 3 özelliği dön
     except Exception as e:
         logger.warning(f"SHAP explainer hesaplanırken hata: {e}")
         return []
 
-def _check_ae_anomaly(today: DailySnapshot, ml_features: list[float] | None = None) -> tuple[bool, float, list[tuple[str, float]]]:
+
+def _check_ae_anomaly(
+    today: DailySnapshot, ml_features: list[float] | None = None
+) -> tuple[bool, float, list[tuple[str, float]]]:
     """LSTM-AE ile anomali kontrolü. ML veya M2 verisi yoksa (False, 0, []) döner."""
     if not _HAS_ML:
         return False, 0.0, []
@@ -232,62 +262,84 @@ def _check_ae_anomaly(today: DailySnapshot, ml_features: list[float] | None = No
         _load_ae()
         # ── Guard Clause: Model veya Scaler yüklenemezse atla ──
         if _ae_model is None or _ae_scaler is None:
-            logger.warning("⚠️ LSTM-AE model veya scaler yüklenemedi, Z-skor fallback'e bırakılıyor.")
+            logger.warning(
+                "⚠️ LSTM-AE model veya scaler yüklenemedi, Z-skor fallback'e bırakılıyor."
+            )
             return False, 0.0, []
 
-        is_sequence = ml_features and len(ml_features) > 0 and isinstance(ml_features[0], list)
+        is_sequence = (
+            ml_features and len(ml_features) > 0 and isinstance(ml_features[0], list)
+        )
 
         if is_sequence:
             # M2 Pipeline'dan gelen gerçek zaman dizisi (Sequence)
             raw_sequence = ml_features
-            logger.info(f"🎯 M7 Anomali Modeli: {len(raw_sequence)} pencerelik GERÇEK dizi LSTM-AE ağına besleniyor!")
+            logger.info(
+                f"🎯 M7 Anomali Modeli: {len(raw_sequence)} pencerelik GERÇEK dizi LSTM-AE ağına besleniyor!"
+            )
         elif ml_features and len(ml_features) == 9:
             # Tekil veri (Geriye uyumluluk)
             raw_sequence = [ml_features]
             logger.info("⚠️ M7 Anomali Modeli: Tekil M2 verisi diziye dönüştürüldü.")
         else:
             return False, 0.0, []
-        
+
         # Tüm diziyi ölçekle
         seq_scaled = _ae_scaler.transform(raw_sequence)
-        
+
         # LSTM-AE seq_len=5 bekler. Eksikse pad et, fazlaysa son 5'i al.
         if len(seq_scaled) < 5:
             padding = np.tile(seq_scaled[0], (5 - len(seq_scaled), 1))
             seq_final = np.vstack([padding, seq_scaled])
         else:
             seq_final = seq_scaled[-5:]
-            
+
         x_t = torch.tensor(seq_final, dtype=torch.float32).unsqueeze(0)  # (1, 5, 9)
-        
+
         with torch.no_grad():
             reconstructed = _ae_model(x_t)
             mse = torch.mean((reconstructed - x_t) ** 2).item()
-        
+
         is_anomaly = bool(mse > _ae_threshold)
         shap_factors = []
         if is_anomaly:
             shap_factors = _get_shap_contributions(x_t)
-            
+
         return is_anomaly, mse, shap_factors
     except Exception as e:
         logger.warning(f"LSTM-AE hatası: {e}")
         return False, 0.0, []
 
 
-def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_features: list[float] | None = None) -> AnomalyResult:
+def detect_anomalies(
+    history: list[DailySnapshot],
+    today: DailySnapshot,
+    ml_features: list[float] | None = None,
+) -> AnomalyResult:
     """Ana fonksiyon — LSTM-AE + Z-skor veya sadece Z-skor."""
 
-    has_anomaly_ml, mse, shap_factors = _check_ae_anomaly(today, ml_features=ml_features)
+    has_anomaly_ml, mse, shap_factors = _check_ae_anomaly(
+        today, ml_features=ml_features
+    )
 
     # Z-Skor tabanlı kontrol (her zaman çalışır)
     anomalies: list[AnomalyItem] = []
 
     if len(history) >= 3:
-        metrics = ["steps", "sleep_hours", "heart_rate", "systolic", "diastolic", "spo2", "weight"]
+        metrics = [
+            "steps",
+            "sleep_hours",
+            "heart_rate",
+            "systolic",
+            "diastolic",
+            "spo2",
+            "weight",
+        ]
 
         for metric in metrics:
-            historical_vals = [getattr(s, metric) for s in history if getattr(s, metric) > 0]
+            historical_vals = [
+                getattr(s, metric) for s in history if getattr(s, metric) > 0
+            ]
             today_val = getattr(today, metric)
 
             if len(historical_vals) < 3 or today_val <= 0:
@@ -300,7 +352,7 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_feat
                 continue
 
             z = abs(today_val - avg) / std
-            
+
             # ── BUG-3 Fix: Pozitif metriklerde yukarı sapma önemini azalt ──
             if metric in _POSITIVE_METRICS and today_val > avg:
                 z *= 0.4  # Pozitif sapma önemini azalt (ama tamamen yok etme)
@@ -311,12 +363,19 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_feat
 
             if z >= min_threshold:
                 desc, rec = _describe(metric, z, today_val, avg, label, unit)
-                anomalies.append(AnomalyItem(
-                    metric=metric, metric_label=label,
-                    z_score=round(z, 2), today_value=round(today_val, 1),
-                    avg_value=round(avg, 1), unit=unit,
-                    severity=_severity(z), description=desc, recommendation=rec,
-                ))
+                anomalies.append(
+                    AnomalyItem(
+                        metric=metric,
+                        metric_label=label,
+                        z_score=round(z, 2),
+                        today_value=round(today_val, 1),
+                        avg_value=round(avg, 1),
+                        unit=unit,
+                        severity=_severity(z),
+                        description=desc,
+                        recommendation=rec,
+                    )
+                )
 
         anomalies.sort(key=lambda a: a.z_score, reverse=True)
 
@@ -329,26 +388,37 @@ def detect_anomalies(history: list[DailySnapshot], today: DailySnapshot, ml_feat
         anomaly_complexity = 1
         zscore_anomaly_count = len(anomalies)
         if zscore_anomaly_count >= 2:
-            anomaly_complexity = min(3, 1 + zscore_anomaly_count)  # Anomali yaygınlığı (birçok metrikte sapma)
-            
+            anomaly_complexity = min(
+                3, 1 + zscore_anomaly_count
+            )  # Anomali yaygınlığı (birçok metrikte sapma)
+
         severity = "medium"
         if anomaly_complexity >= 3:
             severity = "high"  # Çoklu anomali yaygınlığı = yüksek risk
             shap_desc = "Sağlık göstergelerinizde belirgin bir sapma fark edildi, bugün dinlenmeniz önerilir."
         else:
-            shap_desc = "Vücut verilerinizde bugün olağan dışı bir hareketlilik tespit edildi."
+            shap_desc = (
+                "Vücut verilerinizde bugün olağan dışı bir hareketlilik tespit edildi."
+            )
 
         if shap_factors:
             factors_text = ", ".join([f"{f[0]}" for f in shap_factors])
             shap_desc += f" Öne çıkan değişimler: {factors_text}"
-            
-        anomalies.insert(0, AnomalyItem(
-            metric="lstm_ae_fusion", metric_label="Sağlık Durumu Analizi",
-            z_score=round(mse * 10, 2), today_value=0, avg_value=0, unit="",
-            severity=severity,
-            description=shap_desc,
-            recommendation="Farklı seyreden vücut verileriniz yorgunluk belirtisi olabilir. Bugün vücudunuzu dinlemeye özen gösterin.",
-        ))
+
+        anomalies.insert(
+            0,
+            AnomalyItem(
+                metric="lstm_ae_fusion",
+                metric_label="Sağlık Durumu Analizi",
+                z_score=round(mse * 10, 2),
+                today_value=0,
+                avg_value=0,
+                unit="",
+                severity=severity,
+                description=shap_desc,
+                recommendation="Farklı seyreden vücut verileriniz yorgunluk belirtisi olabilir. Bugün vücudunuzu dinlemeye özen gösterin.",
+            ),
+        )
 
     model_ver = f"lstm-ae-v1 (mse:{mse:.2f})" if _HAS_ML and mse > 0 else "zscore-v1"
 

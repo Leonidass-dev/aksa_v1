@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -77,7 +78,7 @@ class EditProfileSheet extends StatelessWidget {
               RiskApiRequest(age: age, gender: gender, height: height, weight: weight),
             );
           } catch (e) {
-            debugPrint('Profil güncelleme sonrası risk skoru hesaplanamadı: $e');
+            AppLogger.debug('Profil güncelleme sonrası risk skoru hesaplanamadı: $e');
           }
 
           onSaved(ProfileUpdateResult(

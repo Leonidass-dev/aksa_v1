@@ -84,16 +84,21 @@ class HealthEntry {
     // mevcut sensör verilerini ezmesin diye atlanır (merge:true).
     final isDevice = source == 'health_connect';
 
-    void put(String key, double value) {
-      if (value > 0 || isDevice) map[key] = value;
+    void put(String key, double value, {bool skipZeroOnDevice = false}) {
+      if (value > 0) {
+        map[key] = value;
+        return;
+      }
+      if (isDevice && skipZeroOnDevice) return;
+      if (isDevice) map[key] = value;
     }
 
     put('steps', steps);
     put('active_calories', activeCalories);
     put('total_calories', totalCalories);
     put('distance_m', distanceM);
-    put('heart_rate', heartRate);
-    put('resting_heart_rate', restingHeartRate);
+    put('heart_rate', heartRate, skipZeroOnDevice: true);
+    put('resting_heart_rate', restingHeartRate, skipZeroOnDevice: true);
     put('spo2', spo2);
     put('systolic', systolic);
     put('diastolic', diastolic);

@@ -6,6 +6,7 @@ import '../widgets/theme_aware_state.dart';
 import '../widgets/shimmer_loading.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/user_profile_service.dart';
+import '../services/api_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -79,15 +80,36 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
       return '${d.day}/${d.month}';
     }).toList();
 
-    // Risk verisini hesapla
-    final riskData = sorted.map((e) {
-      double r = 10.0;
-      if (e.steps > 0) r += ((10000 - e.steps) / 10000 * 15).clamp(0, 15);
-      if (e.sleepHours > 0 && e.sleepHours < 6) r += (6 - e.sleepHours) * 3;
-      if (e.heartRate > 100) r += (e.heartRate - 100) * 0.5;
-      if (e.systolic > 130) r += (e.systolic - 130) * 0.5;
-      return r.clamp(0.0, 100.0);
-    }).toList();
+    // Risk: backend geçmişi (dashboard ile aynı); yoksa basit yerel özet
+    List<double> riskData = [];
+    try {
+      final riskHistory = await ApiService.fetchRiskHistory(limit: days);
+      if (riskHistory.isNotEmpty) {
+        riskData = riskHistory
+            .map((e) => e.score)
+            .where((s) => s > 0)
+            .toList()
+            .reversed
+            .toList();
+      }
+    } catch (_) {}
+    if (riskData.isEmpty) {
+      riskData = sorted.map((e) {
+        double r = 10.0;
+        if (e.steps > 0) r += ((10000 - e.steps) / 10000 * 15).clamp(0, 15);
+        if (e.sleepHours > 0 && e.sleepHours < 6) r += (6 - e.sleepHours) * 3;
+        if (e.heartRate > 100) r += (e.heartRate - 100) * 0.5;
+        if (e.systolic > 130) r += (e.systolic - 130) * 0.5;
+        return r.clamp(0.0, 100.0);
+      }).toList();
+    } else {
+      while (riskData.length < sorted.length) {
+        riskData.insert(0, 0.0);
+      }
+      if (riskData.length > sorted.length) {
+        riskData = riskData.sublist(riskData.length - sorted.length);
+      }
+    }
 
     // Radar verisini de burada hesapla (setState dışında async çalışsın)
     final profile = await UserProfileService.getProfile();

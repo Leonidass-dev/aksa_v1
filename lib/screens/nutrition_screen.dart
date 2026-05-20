@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -96,7 +97,7 @@ class _NutritionScreenState extends State<NutritionScreen>
         });
       }
     } catch (e) {
-      debugPrint("Öğün geçmişi yükleme hatası: $e");
+      AppLogger.debug("Öğün geçmişi yükleme hatası: $e");
     }
   }
 
@@ -156,7 +157,7 @@ class _NutritionScreenState extends State<NutritionScreen>
         );
       }
     } catch (e) {
-      debugPrint("Nutrition Image Pick Error: $e");
+      AppLogger.debug("Nutrition Image Pick Error: $e");
       if (mounted) {
         setState(() => _analyzing = false);
         ScaffoldMessenger.of(context).showSnackBar(

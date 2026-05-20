@@ -23,12 +23,12 @@ NUTRITION_KNOWLEDGE_BASE = {
     "Aktif": "Hareketsizlik nedeniyle porsiyon kontrolü sağlamak önemlidir.",
     "Uyku": "Yetersiz uyku leptin hormonunu baskılayıp kalori iştahını artırabilir. Gece geç saatte sindirimi zor (yağlı, baharatlı) yiyeceklerden kaçının.",
     "Oksijen": "Solunum/SpO2 desteklemek için antioksidan (C vitamini) açısından zengin narenciye, biber, ve ıspanak tüketimi faydalı olabilir.",
-    "Stres": "Stres (yüksek kortizol) dönemlerinde B vitamini açısından zengin tam tahıllar, magnezyumlu badem ve muz sinir sistemini yatıştırmaya destek olur."
+    "Stres": "Stres (yüksek kortizol) dönemlerinde B vitamini açısından zengin tam tahıllar, magnezyumlu badem ve muz sinir sistemini yatıştırmaya destek olur.",
 }
 
 
 class FoodAnalysisRequest(BaseModel):
-    image_base64: str   # base64 encoded JPEG/PNG
+    image_base64: str  # base64 encoded JPEG/PNG
 
 
 class NutrientInfo(BaseModel):
@@ -43,7 +43,7 @@ class FoodAnalysisResponse(BaseModel):
     food_name: str
     portion: str
     nutrients: NutrientInfo
-    health_score: int          # 0-100
+    health_score: int  # 0-100
     recommendation: str
     tags: list[str]
 
@@ -100,15 +100,19 @@ async def analyze_food(
     M5 — Yemek Fotoğrafı Analizi.
     """
     user = await crud.get_or_create_user(db, uid)
-    
+
     # ── RAG: İstirdat (Retrieval) Mekanizması ──
     # Kullanıcının en güncel sağlık risk geçmişi çekilir.
     risk_history = await crud.get_risk_history(db, user, limit=1)
-    
+
     # M2 Pipeline'dan bugünün temizlenmiş özellik matrisini çek
     today_record = await crud.get_today_health(db, user)
-    ml_features = today_record.ml_features if today_record and hasattr(today_record, 'ml_features') else None
-    
+    ml_features = (
+        today_record.ml_features
+        if today_record and hasattr(today_record, "ml_features")
+        else None
+    )
+
     rag_context_texts = []
 
     # M2 verilerini RAG bağlamına ekle (varsa)
@@ -135,30 +139,37 @@ async def analyze_food(
 
     if risk_history and len(risk_history) > 0:
         latest_risk = risk_history[0]
-        rag_context_texts.append(f"Kullanıcının Genel Sağlık Risk Seviyesi: {latest_risk.level_label}")
-        
+        rag_context_texts.append(
+            f"Kullanıcının Genel Sağlık Risk Seviyesi: {latest_risk.level_label}"
+        )
+
         # Risk faktörlerini (Tansiyon, Uyku vb) çıkarıp ilgili rehber (Knowledge Base) metnini geri getir.
         factors = latest_risk.top_factors or []
         for f in factors:
-            factor_name = f.get("name", "") if isinstance(f, dict) else getattr(f, "name", "")
-            
+            factor_name = (
+                f.get("name", "") if isinstance(f, dict) else getattr(f, "name", "")
+            )
+
             for kb_key, kb_text in NUTRITION_KNOWLEDGE_BASE.items():
                 if kb_key.lower() in factor_name.lower():
-                    rag_context_texts.append(f"- TÜBER REHBER NOTU ({kb_key}): {kb_text}")
-    
+                    rag_context_texts.append(
+                        f"- TÜBER REHBER NOTU ({kb_key}): {kb_text}"
+                    )
+
     if not rag_context_texts:
         rag_context = "RAG Bağlamı Yok: Kullanıcı hakkında spesifik bir risk verisi bulunamadı. Standart yetişkin sağlıklı beslenme ilkelerini uygula."
     else:
-        rag_context = "RAG (Kullanıcının Sağlık Durumu ve Getirilen Beslenme Rehberi):\n" + "\n".join(rag_context_texts)
+        rag_context = (
+            "RAG (Kullanıcının Sağlık Durumu ve Getirilen Beslenme Rehberi):\n"
+            + "\n".join(rag_context_texts)
+        )
 
     augmented_prompt = f"{PROMPT}\n\n[SİSTEM ÖZEL BİLGİSİ / RAG BAĞLAMI]\nAşağıdaki tıbbi/bağlamsal bilgiye dayanarak 'recommendation' (öneri) kısmını bu kullanıcıya göre hiper-kişiselleştir:\n{rag_context}"
 
     # AI Çağrısı (Merkezi Servis Üzerinden)
     try:
         text = await ask_vision(
-            prompt=augmented_prompt,
-            image_base64=req.image_base64,
-            json_mode=True
+            prompt=augmented_prompt, image_base64=req.image_base64, json_mode=True
         )
     except Exception as e:
         logger.error(f"Yemek analizi sırasında kritik hata: {e}")
@@ -177,11 +188,12 @@ async def analyze_food(
             ),
             health_score=0,
             recommendation="Yemek analizi şu an yapılamıyor. Lütfen internet bağlantınızı kontrol edin veya biraz sonra tekrar deneyin.",
-            tags=["hata"]
+            tags=["hata"],
         )
 
     try:
         from services.ai_service import clean_json_string
+
         text = clean_json_string(text)
         data = json.loads(text)
         nutrients = data.get("nutrients", {})
@@ -199,7 +211,8 @@ async def analyze_food(
 
         # DB'ye kaydet
         await crud.save_meal_record(
-            db, user,
+            db,
+            user,
             food_name=food_name,
             portion=portion,
             calories=calories,
@@ -228,7 +241,9 @@ async def analyze_food(
         )
     except Exception as e:
         logger.exception(f"JSON Parse Error. Raw Text: {text}")
-        raise HTTPException(status_code=500, detail=f"JSON parse hatası: {e}. Raw Text: {text[:150]}")
+        raise HTTPException(
+            status_code=500, detail=f"JSON parse hatası: {e}. Raw Text: {text[:150]}"
+        )
 
 
 @router.get("/meal-history", response_model=list[MealHistoryItem])
@@ -258,8 +273,10 @@ async def meal_history(
         for r in records
     ]
 
+
 # ── M5: DİYETİSYEN SİSTEMİ (ÖĞÜN PLANLAYICI) ──
-from services.diet_generator import generate_diet_plan, DietPlanResponse
+from services.diet_generator import generate_diet_plan, DietPlanResponse  # noqa: E402
+
 
 @router.get("/diet-plan", response_model=DietPlanResponse)
 async def get_diet_plan(
@@ -268,7 +285,7 @@ async def get_diet_plan(
 ):
     """
     Kullanıcının risk haritası, M2 sensör verileri ve günlük kalori ihtiyacına
-    göre yapay zeka destekli diyet listesi oluşturur. 
+    göre yapay zeka destekli diyet listesi oluşturur.
     Aynı gün içindeki isteklerde önbellekteki planı döner.
     """
     user = await crud.get_or_create_user(db, uid)
@@ -281,37 +298,42 @@ async def get_diet_plan(
     gender = user.gender if user.gender else "Erkek"
     allergies = user.allergies if user.allergies else []
     diet_preference = user.diet_preference if user.diet_preference else "Standart"
-    
+
     # Mifflin-St Jeor BMR Formülü (Modern Standart - Mobil Uygulama ile Senkronize)
     if gender.lower() in ["erkek", "m"]:
         bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
     else:
         bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161
-    
+
     # 2. Risk Verileri
     risk_history = await crud.get_risk_history(db, user, limit=1)
     risk_level = "Medium"
     risk_factors = ""
-    
+
     if risk_history and len(risk_history) > 0:
         latest = risk_history[0]
         risk_level = latest.level_label
         if latest.top_factors:
-            risk_factors = ", ".join([f.get("name", "") if isinstance(f, dict) else getattr(f, "name", "") for f in latest.top_factors])
+            risk_factors = ", ".join(
+                [
+                    f.get("name", "") if isinstance(f, dict) else getattr(f, "name", "")
+                    for f in latest.top_factors
+                ]
+            )
 
     # 3. M2 Sensör Verileri & Kalori Tahmini
     today_record = await crud.get_today_health(db, user)
     health_context = ""
-    
+
     # Varsayılan: Sedanter (Hareketsiz) TDEE
     target_calories = int(bmr * 1.2)
     calc_method = "BMR * 1.2 (Default)"
-    
+
     if today_record:
         raw_active = today_record.active_calories or 0
-        
+
         if raw_active > 0:
-            # KRİTİK KONTROL: Eğer gelen aktif kalori BMR'den büyükse, saat muhtemelen 
+            # KRİTİK KONTROL: Eğer gelen aktif kalori BMR'den büyükse, saat muhtemelen
             # "Toplam Yakılan Kalori" (BMR + Aktif) gönderiyordur. Üstüne tekrar BMR ekleme.
             if raw_active > bmr:
                 target_calories = int(raw_active)
@@ -323,7 +345,9 @@ async def get_diet_plan(
             calc_method = "BMR * 1.2 (No Active Data)"
 
         # M2 Meta verileri
-        ml_features = today_record.ml_features if hasattr(today_record, 'ml_features') else None
+        ml_features = (
+            today_record.ml_features if hasattr(today_record, "ml_features") else None
+        )
         ml_vec = None
         if ml_features and isinstance(ml_features, list) and len(ml_features) > 0:
             if isinstance(ml_features[0], list):
@@ -354,26 +378,38 @@ async def get_diet_plan(
         cached_target = cached_plan.plan_data.get("daily_calories_target", 0)
         # Eğer kalori hedefi ±300 kcal'den fazla değişmediyse önbelleği kullan
         if abs(cached_target - target_calories) < 300:
-            logger.info(f"🎯 M5 Diyet Planlayıcı: Önbellekten dönüyor. Hedef kalori: {target_calories}")
+            logger.info(
+                f"🎯 M5 Diyet Planlayıcı: Önbellekten dönüyor. Hedef kalori: {target_calories}"
+            )
             return DietPlanResponse(**cached_plan.plan_data)
         else:
-            logger.info(f"🎯 M5 Diyet Planlayıcı: Kalori hedefi değişti ({cached_target} -> {target_calories}). Plan yeniden oluşturuluyor.")
+            logger.info(
+                f"🎯 M5 Diyet Planlayıcı: Kalori hedefi değişti ({cached_target} -> {target_calories}). Plan yeniden oluşturuluyor."
+            )
 
-    logger.info(f"🎯 M5 Diyet Planlayıcı: Kullanıcı {user.firebase_uid} için hedef kalori: {target_calories} ({calc_method})")
-            
-    plan = await generate_diet_plan(
-        age, gender, height, weight,
-        risk_level, risk_factors, health_context,
-        target_calories,
-        allergies, diet_preference
+    logger.info(
+        f"🎯 M5 Diyet Planlayıcı: Kullanıcı {user.firebase_uid} için hedef kalori: {target_calories} ({calc_method})"
     )
-    
+
+    plan = await generate_diet_plan(
+        age,
+        gender,
+        height,
+        weight,
+        risk_level,
+        risk_factors,
+        health_context,
+        target_calories,
+        allergies,
+        diet_preference,
+    )
+
     if not plan:
         raise HTTPException(status_code=500, detail="Diyet planı üretilemedi.")
-    
+
     # 4. Sonucu Önbelleğe Kaydet
     await crud.save_daily_diet_plan(db, user, today, plan.model_dump())
-        
+
     return plan
 
 
@@ -381,20 +417,21 @@ class ManualFoodRequest(BaseModel):
     food_name: str
     portion: str
 
+
 @router.post("/manual", response_model=FoodAnalysisResponse)
 async def add_manual_food(
     req: ManualFoodRequest,
     uid: str = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Kullanıcının kamerasız, manuel olarak yediği yemeği kaydetmesi ve AI'ın makro tahmini yapması."""
     user = await crud.get_or_create_user(db, uid)
-    
+
     # 1. AI ile Makro Tahmini (Hızlı ve API Dostu: Sadece Groq Kullan)
     from services.ai_service import _call_groq, clean_json_string
     import json
-    
-    estimated_calories = 300 # Varsayılan fallback
+
+    estimated_calories = 300  # Varsayılan fallback
     protein_g, carbs_g, fat_g, fiber_g = 0.0, 0.0, 0.0, 0.0
     health_score = 50
     recommendation = "Makrolar yapay zeka tarafından tahmin edildi."
@@ -417,7 +454,7 @@ async def add_manual_food(
   "recommendation": "Beslenme tavsiyesi",
   "tags": ["etiket1", "etiket2"]
 }"""
-        
+
         ai_res = await _call_groq(prompt, system, history=[], json_mode=True)
         if ai_res:
             data = json.loads(clean_json_string(ai_res))
@@ -430,13 +467,15 @@ async def add_manual_food(
             health_score = int(data.get("health_score", 50))
             recommendation = data.get("recommendation", recommendation)
             tags = data.get("tags", tags)
-            
-            logger.info(f"💡 Manuel Yemek Groq Tahmini: {estimated_calories} kcal, P: {protein_g}g ({req.food_name})")
+
+            logger.info(
+                f"💡 Manuel Yemek Groq Tahmini: {estimated_calories} kcal, P: {protein_g}g ({req.food_name})"
+            )
     except Exception as e:
         logger.error(f"Manuel yemek Groq tahmini hatası: {e}")
 
     # 2. Veritabanına Kaydet
-    record = await crud.save_meal_record(
+    await crud.save_meal_record(
         db=db,
         user=user,
         food_name=req.food_name,
@@ -448,9 +487,9 @@ async def add_manual_food(
         fiber_g=fiber_g,
         health_score=health_score,
         recommendation=recommendation,
-        tags=tags
+        tags=tags,
     )
-    
+
     return FoodAnalysisResponse(
         food_name=req.food_name,
         portion=req.portion,
@@ -459,9 +498,9 @@ async def add_manual_food(
             protein_g=protein_g,
             carbs_g=carbs_g,
             fat_g=fat_g,
-            fiber_g=fiber_g
+            fiber_g=fiber_g,
         ),
         health_score=health_score,
         recommendation=recommendation,
-        tags=tags
+        tags=tags,
     )

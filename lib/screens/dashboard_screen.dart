@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -80,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Canlı veri güncellemelerini dinle
     _syncSubscription = HealthService.syncUpdates.listen((event) {
       if (mounted) {
-        debugPrint("📡 Dashboard: Yeni veri algılandı, güncelleniyor...");
+        AppLogger.debug("📡 Dashboard: Yeni veri algılandı, güncelleniyor...");
         _loadTodayData();
       }
     });
@@ -162,7 +163,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       await HealthService.syncFromDevice();
       if (mounted) await _loadTodayData();
     } catch (e) {
-      debugPrint("Sessiz senkronizasyon hatası: $e");
+      AppLogger.debug("Sessiz senkronizasyon hatası: $e");
     } finally {
       if (mounted) {
         setState(() => _isSyncing = false);
@@ -190,10 +191,17 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     try {
       final profile = await UserProfileService.getProfile();
-      final pAge = profile?.age ?? AppConstants.defaultAge;
-      final pHeight = profile?.height ?? AppConstants.defaultHeight;
-      final pWeight = profile?.weight ?? AppConstants.defaultWeight;
-      final pGender = profile?.gender ?? AppConstants.defaultGender;
+      
+      // Mantıksal Hata Çözümü: Eğer profil yoksa (Bypass edilmişse) kurulum ekranına zorla
+      if (profile == null) {
+        if (mounted) context.go('/profile-setup');
+        return;
+      }
+
+      final pAge = profile.age;
+      final pHeight = profile.height;
+      final pWeight = profile.weight;
+      final pGender = profile.gender;
 
       final entry = await HealthService.getTodayEntry();
       final todayData = entry ?? HealthEntry(date: DateTime.now());
@@ -260,7 +268,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           });
         }
       } catch (e) {
-        debugPrint("Risk skoru hesaplama hatası: $e");
+        AppLogger.debug("Risk skoru hesaplama hatası: $e");
       }
 
       if (mounted) {
@@ -292,7 +300,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           });
         }
       } catch (e) {
-        debugPrint("Anomali kontrol hatası: $e");
+        AppLogger.debug("Anomali kontrol hatası: $e");
       }
 
 
@@ -310,11 +318,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           setState(() => _weeklyData = latestScores.reversed.toList());
         }
       } catch (e) {
-        debugPrint('Haftalık risk geçmişi hatası: $e');
+        AppLogger.debug('Haftalık risk geçmişi hatası: $e');
       }
 
     } catch (e) {
-      debugPrint("_loadTodayData ana hata: $e");
+      AppLogger.debug("_loadTodayData ana hata: $e");
     } finally {
       if (mounted) {
         setState(() {

@@ -1,5 +1,5 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -57,7 +57,7 @@ class ReportService {
       );
 
     } catch (e) {
-      debugPrint('Rapor oluşturulurken hata: $e');
+      AppLogger.debug('Rapor oluşturulurken hata: $e');
       rethrow;
     }
   }

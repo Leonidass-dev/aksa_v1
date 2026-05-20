@@ -82,9 +82,10 @@ class RiskApiResult {
     score: double.tryParse(json['score']?.toString() ?? '0') ?? 0.0,
     level: json['level'] as String? ?? 'low',
     levelLabel: json['level_label'] as String? ?? '',
-    topFactors: (json['top_factors'] as List)
-        .map((e) => RiskApiFactorItem.fromJson(e))
-        .toList(),
+    topFactors: List<RiskApiFactorItem>.from(
+      (json['top_factors'] as List<dynamic>? ?? [])
+          .map((e) => RiskApiFactorItem.fromJson(e as Map<String, dynamic>)),
+    ),
     recommendations: List<String>.from(json['recommendations'] ?? []),
     modelVersion: json['model_version'] ?? '',
   );

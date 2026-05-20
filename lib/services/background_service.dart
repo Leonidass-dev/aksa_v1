@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'api_service.dart';
@@ -9,7 +9,7 @@ const fetchBackground = "fetchBackground";
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
-      debugPrint("Arkaplan Görevi Başladı: $task");
+      AppLogger.debug("Arkaplan Görevi Başladı: $task");
       
       // Risk Skorunu backend'den çek
       // Arkaplan isolate'inde Health Connect erişimi kısıtlı olduğundan,
@@ -31,7 +31,7 @@ void callbackDispatcher() {
 
       return Future.value(true);
     } catch (err) {
-      debugPrint("Arkaplan Görevi Hatası: $err");
+      AppLogger.debug("Arkaplan Görevi Hatası: $err");
       return Future.value(false); // retry
     }
   });

@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/health_service.dart';
 import '../services/user_profile_service.dart';
+import '../utils/health_data_quality.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/theme_aware_state.dart';
@@ -100,20 +101,24 @@ class _ExerciseScreenState extends State<ExerciseScreen>
       String riskLevelStr = 'low';
 
       // Her durumda profile verisini katarak bir risk hesapla
-      final riskReq = RiskApiRequest(
-        age: profile.age,
-        gender: profile.gender,
-        weight: profile.weight,
-        height: profile.height,
-        steps: todayData.steps,
-        sleepHours: todayData.sleepHours,
-        systolic: todayData.systolic,
-        diastolic: todayData.diastolic,
-      );
+      if (HealthDataQuality.hasActionableVitals(todayData)) {
+        final riskReq = RiskApiRequest(
+          age: profile.age,
+          gender: profile.gender,
+          weight: profile.weight,
+          height: profile.height,
+          steps: todayData.steps,
+          sleepHours: todayData.sleepHours,
+          systolic: todayData.systolic,
+          diastolic: todayData.diastolic,
+          heartRateResting: HealthDataQuality.restingHeartRateForRisk(todayData),
+          heartRateAvg: HealthDataQuality.heartRateForRisk(todayData),
+        );
 
-      final riskResult = await ApiService.fetchRiskScore(riskReq);
-      if (riskResult != null) {
-        riskLevelStr = riskResult.level; // 'low', 'medium', 'high'
+        final riskResult = await ApiService.fetchRiskScore(riskReq);
+        if (riskResult != null && riskResult.level != 'unknown') {
+          riskLevelStr = riskResult.level;
+        }
       }
 
       final req = ExerciseApiRequest(

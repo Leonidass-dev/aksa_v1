@@ -1,3 +1,4 @@
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/health_service.dart';
@@ -36,7 +37,7 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
     try {
       await HealthService.syncFromDevice(force: true);
     } catch (e) {
-      debugPrint("Senkronizasyon hatası (geçiliyor): $e");
+      AppLogger.debug("Senkronizasyon hatası (geçiliyor): $e");
     }
 
     // Son 7 günün verisini Firestore'dan çek

@@ -41,7 +41,7 @@ class AnomalyItemResponse(BaseModel):
 
 class AnomalyCheckResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
-    
+
     has_anomaly: bool
     anomalies: list[AnomalyItemResponse]
     checked_metrics: int
@@ -65,7 +65,7 @@ def _to_snapshot(r: DailySnapshotRequest) -> DailySnapshot:
 async def check_anomaly(
     req: AnomalyCheckRequest,
     uid: str = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     M7 — Anomali Tespiti (Z-Skor ve LSTM-AE)
@@ -78,7 +78,11 @@ async def check_anomaly(
     # Veritabanından bugünün M2 pipeline temizlik sonuçlarını çek
     user = await crud.get_or_create_user(db, uid)
     today_record = await crud.get_today_health(db, user)
-    ml_features = today_record.ml_features if today_record and hasattr(today_record, 'ml_features') else None
+    ml_features = (
+        today_record.ml_features
+        if today_record and hasattr(today_record, "ml_features")
+        else None
+    )
 
     # Modelle gönder
     result = detect_anomalies(history, today, ml_features=ml_features)

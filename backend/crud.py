@@ -8,15 +8,21 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db_models import (
-    User, HealthRecord, RiskScore,
-    MealRecord, ExercisePlan, ChatMessage,
-    DailyDietPlan, UserMemory
+    User,
+    HealthRecord,
+    RiskScore,
+    MealRecord,
+    ExercisePlan,
+    ChatMessage,
+    DailyDietPlan,
+    UserMemory,
 )
 
 
 # ═══════════════════════════════════════════════════════════════════
 #  USER
 # ═══════════════════════════════════════════════════════════════════
+
 
 async def get_or_create_user(
     db: AsyncSession,
@@ -51,6 +57,7 @@ async def delete_user_completely(db: AsyncSession, user: User) -> bool:
     except Exception as e:
         await db.rollback()
         import logging
+
         logging.error(f"Error deleting user {user.firebase_uid}: {e}")
         return False
 
@@ -70,7 +77,9 @@ async def get_user_memory(db: AsyncSession, user_id: int) -> UserMemory:
     return memory
 
 
-async def update_user_memory(db: AsyncSession, user_id: int, new_summary: str) -> UserMemory:
+async def update_user_memory(
+    db: AsyncSession, user_id: int, new_summary: str
+) -> UserMemory:
     """Kullanıcının AI hafızasını güncelle."""
     memory = await get_user_memory(db, user_id)
     memory.memory_summary = new_summary
@@ -80,6 +89,7 @@ async def update_user_memory(db: AsyncSession, user_id: int, new_summary: str) -
 
 
 # ═══════════════════════════════════════════════════════════════════
+
 
 async def save_health_record(
     db: AsyncSession,
@@ -104,11 +114,25 @@ async def save_health_record(
 
     # Alanları güncelle (None ise mevcut değeri koru, 0 meşru değer olabilir)
     for field in [
-        "steps", "heart_rate", "resting_heart_rate", "spo2",
-        "systolic", "diastolic", "sleep_hours", "sleep_deep_min",
-        "sleep_light_min", "sleep_rem_min", "sleep_awake_min",
-        "active_calories", "total_calories", "distance_m",
-        "stress_level", "weight", "water_ml", "mood", "ml_features"
+        "steps",
+        "heart_rate",
+        "resting_heart_rate",
+        "spo2",
+        "systolic",
+        "diastolic",
+        "sleep_hours",
+        "sleep_deep_min",
+        "sleep_light_min",
+        "sleep_rem_min",
+        "sleep_awake_min",
+        "active_calories",
+        "total_calories",
+        "distance_m",
+        "stress_level",
+        "weight",
+        "water_ml",
+        "mood",
+        "ml_features",
     ]:
         new_val = data.get(field)
         if new_val is not None:
@@ -174,6 +198,7 @@ async def get_latest_health_record(db: AsyncSession, user: User) -> HealthRecord
 #  RISK SCORES
 # ═══════════════════════════════════════════════════════════════════
 
+
 async def save_risk_score(
     db: AsyncSession,
     user: User,
@@ -232,6 +257,7 @@ async def get_latest_risk_score(db: AsyncSession, user: User) -> RiskScore | Non
 #  MEAL RECORDS
 # ═══════════════════════════════════════════════════════════════════
 
+
 async def save_meal_record(
     db: AsyncSession,
     user: User,
@@ -284,7 +310,8 @@ async def get_meal_history(
 
 async def get_today_meals(db: AsyncSession, user: User) -> list[MealRecord]:
     """Bugün analiz edilen yemekleri getir."""
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     today_start = datetime.combine(date.today(), datetime.min.time())
     stmt = (
         select(MealRecord)
@@ -301,6 +328,7 @@ async def get_today_meals(db: AsyncSession, user: User) -> list[MealRecord]:
 # ═══════════════════════════════════════════════════════════════════
 #  EXERCISE PLANS
 # ═══════════════════════════════════════════════════════════════════
+
 
 async def save_exercise_plan(
     db: AsyncSession,
@@ -330,28 +358,41 @@ async def save_exercise_feedback(
     feedback: str,
 ) -> ExercisePlan | None:
     """Son egzersiz planına geri bildirimi kaydeder."""
-    stmt = select(ExercisePlan).where(ExercisePlan.user_id == user.id).order_by(desc(ExercisePlan.created_at)).limit(1)
+    stmt = (
+        select(ExercisePlan)
+        .where(ExercisePlan.user_id == user.id)
+        .order_by(desc(ExercisePlan.created_at))
+        .limit(1)
+    )
     result = await db.execute(stmt)
     plan = result.scalar_one_or_none()
-    
+
     if plan:
         plan.feedback = feedback
         await db.commit()
         return plan
     return None
 
+
 async def get_last_exercise_plan(
     db: AsyncSession,
     user: User,
 ) -> ExercisePlan | None:
     """Kullanıcının en sonki egzersiz planını getirir."""
-    stmt = select(ExercisePlan).where(ExercisePlan.user_id == user.id).order_by(desc(ExercisePlan.created_at)).limit(1)
+    stmt = (
+        select(ExercisePlan)
+        .where(ExercisePlan.user_id == user.id)
+        .order_by(desc(ExercisePlan.created_at))
+        .limit(1)
+    )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  CHAT MESSAGES
 # ═══════════════════════════════════════════════════════════════════
+
 
 async def save_chat_message(
     db: AsyncSession,
@@ -392,6 +433,7 @@ async def get_chat_history(
 async def clear_chat_history(db: AsyncSession, user: User) -> bool:
     """Kullanıcının tüm chat geçmişini siler."""
     from sqlalchemy import delete
+
     stmt = delete(ChatMessage).where(ChatMessage.user_id == user.id)
     await db.execute(stmt)
     await db.commit()
@@ -402,31 +444,25 @@ async def clear_chat_history(db: AsyncSession, user: User) -> bool:
 #  DAILY DIET PLANS (Caching)
 # ═══════════════════════════════════════════════════════════════════
 
+
 async def get_daily_diet_plan(
-    db: AsyncSession,
-    user: User,
-    target_date: date
+    db: AsyncSession, user: User, target_date: date
 ) -> DailyDietPlan | None:
     """Belirli bir tarihteki diyet planını getir."""
     stmt = select(DailyDietPlan).where(
-        DailyDietPlan.user_id == user.id,
-        DailyDietPlan.plan_date == target_date
+        DailyDietPlan.user_id == user.id, DailyDietPlan.plan_date == target_date
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 
 async def save_daily_diet_plan(
-    db: AsyncSession,
-    user: User,
-    plan_date: date,
-    plan_data: dict
+    db: AsyncSession, user: User, plan_date: date, plan_data: dict
 ) -> DailyDietPlan:
     """Bir günlük diyet planını kaydet."""
     # Varsa güncelle yoksa oluştur
     stmt = select(DailyDietPlan).where(
-        DailyDietPlan.user_id == user.id,
-        DailyDietPlan.plan_date == plan_date
+        DailyDietPlan.user_id == user.id, DailyDietPlan.plan_date == plan_date
     )
     result = await db.execute(stmt)
     record = result.scalar_one_or_none()
@@ -435,9 +471,7 @@ async def save_daily_diet_plan(
         record.plan_data = plan_data
     else:
         record = DailyDietPlan(
-            user_id=user.id,
-            plan_date=plan_date,
-            plan_data=plan_data
+            user_id=user.id, plan_date=plan_date, plan_data=plan_data
         )
         db.add(record)
 
