@@ -1,15 +1,14 @@
 import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../firebase_options.dart';
+import '../services/user_profile_service.dart';
+import '../services/health_service.dart';
 import 'api_service.dart';
 
 const fetchBackground = "fetchBackground";
-
-import 'package:firebase_core/firebase_core.dart';
-import '../firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/user_profile_service.dart';
-import '../services/health_service.dart';
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
