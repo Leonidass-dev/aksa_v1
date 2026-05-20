@@ -308,6 +308,30 @@ class ApiServiceImpl implements IApiService {
     return null;
   }
 
+  // ── Anlık Ruh Hali (Mood) Tavsiyesi ────────────────────────────────────
+  @override
+  Future<MoodAdviceResponse?> fetchMoodAdvice(String mood) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/assistant/mood-advice'),
+            headers: headers,
+            body: jsonEncode({'mood': mood}),
+          )
+          .timeout(const Duration(seconds: 15)); // Hızlı cevap bekliyoruz
+
+      if (response.statusCode == 200) {
+        return MoodAdviceResponse.fromJson(
+          jsonDecode(utf8.decode(response.bodyBytes)),
+        );
+      }
+    } catch (e) {
+      AppLogger.error('Mood Advice API hatası: $e');
+    }
+    return null;
+  }
+
   // ── Chat Geçmişi ──────────────────────────────────────────────
   @override
   Future<List<ChatHistoryItem>> fetchChatHistory({
@@ -471,6 +495,7 @@ class ApiService {
   static Future<List<RiskHistoryItem>> fetchRiskHistory({int limit = 30}) => _instance.fetchRiskHistory(limit: limit);
   static Future<List<MealHistoryItem>> fetchMealHistory({int limit = 30}) => _instance.fetchMealHistory(limit: limit);
   static Future<AssistantChatResponse?> sendAssistantMessage(String message) => _instance.sendAssistantMessage(message);
+  static Future<MoodAdviceResponse?> fetchMoodAdvice(String mood) => _instance.fetchMoodAdvice(mood);
   static Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50}) => _instance.fetchChatHistory(limit: limit);
   static Future<bool> clearChatHistory() => _instance.clearChatHistory();
   static Future<bool> syncHealthToBackend(HealthEntry entry) => _instance.syncHealthToBackend(entry);

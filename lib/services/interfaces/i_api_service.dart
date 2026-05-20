@@ -1,4 +1,4 @@
-import '../api_service.dart' show FoodAnalysisResult, DietPlanResult, AnomalyApiResult, ExerciseApiRequest, ExerciseApiResult, RiskApiRequest, RiskApiResult, RiskHistoryItem, MealHistoryItem, AssistantChatResponse, ChatHistoryItem;
+import '../api_service.dart' show FoodAnalysisResult, DietPlanResult, AnomalyApiResult, ExerciseApiRequest, ExerciseApiResult, RiskApiRequest, RiskApiResult, RiskHistoryItem, MealHistoryItem, AssistantChatResponse, ChatHistoryItem, MoodAdviceResponse;
 import '../health_service.dart' show HealthEntry;
 
 abstract class IApiService {
@@ -28,6 +28,8 @@ abstract class IApiService {
   Future<List<MealHistoryItem>> fetchMealHistory({int limit = 10});
 
   Future<AssistantChatResponse?> sendAssistantMessage(String message);
+
+  Future<MoodAdviceResponse?> fetchMoodAdvice(String mood);
 
   Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50});
 

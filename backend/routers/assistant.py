@@ -27,6 +27,13 @@ class ChatResponse(BaseModel):
     is_safe: bool = True
 
 
+class MoodAdviceRequest(BaseModel):
+    mood: str = Field(description="Kullanıcının o anki ruh hali (örn: Stresli, Üzgün)")
+
+class MoodAdviceResponse(BaseModel):
+    advice: str
+
+
 class ChatHistoryItem(BaseModel):
     id: int
     role: str
@@ -235,6 +242,45 @@ async def chat_with_assistant(
         raise HTTPException(
             status_code=500, detail="Bir hata oluştu, lütfen tekrar deneyin."
         )
+
+
+@router.post("/mood-advice", response_model=MoodAdviceResponse)
+async def mood_advice(
+    req: MoodAdviceRequest,
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Anlık ruh hali (Mood) için yapay zeka destekli mini rahatlama tavsiyesi verir."""
+    try:
+        user = await crud.get_or_create_user(db, uid)
+        today_record = await crud.get_today_health(db, user)
+
+        context_parts = []
+        if today_record:
+            if today_record.heart_rate > 0:
+                context_parts.append(f"Nabız: {int(today_record.heart_rate)} bpm")
+            if today_record.sleep_hours > 0:
+                context_parts.append(f"Uyku: {today_record.sleep_hours:.1f} saat")
+            if today_record.steps > 0:
+                context_parts.append(f"Adım: {int(today_record.steps)}")
+
+        ctx_str = ", ".join(context_parts) if context_parts else "Veri yok"
+
+        prompt = f"Kullanıcı şu an '{req.mood}' hissediyor. Kullanıcının günlük fiziksel verileri: {ctx_str}. " \
+                 "Lütfen bu duruma uygun, moral verici ve onu rahatlatacak ÇOK KISA (maksimum 2-3 cümlelik) bir tavsiye veya ufak bir nefes egzersizi ver. " \
+                 "Çok içten ve sıcakkanlı ol."
+
+        system_prompt = "Sen 'AKSA', anlayışlı bir psikolojik destek ve sağlık asistanısın. Tıbbi tanı koymadan sadece rahatlatıcı yaşam tarzı tavsiyesi ver."
+
+        reply = await ask_text(prompt=prompt, system_prompt=system_prompt, history=[], json_mode=False)
+
+        if not reply:
+            reply = "Şu an biraz zorlanıyor olabilirsin. Gözlerini kapatıp 5 saniye derin nefes al ve yavaşça ver. Bu sana iyi gelecektir."
+
+        return MoodAdviceResponse(advice=reply)
+    except Exception as e:
+        logger.exception(f"Mood Advice Error: {e}")
+        return MoodAdviceResponse(advice="Derin bir nefes al ve omuzlarını gevşet. Her şey yoluna girecek.")
 
 
 @router.get("/history", response_model=list[ChatHistoryItem])

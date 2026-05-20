@@ -468,6 +468,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                       onMoodSelected: (mood) async {
                         await HealthService.updateMood(mood);
                         _loadTodayData();
+
+                        if (mood == 'stressed' || mood == 'tired') {
+                          // Yapay zeka rahatlama tavsiyesi
+                          final res = await ApiService.fetchMoodAdvice(mood);
+                          if (res != null && mounted) {
+                            _showMoodAdviceModal(context, res.advice, mood);
+                          }
+                        }
                       },
                     ),
                     const SizedBox(height: 20),
@@ -954,6 +962,77 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (diff.inMinutes < 60) return '${diff.inMinutes} dk önce';
     if (diff.inHours < 24) return '${diff.inHours} saat önce';
     return '${diff.inDays} gün önce';
+  }
+
+  void _showMoodAdviceModal(BuildContext context, String advice, String mood) {
+    final isStressed = mood == 'stressed';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.outlineVariant.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Icon(
+                isStressed ? Icons.self_improvement_rounded : Icons.nightlight_round,
+                size: 48,
+                color: AppColors.accent,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isStressed ? 'Biraz Rahatlayalım' : 'Dinlenmeye İhtiyacın Var',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                advice,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: cs.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Anladım, Teşekkürler'),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

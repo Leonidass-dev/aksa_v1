@@ -376,6 +376,18 @@ class AssistantChatResponse {
   }
 }
 
+class MoodAdviceResponse {
+  final String advice;
+
+  const MoodAdviceResponse({required this.advice});
+
+  factory MoodAdviceResponse.fromJson(Map<String, dynamic> json) {
+    return MoodAdviceResponse(
+      advice: json['advice'] ?? 'Derin bir nefes al ve rahatla.',
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Geçmiş Kayıtlar
 // ═══════════════════════════════════════════════════════════════
