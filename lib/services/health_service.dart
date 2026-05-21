@@ -411,15 +411,74 @@ class HealthService {
       final status = await Health().getHealthConnectSdkStatus();
       switch (status) {
         case HealthConnectSdkStatus.sdkAvailable:
-          return 'available';
+          // SDK var ama izinler verilmiş mi kontrol et
+          final types = [
+            HealthDataType.STEPS,
+            HealthDataType.HEART_RATE,
+            HealthDataType.SLEEP_SESSION,
+          ];
+          try {
+            final hasPerms = await Health().hasPermissions(types);
+            if (hasPerms == true) {
+              return 'connected'; // SDK var + izinler verilmiş
+            } else {
+              return 'needs_permission'; // SDK var ama izinler verilmemiş
+            }
+          } catch (_) {
+            return 'available'; // İzin kontrolü başarısız, en azından SDK var
+          }
         case HealthConnectSdkStatus.sdkUnavailable:
           return 'unavailable';
+        case HealthConnectSdkStatus.sdkUpdateRequired:
+          return 'update_required';
         default:
           return 'unavailable';
       }
     } catch (e) {
       AppLogger.debug('Health Connect SDK durum hatası: $e');
       return 'error';
+    }
+  }
+
+  /// Health Connect izinlerini talep eder
+  static Future<bool> requestHealthPermissions() async {
+    try {
+      final types = [
+        HealthDataType.STEPS,
+        HealthDataType.ACTIVE_ENERGY_BURNED,
+        HealthDataType.TOTAL_CALORIES_BURNED,
+        HealthDataType.HEART_RATE,
+        HealthDataType.RESTING_HEART_RATE,
+        HealthDataType.BLOOD_OXYGEN,
+        HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+        HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
+        HealthDataType.SLEEP_ASLEEP,
+        HealthDataType.SLEEP_DEEP,
+        HealthDataType.SLEEP_LIGHT,
+        HealthDataType.SLEEP_REM,
+        HealthDataType.SLEEP_SESSION,
+        HealthDataType.SLEEP_AWAKE,
+        HealthDataType.DISTANCE_DELTA,
+      ];
+      final permissions = types.map((_) => HealthDataAccess.READ).toList();
+      
+      final authorized = await Health().requestAuthorization(
+        types,
+        permissions: permissions,
+      );
+      return authorized;
+    } catch (e) {
+      AppLogger.debug('Health Connect izin talebi hatası: $e');
+      return false;
+    }
+  }
+
+  /// Health Connect uygulamasını açar (ayarlar / izin yönetimi)
+  static Future<void> installHealthConnect() async {
+    try {
+      await Health().installHealthConnect();
+    } catch (e) {
+      AppLogger.debug('Health Connect yükleme/açma hatası: $e');
     }
   }
 }

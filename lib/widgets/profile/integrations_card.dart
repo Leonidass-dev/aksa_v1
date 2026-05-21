@@ -12,7 +12,9 @@ class IntegrationsCard extends StatefulWidget {
 }
 
 class _IntegrationsCardState extends State<IntegrationsCard> {
-  String _hcStatus = 'checking'; // 'checking', 'available', 'unavailable', 'update_required', 'error'
+  // 'checking', 'connected', 'needs_permission', 'available', 'unavailable', 'update_required', 'error'
+  String _hcStatus = 'checking';
+  bool _requestingPermission = false;
 
   @override
   void initState() {
@@ -21,24 +23,52 @@ class _IntegrationsCardState extends State<IntegrationsCard> {
   }
 
   Future<void> _checkHCStatus() async {
+    if (mounted) setState(() => _hcStatus = 'checking');
     final status = await HealthService.checkHealthConnectStatus();
-    if (mounted) {
-      setState(() => _hcStatus = status);
+    if (mounted) setState(() => _hcStatus = status);
+  }
+
+  /// Health Connect izinlerini iste ve durumu yeniden kontrol et
+  Future<void> _requestPermissions() async {
+    setState(() => _requestingPermission = true);
+    final granted = await HealthService.requestHealthPermissions();
+    if (granted) {
+      await _checkHCStatus();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Health Connect izinleri verildi! ✅'),
+            backgroundColor: AppColors.secondary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } else {
+      await _checkHCStatus();
     }
+    if (mounted) setState(() => _requestingPermission = false);
   }
 
   /// Health Connect'i Play Store'da aç
   Future<void> _openHealthConnectStore() async {
-    // Health Connect'in Play Store paket URI'si
+    // Önce SDK'nın kendi yükleme metodunu dene
+    try {
+      await HealthService.installHealthConnect();
+      // Yükledikten sonra durumu kontrol et
+      await Future.delayed(const Duration(seconds: 2));
+      await _checkHCStatus();
+      return;
+    } catch (_) {}
+
+    // Fallback: Play Store'u aç
     const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
     const marketUrl = 'market://details?id=com.google.android.apps.healthdata';
     
-    // Önce market:// ile dene (doğrudan Play Store açar)
     final marketUri = Uri.parse(marketUrl);
     if (await canLaunchUrl(marketUri)) {
       await launchUrl(marketUri, mode: LaunchMode.externalApplication);
     } else {
-      // Olmazsa tarayıcıda aç
       final webUri = Uri.parse(playStoreUrl);
       await launchUrl(webUri, mode: LaunchMode.externalApplication);
     }
@@ -49,49 +79,60 @@ class _IntegrationsCardState extends State<IntegrationsCard> {
     final cs = Theme.of(context).colorScheme;
     return AppCard(
       padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.hub_rounded, color: cs.primary, size: 20),
-                const SizedBox(width: 8),
-                const Text(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.hub_rounded, color: cs.primary, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
                   'Bağlantı Merkezi',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Verilerinizi otomatik senkronize etmek için sağlık platformlarınızı bağlayın.',
-              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(height: 20),
+              ),
+              // Yenile butonu
+              GestureDetector(
+                onTap: _hcStatus == 'checking' ? null : _checkHCStatus,
+                child: Icon(
+                  Icons.refresh_rounded,
+                  size: 18,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Sağlık platformlarınızı bağlayarak otomatik veri senkronizasyonu sağlayın.',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 20),
 
-            // ── Health Connect ──
-            _buildHealthConnectItem(context),
+          // ── Health Connect ──
+          _buildHealthConnectItem(context),
 
-            const Divider(height: 24),
-            _buildIntegrationItem(
-              context,
-              'Garmin Connect',
-              'Yakında kullanılabilir olacak',
-              Icons.watch_rounded,
-              AppColors.primaryLight,
-              IntegrationStatus.comingSoon,
-            ),
-            const Divider(height: 24),
-            _buildIntegrationItem(
-              context,
-              'Strava',
-              'Yakında kullanılabilir olacak',
-              Icons.directions_run_rounded,
-              AppColors.accent,
-              IntegrationStatus.comingSoon,
-            ),
-          ],
-        ),
+          const Divider(height: 24),
+          _buildIntegrationItem(
+            context,
+            'Garmin Connect',
+            'Yakında kullanılabilir olacak',
+            Icons.watch_rounded,
+            AppColors.primaryLight,
+            IntegrationStatus.comingSoon,
+          ),
+          const Divider(height: 24),
+          _buildIntegrationItem(
+            context,
+            'Strava',
+            'Yakında kullanılabilir olacak',
+            Icons.directions_run_rounded,
+            AppColors.accent,
+            IntegrationStatus.comingSoon,
+          ),
+        ],
+      ),
     );
   }
 
@@ -100,38 +141,33 @@ class _IntegrationsCardState extends State<IntegrationsCard> {
     final cs = Theme.of(context).colorScheme;
     
     switch (_hcStatus) {
+      case 'connected':
+        return _buildConnectedItem(context);
+
+      case 'needs_permission':
+        return _buildPermissionPrompt(context);
+
       case 'available':
-        return _buildIntegrationItem(
-          context,
-          'Health Connect',
-          'Aktif — otomatik senkronize ediliyor',
-          Icons.health_and_safety_rounded,
-          AppColors.primary,
-          IntegrationStatus.connected,
-        );
+        return _buildPermissionPrompt(context);
 
       case 'unavailable':
-        return _buildHCInstallPrompt(
+        return _buildInstallPrompt(
           context,
-          title: 'Health Connect',
           subtitle: 'Cihazınızda yüklü değil',
           description: 'Akıllı saatinizden veri almak için Health Connect uygulamasını yüklemeniz gerekiyor.',
           buttonText: 'Play Store\'dan Yükle',
           buttonIcon: Icons.download_rounded,
           buttonColor: AppColors.primary,
-          onPressed: _openHealthConnectStore,
         );
 
       case 'update_required':
-        return _buildHCInstallPrompt(
+        return _buildInstallPrompt(
           context,
-          title: 'Health Connect',
           subtitle: 'Güncelleme gerekli',
           description: 'Health Connect uygulamanız eski sürümde. Güncellemeniz gerekiyor.',
           buttonText: 'Güncelle',
           buttonIcon: Icons.system_update_rounded,
           buttonColor: AppColors.accent,
-          onPressed: _openHealthConnectStore,
         );
 
       case 'checking':
@@ -163,29 +199,159 @@ class _IntegrationsCardState extends State<IntegrationsCard> {
         );
 
       default: // 'error'
-        return _buildHCInstallPrompt(
+        return _buildInstallPrompt(
           context,
-          title: 'Health Connect',
           subtitle: 'Bağlantı kurulamadı',
-          description: 'Health Connect durumu kontrol edilemedi. Yüklü olduğundan emin olun.',
+          description: 'Health Connect durumu kontrol edilemedi. Uygulamanın yüklü olduğundan emin olun.',
           buttonText: 'Play Store\'dan Yükle',
           buttonIcon: Icons.download_rounded,
           buttonColor: AppColors.primary,
-          onPressed: _openHealthConnectStore,
         );
     }
   }
 
-  /// HC yüklenmemişse gösterilecek kurulum prompt'u
-  Widget _buildHCInstallPrompt(
+  /// HC bağlı ve izinler verilmiş
+  Widget _buildConnectedItem(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.secondary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.health_and_safety_rounded, color: AppColors.secondary, size: 24),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Health Connect', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const Text(
+                'Aktif — otomatik senkronize ediliyor',
+                style: TextStyle(fontSize: 12, color: AppColors.secondary, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppColors.secondary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle_rounded, color: AppColors.secondary, size: 14),
+              SizedBox(width: 4),
+              Text('Aktif', style: TextStyle(color: AppColors.secondary, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// HC yüklü ama izinler verilmemiş
+  Widget _buildPermissionPrompt(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.health_and_safety_rounded, color: AppColors.accent, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Health Connect', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    'İzin verilmedi',
+                    style: TextStyle(fontSize: 12, color: AppColors.accent, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lock_outline_rounded, color: AppColors.accent, size: 14),
+                  const SizedBox(width: 4),
+                  Text('İzin Gerekli', style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.accent.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.accent.withValues(alpha: 0.12)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Adım, nabız, uyku ve diğer sağlık verilerinizi okuyabilmemiz için Health Connect izni vermeniz gerekiyor.',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _requestingPermission ? null : _requestPermissions,
+                  icon: _requestingPermission
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.lock_open_rounded, size: 18),
+                  label: Text(_requestingPermission ? 'İzin isteniyor...' : 'İzin Ver'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// HC yüklü değil veya güncelleme gerekli
+  Widget _buildInstallPrompt(
     BuildContext context, {
-    required String title,
     required String subtitle,
     required String description,
     required String buttonText,
     required IconData buttonIcon,
     required Color buttonColor,
-    required VoidCallback onPressed,
   }) {
     final cs = Theme.of(context).colorScheme;
     return Column(
@@ -206,8 +372,8 @@ class _IntegrationsCardState extends State<IntegrationsCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.destructive, fontWeight: FontWeight.w600)),
+                  const Text('Health Connect', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.destructive, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -217,11 +383,11 @@ class _IntegrationsCardState extends State<IntegrationsCard> {
                 color: AppColors.destructive.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.error_outline_rounded, color: AppColors.destructive, size: 14),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Text('Gerekli', style: TextStyle(color: AppColors.destructive, fontSize: 11, fontWeight: FontWeight.bold)),
                 ],
               ),
@@ -248,7 +414,7 @@ class _IntegrationsCardState extends State<IntegrationsCard> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: onPressed,
+                  onPressed: _openHealthConnectStore,
                   icon: Icon(buttonIcon, size: 18),
                   label: Text(buttonText),
                   style: FilledButton.styleFrom(
