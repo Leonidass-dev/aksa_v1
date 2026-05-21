@@ -3,12 +3,16 @@ import 'package:workmanager/workmanager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../constants/app_constants.dart';
 import '../firebase_options.dart';
 import '../services/user_profile_service.dart';
 import '../services/health_service.dart';
 import 'api_service.dart';
 
 const fetchBackground = "fetchBackground";
+
+/// Her bir bildirim türüne ayrı ID atanarak, yeni bildirimlerin eskileri ezmesi engellenir.
+int _nextNotificationId = AppConstants.notificationIdWater;
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -32,20 +36,22 @@ void callbackDispatcher() {
       
       final now = DateTime.now();
       
-      // 1. Akıllı Su Hatırlatıcısı (Saat 14:00 - 20:00 arası, su < 500ml ise)
-      if (now.hour >= 14 && now.hour <= 20) {
-        if (todayData == null || todayData.waterMl < 500) {
+      // 1. Akıllı Su Hatırlatıcısı
+      if (now.hour >= AppConstants.waterReminderStartHour && now.hour <= AppConstants.waterReminderEndHour) {
+        if (todayData == null || todayData.waterMl < AppConstants.lowWaterThresholdMl) {
           await _showNotification(
+            AppConstants.notificationIdWater,
             "💧 Su İçmeyi Unutma!",
             "Günün yarısı bitti ama su tüketimin oldukça düşük. Hemen bir bardak su içerek tazelen!",
           );
         }
       }
 
-      // 2. Akıllı Hareket Hatırlatıcısı (Saat 18:00 - 22:00 arası, adım < 3000 ise)
-      if (now.hour >= 18 && now.hour <= 22) {
-        if (todayData == null || todayData.steps < 3000) {
+      // 2. Akıllı Hareket Hatırlatıcısı
+      if (now.hour >= AppConstants.stepReminderStartHour && now.hour <= AppConstants.stepReminderEndHour) {
+        if (todayData == null || todayData.steps < AppConstants.lowStepThreshold) {
           await _showNotification(
+            AppConstants.notificationIdSteps,
             "🚶‍♂️ Harekete Geçme Zamanı!",
             "Bugün çok hareketsiz kaldın. Kalp sağlığın için 15 dakikalık kısa bir yürüyüşe ne dersin?",
           );
@@ -71,6 +77,7 @@ void callbackDispatcher() {
       
       if (result != null && result.level == "high") {
         await _showNotification(
+          AppConstants.notificationIdRisk,
           "⚠️ Yüksek Sağlık Riski Tespit Edildi!",
           "Gününüzdeki verilerde anormallik var. Lütfen uygulamayı açıp kontrol edin.",
         );
@@ -84,7 +91,7 @@ void callbackDispatcher() {
   });
 }
 
-Future<void> _showNotification(String title, String body) async {
+Future<void> _showNotification(int id, String title, String body) async {
   final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   
   const AndroidInitializationSettings initializationSettingsAndroid =
@@ -107,7 +114,7 @@ Future<void> _showNotification(String title, String body) async {
       NotificationDetails(android: androidPlatformChannelSpecifics);
       
   await flutterLocalNotificationsPlugin.show(
-    0,
+    id,
     title,
     body,
     platformChannelSpecifics,

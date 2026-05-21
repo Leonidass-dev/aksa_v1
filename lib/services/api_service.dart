@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+import '../constants/app_constants.dart';
 import '../models/health_entry.dart';
 import '../models/api_models.dart';
+import 'user_profile_service.dart' show UserProfile;
 
 import 'interfaces/i_api_service.dart';
 
@@ -47,7 +49,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: body,
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(AppConstants.longApiTimeout);
 
       if (response.statusCode == 200) {
         AppLogger.debug("ML Pipeline (Preprocessing) başarıyla tamamlandı.");
@@ -73,10 +75,10 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode({'image_base64': base64Image}),
           )
-          .timeout(const Duration(seconds: 90));
+          .timeout(AppConstants.imageAnalysisTimeout);
 
       if (response.statusCode == 200) {
-        return FoodAnalysisResult.fromJson(jsonDecode(response.body));
+        return FoodAnalysisResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
       }
     } catch (e) {
       AppLogger.error('Food analysis hatası: $e');
@@ -97,10 +99,10 @@ class ApiServiceImpl implements IApiService {
               'portion': portion,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(AppConstants.apiTimeout);
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
         return FoodAnalysisResult.fromJson(data);
       }
     } catch (e) {
@@ -117,7 +119,7 @@ class ApiServiceImpl implements IApiService {
       final res = await http.get(
         Uri.parse('$_baseUrl/diet-plan'),
         headers: headers,
-      ).timeout(const Duration(seconds: 60));
+      ).timeout(AppConstants.longApiTimeout);
       
       if (res.statusCode == 200) {
         return DietPlanResult.fromJson(
@@ -142,7 +144,7 @@ class ApiServiceImpl implements IApiService {
         Uri.parse('$_baseUrl/anomaly-check'),
         headers: headers,
         body: jsonEncode({'history': history, 'today': today}),
-      ).timeout(const Duration(seconds: 60));
+      ).timeout(AppConstants.longApiTimeout);
       if (res.statusCode == 200) {
         return AnomalyApiResult.fromJson(
           jsonDecode(utf8.decode(res.bodyBytes)),
@@ -165,7 +167,7 @@ class ApiServiceImpl implements IApiService {
         Uri.parse('$_baseUrl/exercise-plan'),
         headers: headers,
         body: jsonEncode(req.toJson()),
-      ).timeout(const Duration(seconds: 60));
+      ).timeout(AppConstants.longApiTimeout);
       if (res.statusCode == 200) {
         return ExerciseApiResult.fromJson(
           jsonDecode(utf8.decode(res.bodyBytes)),
@@ -186,7 +188,7 @@ class ApiServiceImpl implements IApiService {
         Uri.parse('$_baseUrl/exercise-plan/feedback'),
         headers: headers,
         body: jsonEncode({'feedback': feedback}),
-      ).timeout(const Duration(seconds: 60));
+      ).timeout(AppConstants.longApiTimeout);
       if (res.statusCode == 200) {
         return true;
       }
@@ -207,13 +209,13 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode(req.toJson()),
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(AppConstants.longApiTimeout);
 
       if (response.statusCode == 200) {
-        return RiskApiResult.fromJson(jsonDecode(response.body));
+        return RiskApiResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
       }
     } catch (e) {
-      // Backend erişilemiyorsa null dön → ekranlar demo veriyi kullanır
+      AppLogger.error('Risk score hatası: $e');
     }
     return null;
   }
@@ -224,9 +226,9 @@ class ApiServiceImpl implements IApiService {
     try {
       final response = await http
           .get(Uri.parse('$_baseUrl/risk-score/demo'))
-          .timeout(const Duration(seconds: 60));
+          .timeout(AppConstants.longApiTimeout);
       if (response.statusCode == 200) {
-        return RiskApiResult.fromJson(jsonDecode(response.body));
+        return RiskApiResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
       }
     } catch (e) {
       AppLogger.error('Demo risk API hatası: $e');
@@ -246,7 +248,7 @@ class ApiServiceImpl implements IApiService {
             Uri.parse('$_baseUrl/risk-history?limit=$limit'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(AppConstants.longApiTimeout);
 
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
@@ -270,7 +272,7 @@ class ApiServiceImpl implements IApiService {
             Uri.parse('$_baseUrl/meal-history?limit=$limit'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(AppConstants.longApiTimeout);
 
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
@@ -295,7 +297,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode({'message': message}),
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(AppConstants.chatApiTimeout);
 
       if (response.statusCode == 200) {
         return AssistantChatResponse.fromJson(
@@ -319,7 +321,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode({'mood': mood}),
           )
-          .timeout(const Duration(seconds: 15)); // Hızlı cevap bekliyoruz
+          .timeout(AppConstants.apiTimeout);
 
       if (response.statusCode == 200) {
         return MoodAdviceResponse.fromJson(
@@ -344,7 +346,7 @@ class ApiServiceImpl implements IApiService {
             Uri.parse('$_baseUrl/assistant/history?limit=$limit'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(AppConstants.chatApiTimeout);
 
       if (response.statusCode == 200) {
         final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
@@ -366,7 +368,7 @@ class ApiServiceImpl implements IApiService {
             Uri.parse('$_baseUrl/assistant/history'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(AppConstants.longApiTimeout);
 
       return response.statusCode == 200;
     } catch (e) {
@@ -410,7 +412,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(AppConstants.longApiTimeout);
 
       return response.statusCode == 200;
     } catch (e) {
@@ -421,7 +423,7 @@ class ApiServiceImpl implements IApiService {
 
   // ── Kullanıcı Profili Senkronizasyonu ────────────────────────────
   @override
-  Future<bool> syncProfileToBackend(dynamic profile) async {
+  Future<bool> syncProfileToBackend(UserProfile profile) async {
     try {
       final headers = await _authHeaders();
       final body = {
@@ -439,7 +441,7 @@ class ApiServiceImpl implements IApiService {
             headers: headers,
             body: jsonEncode(body),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(AppConstants.longApiTimeout);
 
       return response.statusCode == 200;
     } catch (e) {
@@ -458,7 +460,7 @@ class ApiServiceImpl implements IApiService {
             Uri.parse('$_baseUrl/user'),
             headers: headers,
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(AppConstants.longApiTimeout);
 
       return response.statusCode == 200;
     } catch (e) {
@@ -499,7 +501,7 @@ class ApiService {
   static Future<List<ChatHistoryItem>> fetchChatHistory({int limit = 50}) => _instance.fetchChatHistory(limit: limit);
   static Future<bool> clearChatHistory() => _instance.clearChatHistory();
   static Future<bool> syncHealthToBackend(HealthEntry entry) => _instance.syncHealthToBackend(entry);
-  static Future<bool> syncProfileToBackend(dynamic profile) => _instance.syncProfileToBackend(profile);
+  static Future<bool> syncProfileToBackend(UserProfile profile) => _instance.syncProfileToBackend(profile);
   static Future<bool> deleteUserFromBackend() => _instance.deleteUserFromBackend();
   static Future<FoodAnalysisResult?> saveManualFood(String foodName, String portion) => _instance.saveManualFood(foodName, portion);
 }

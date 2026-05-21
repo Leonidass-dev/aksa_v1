@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import '../constants/app_constants.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
@@ -75,6 +76,7 @@ class NotificationService {
         priority: Priority.high,
       ),
     );
-    await _notifications.show(99, title, body, details);
+    await _notifications.show(AppConstants.notificationIdInstant, title, body, details);
   }
 }
+

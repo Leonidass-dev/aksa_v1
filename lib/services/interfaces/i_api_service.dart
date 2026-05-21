@@ -1,5 +1,6 @@
 import '../api_service.dart' show FoodAnalysisResult, DietPlanResult, AnomalyApiResult, ExerciseApiRequest, ExerciseApiResult, RiskApiRequest, RiskApiResult, RiskHistoryItem, MealHistoryItem, AssistantChatResponse, ChatHistoryItem, MoodAdviceResponse;
 import '../health_service.dart' show HealthEntry;
+import '../user_profile_service.dart' show UserProfile;
 
 abstract class IApiService {
   Future<bool> preprocessRawData({
@@ -37,7 +38,7 @@ abstract class IApiService {
 
   Future<bool> syncHealthToBackend(HealthEntry entry);
 
-  Future<bool> syncProfileToBackend(dynamic profile);
+  Future<bool> syncProfileToBackend(UserProfile profile);
 
   Future<bool> deleteUserFromBackend();
 

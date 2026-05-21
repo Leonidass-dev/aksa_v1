@@ -1,38 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-class HealthSnapshot {
-  final String userId;
-  final DateTime windowEnd;
-
-  // M2 çıktısı — pencere bazlı özellikler
-  final double hrMean;
-  final double hrStd;
-  final double hrMin;
-  final double hrMax;
-  final int stepSum;
-  final int activeMinutes;
-  final double sleepHours;
-  final double sleepEfficiency; // 0.0–1.0
-  final double? spo2Mean;
-  final double? stressScore; // 0–100
-
-  const HealthSnapshot({
-    required this.userId,
-    required this.windowEnd,
-    required this.hrMean,
-    required this.hrStd,
-    required this.hrMin,
-    required this.hrMax,
-    required this.stepSum,
-    required this.activeMinutes,
-    required this.sleepHours,
-    required this.sleepEfficiency,
-    this.spo2Mean,
-    this.stressScore,
-  });
-}
-
 class RiskResult {
   final double score; // 0–100
   final RiskLevel level; // düşük/orta/yüksek
@@ -53,7 +21,6 @@ enum RiskLevel { low, medium, high, unknown }
 
 extension RiskLevelExtension on RiskLevel {
   /// API'den gelen string'i RiskLevel'a çevirir.
-  /// Daha önce dashboard ve risk_score ekranlarında duplike edilmişti.
   static RiskLevel fromString(String level) {
     switch (level.trim().toLowerCase()) {
       case 'high':
@@ -80,19 +47,6 @@ extension RiskLevelExtension on RiskLevel {
         return 'Yüksek Risk';
       case RiskLevel.unknown:
         return 'Hesaplanamadı';
-    }
-  }
-
-  String get labelEn {
-    switch (this) {
-      case RiskLevel.low:
-        return 'Low Risk';
-      case RiskLevel.medium:
-        return 'Medium Risk';
-      case RiskLevel.high:
-        return 'High Risk';
-      case RiskLevel.unknown:
-        return 'Insufficient Data';
     }
   }
 

@@ -163,38 +163,41 @@ class HealthServiceImpl implements IHealthService {
       AppLogger.debug("\n🚀 [AKSA HEALTH] SENKRONİZASYON BAŞLADI");
       AppLogger.debug("📊 Toplam Ham Veri: ${healthData.length + stepsData.length} nokta");
       
-      for (var p in [...stepsData, ...healthData]) {
-        String valText = p.value.toString();
-        if (p.value is NumericHealthValue) {
-          valText = (p.value as NumericHealthValue).numericValue.toStringAsFixed(1);
-        }
-        
-        String emoji = "🔹";
-        if (p.typeString.contains("STEPS")) {
-          emoji = "👣";
-        } else if (p.typeString.contains("HEART")) {
-          emoji = "❤️";
-        } else if (p.typeString.contains("OXYGEN")) {
-          emoji = "🩸";
-        } else if (p.typeString.contains("ENERGY")) {
-          emoji = "🔥";
-        } else if (p.typeString.contains("SLEEP")) {
-          emoji = "🌙";
-        } else if (p.typeString.contains("PRESSURE")) {
-          emoji = "⚖️";
-        }
+      // Detaylı veri noktası loglaması sadece geliştirici modunda çalışır
+      if (kDebugMode) {
+        for (var p in [...stepsData, ...healthData]) {
+          String valText = p.value.toString();
+          if (p.value is NumericHealthValue) {
+            valText = (p.value as NumericHealthValue).numericValue.toStringAsFixed(1);
+          }
+          
+          String emoji = "🔹";
+          if (p.typeString.contains("STEPS")) {
+            emoji = "👣";
+          } else if (p.typeString.contains("HEART")) {
+            emoji = "❤️";
+          } else if (p.typeString.contains("OXYGEN")) {
+            emoji = "🩸";
+          } else if (p.typeString.contains("ENERGY")) {
+            emoji = "🔥";
+          } else if (p.typeString.contains("SLEEP")) {
+            emoji = "🌙";
+          } else if (p.typeString.contains("PRESSURE")) {
+            emoji = "⚖️";
+          }
 
-        String source = p.sourceName;
-        if (source.contains("xiaomi")) {
-          source = "⌚ XIAOMI";
-        } else if (source.contains("fitness")) {
-          source = "📱 G-FIT";
-        } else if (source.contains("android")) {
-          source = "🤖 SYSTEM";
-        }
+          String source = p.sourceName;
+          if (source.contains("xiaomi")) {
+            source = "⌚ XIAOMI";
+          } else if (source.contains("fitness")) {
+            source = "📱 G-FIT";
+          } else if (source.contains("android")) {
+            source = "🤖 SYSTEM";
+          }
 
-        final timeStr = "${p.dateFrom.hour.toString().padLeft(2, '0')}:${p.dateFrom.minute.toString().padLeft(2, '0')}";
-        AppLogger.debug("$emoji [${p.typeString.padRight(15)}] | Değer: ${valText.padRight(6)} | Zaman: $timeStr | Kaynak: $source");
+          final timeStr = "${p.dateFrom.hour.toString().padLeft(2, '0')}:${p.dateFrom.minute.toString().padLeft(2, '0')}";
+          AppLogger.debug("$emoji [${p.typeString.padRight(15)}] | Değer: ${valText.padRight(6)} | Zaman: $timeStr | Kaynak: $source");
+        }
       }
 
       final todayEntry = await getTodayEntry();

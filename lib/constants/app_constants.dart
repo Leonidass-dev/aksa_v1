@@ -14,24 +14,33 @@ class AppConstants {
 
   // ── Hedefler ────────────────────────────────────────────────
   static const int defaultStepGoal = 10000;
-  static const int defaultCalorieGoal = 2000;
   static const double defaultSleepGoal = 8.0; // saat
 
-  // ── Süreler ─────────────────────────────────────────────────
-  static const Duration apiTimeout = Duration(seconds: 10);
+  // ── API Timeout Süreleri ────────────────────────────────────
+  static const Duration apiTimeout = Duration(seconds: 15);
   static const Duration longApiTimeout = Duration(seconds: 30);
   static const Duration chatApiTimeout = Duration(seconds: 45);
-  static const Duration successDelay = Duration(milliseconds: 1200);
+  static const Duration imageAnalysisTimeout = Duration(seconds: 90);
 
   // ── Veri Limitleri ──────────────────────────────────────────
   static const int defaultHistoryDays = 7;
-  static const int anomalyMinDays = 3;
   static const int chatHistoryLimit = 50;
   static const int mealHistoryLimit = 10;
   static const int riskHistoryLimit = 30;
 
-  // ── BMR Çarpanları (Mifflin-St Jeor) ────────────────────────
-  static const double activityMultiplierLight = 1.375;
+  // ── Bildirim ID'leri ────────────────────────────────────────
+  static const int notificationIdWater = 1001;
+  static const int notificationIdSteps = 1002;
+  static const int notificationIdRisk = 1003;
+  static const int notificationIdInstant = 1004;
+
+  // ── Akıllı Bildirim Eşikleri ────────────────────────────────
+  static const double lowWaterThresholdMl = 500;
+  static const double lowStepThreshold = 3000;
+  static const int waterReminderStartHour = 14;
+  static const int waterReminderEndHour = 20;
+  static const int stepReminderStartHour = 18;
+  static const int stepReminderEndHour = 22;
 
   // ── Profil Varsayılanları ───────────────────────────────────
   static const int defaultAge = 30;
