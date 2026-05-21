@@ -7,6 +7,7 @@ import '../widgets/shimmer_loading.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/user_profile_service.dart';
 import '../services/api_service.dart';
+import '../models/api_models.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -25,6 +26,7 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
     _Tab('heart_rate', 'Nabız'),
     _Tab('sleep', 'Uyku'),
     _Tab('risk', 'Risk'),
+    _Tab('ilerleme', 'İlerleme'),
   ];
 
   Map<String, List<double>> _chartData = const {
@@ -43,10 +45,50 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
   double _overallScore = 0;
   String _bestCategory = '-';
 
+  // AI Haftalık Digest
+  WeeklyDigestResponse? _weeklyDigest;
+  bool _loadingDigest = false;
+
+  // İlerleme Özeti
+  ProgressSummaryResponse? _progressSummary;
+  bool _loadingProgress = false;
+
   @override
   void initState() {
     super.initState();
     _loadFromFirestore();
+    _loadWeeklyDigest();
+    _loadProgressSummary();
+  }
+
+  Future<void> _loadWeeklyDigest() async {
+    setState(() => _loadingDigest = true);
+    try {
+      final result = await ApiService.fetchWeeklyDigest();
+      if (mounted) {
+        setState(() {
+          _weeklyDigest = result;
+          _loadingDigest = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingDigest = false);
+    }
+  }
+
+  Future<void> _loadProgressSummary() async {
+    setState(() => _loadingProgress = true);
+    try {
+      final result = await ApiService.fetchProgressSummary(days: 30);
+      if (mounted) {
+        setState(() {
+          _progressSummary = result;
+          _loadingProgress = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingProgress = false);
+    }
   }
 
   Future<void> _loadFromFirestore() async {
@@ -221,11 +263,18 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                       ),
                     _buildTabs(context),
                     const SizedBox(height: 16),
-                    _buildChart(context),
+                    if (_activeTab == 'ilerleme')
+                      _buildProgressTab(context)
+                    else ...[
+                      _buildChart(context),
+                      const SizedBox(height: 20),
+                      _buildStats(context),
+                      const SizedBox(height: 20),
+                      _buildInsights(context),
+                    ],
                     const SizedBox(height: 20),
-                    _buildStats(context),
-                    const SizedBox(height: 20),
-                    _buildInsights(context),
+                    // AI Haftalık Değerlendirme
+                    _buildAiDigestCard(context),
                     const SizedBox(height: 80),
                   ],
                 ),
@@ -994,6 +1043,528 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
           ),
         ],
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // AI HAFTALIK DEĞERLENDİRME KARTI
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildAiDigestCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (_loadingDigest) {
+      return const ShimmerLoading(
+        showHeader: false,
+        itemCount: 1,
+        itemHeight: 180,
+      );
+    }
+
+    if (_weeklyDigest == null) {
+      return const SizedBox.shrink();
+    }
+
+    final digest = _weeklyDigest!;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF6366F1).withValues(alpha: 0.08),
+            const Color(0xFF8B5CF6).withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF6366F1),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI Haftalık Değerlendirme',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    Text(
+                      '${digest.periodStart} — ${digest.periodEnd}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                onPressed: _loadingDigest ? null : _loadWeeklyDigest,
+                color: cs.onSurfaceVariant,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            digest.digest,
+            style: TextStyle(
+              fontSize: 14,
+              color: cs.onSurface,
+              height: 1.6,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Divider(color: cs.outlineVariant.withValues(alpha: 0.4)),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _digestStatItem(
+                Icons.directions_walk_rounded,
+                '${digest.avgSteps.toInt()}',
+                'Ort. Adım',
+                AppColors.secondary,
+              ),
+              _digestStatItem(
+                Icons.bedtime_rounded,
+                '${digest.avgSleep.toStringAsFixed(1)}s',
+                'Ort. Uyku',
+                AppColors.accent,
+              ),
+              _digestStatItem(
+                Icons.restaurant_rounded,
+                '${digest.totalMeals}',
+                'Öğün',
+                AppColors.primary,
+              ),
+              _digestStatItem(
+                Icons.fitness_center_rounded,
+                '${digest.totalExercises}',
+                'Egzersiz',
+                const Color(0xFF8B5CF6),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _digestStatItem(
+    IconData icon,
+    String value,
+    String label,
+    Color color,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: cs.onSurface,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // İLERLEME SEKMESİ
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildProgressTab(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (_loadingProgress) {
+      return const ShimmerLoading(
+        showHeader: true,
+        itemCount: 3,
+        itemHeight: 120,
+      );
+    }
+
+    if (_progressSummary == null) {
+      return AppCard(
+        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        child: Column(
+          children: [
+            Icon(Icons.timeline_rounded, size: 40, color: cs.outlineVariant),
+            const SizedBox(height: 16),
+            Text(
+              'İlerleme verisi alınamadı',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Backend sunucusuna bağlanılamıyor.',
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: _loadProgressSummary,
+              child: const Text('Tekrar Dene'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final p = _progressSummary!;
+    final mealPct = p.daysInPeriod > 0
+        ? (p.totalMealDays / p.daysInPeriod).clamp(0.0, 1.0)
+        : 0.0;
+    final exercisePct = p.daysInPeriod > 0
+        ? (p.totalExerciseDays / p.daysInPeriod).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Column(
+      children: [
+        // Streak Kartları
+        Row(
+          children: [
+            Expanded(
+              child: _streakCard(
+                context,
+                icon: Icons.restaurant_rounded,
+                label: 'Öğün Serisi',
+                streak: p.mealStreak,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _streakCard(
+                context,
+                icon: Icons.fitness_center_rounded,
+                label: 'Egzersiz Serisi',
+                streak: p.exerciseStreak,
+                color: AppColors.secondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Tamamlama Oranları
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Son ${p.daysInPeriod} Gün Özeti',
+                style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+              ),
+              const SizedBox(height: 20),
+              _progressBar(
+                context,
+                label: 'Öğün Takibi',
+                value: '${p.totalMealDays}/${p.daysInPeriod} gün',
+                progress: mealPct,
+                color: AppColors.primary,
+              ),
+              const SizedBox(height: 16),
+              _progressBar(
+                context,
+                label: 'Egzersiz Planı',
+                value: '${p.totalExerciseDays}/${p.daysInPeriod} gün',
+                progress: exercisePct,
+                color: AppColors.secondary,
+              ),
+              const SizedBox(height: 20),
+              Divider(color: cs.outlineVariant.withValues(alpha: 0.4)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _miniStat(
+                      context,
+                      Icons.local_fire_department_rounded,
+                      '${p.totalCaloriesBurned}',
+                      'Kalori Yakıldı',
+                      AppColors.destructive,
+                    ),
+                  ),
+                  Expanded(
+                    child: _miniStat(
+                      context,
+                      Icons.timer_rounded,
+                      '${p.totalExerciseMinutes}',
+                      'Dakika Egzersiz',
+                      AppColors.accent,
+                    ),
+                  ),
+                  if (p.avgHealthScore > 0)
+                    Expanded(
+                      child: _miniStat(
+                        context,
+                        Icons.favorite_rounded,
+                        '${p.avgHealthScore.toInt()}',
+                        'Sağlık Skoru',
+                        AppColors.secondary,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Son Yemekler
+        if (p.monthlyMeals.isNotEmpty) ...[
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Son Kaydedilen Öğünler',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+                ),
+                const SizedBox(height: 12),
+                ...p.monthlyMeals.take(5).map((m) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.restaurant, size: 16, color: AppColors.primary),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              m['food_name']?.toString() ?? '',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: cs.onSurface,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              m['date']?.toString() ?? '',
+                              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '${m['calories'] ?? 0} kcal',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Son Egzersizler
+        if (p.monthlyExercises.isNotEmpty)
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Son Egzersiz Planları',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface),
+                ),
+                const SizedBox(height: 12),
+                ...p.monthlyExercises.take(5).map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.secondary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          (e['has_feedback'] == true) ? Icons.check_circle : Icons.fitness_center,
+                          size: 16,
+                          color: (e['has_feedback'] == true) ? AppColors.secondary : AppColors.accent,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${e['exercise_count'] ?? 0} egzersiz · ${e['total_duration'] ?? 0} dk',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: cs.onSurface,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              e['date']?.toString() ?? '',
+                              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '${e['total_calories'] ?? 0} kcal',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _streakCard(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required int streak,
+    required Color color,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 10),
+          Text(
+            '$streak gün 🔥',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              color: cs.onSurface,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _progressBar(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required double progress,
+    required Color color,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: TextStyle(fontSize: 13, color: cs.onSurface)),
+            Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 8,
+            backgroundColor: cs.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniStat(
+    BuildContext context,
+    IconData icon,
+    String value,
+    String label,
+    Color color,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: cs.onSurface,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 

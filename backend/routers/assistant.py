@@ -1,6 +1,8 @@
 import logging
+from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from pydantic import BaseModel, Field
+from typing import Optional
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -313,3 +315,270 @@ async def clear_chat_history(
     user = await crud.get_or_create_user(db, uid)
     await crud.clear_chat_history(db, user)
     return {"message": "Chat geçmişi temizlendi."}
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  HAFTALIK AI DIGEST
+# ═══════════════════════════════════════════════════════════════════
+
+
+class WeeklyDigestResponse(BaseModel):
+    digest: str
+    period_start: str
+    period_end: str
+    avg_steps: float = 0
+    avg_sleep: float = 0
+    avg_heart_rate: float = 0
+    total_meals: int = 0
+    total_exercises: int = 0
+
+
+@router.get("/weekly-digest", response_model=WeeklyDigestResponse)
+async def weekly_digest(
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Son 7 günlük sağlık verilerini toplayıp yapay zekadan doğal dilde haftalık değerlendirme üretir.
+    """
+    try:
+        user = await crud.get_or_create_user(db, uid)
+        records = await crud.get_health_records(db, user, days=7)
+        today_meals = await crud.get_today_meals(db, user)
+        meal_history = await crud.get_meal_history(db, user, limit=50)
+        latest_risk = await crud.get_latest_risk_score(db, user)
+
+        period_end = date.today()
+        period_start = period_end - timedelta(days=7)
+
+        # Son 7 gün istatistikleri
+        valid_records = [r for r in records if r.steps > 0 or r.sleep_hours > 0]
+        count = len(valid_records) if valid_records else 1
+
+        avg_steps = sum(r.steps for r in valid_records) / count if valid_records else 0
+        avg_sleep = sum(r.sleep_hours for r in valid_records) / count if valid_records else 0
+        avg_hr = sum(r.heart_rate for r in valid_records if r.heart_rate > 0) / max(1, sum(1 for r in valid_records if r.heart_rate > 0)) if valid_records else 0
+        avg_water = sum(r.water_ml for r in valid_records) / count if valid_records else 0
+
+        # Son 7 gündeki yemek sayısı
+        week_meals = [m for m in meal_history if m.analyzed_at and m.analyzed_at.date() >= period_start]
+        total_meals = len(week_meals)
+
+        # Egzersiz planları (geçen hafta)
+        from sqlalchemy import select, desc
+        from db_models import ExercisePlan
+        ex_stmt = (
+            select(ExercisePlan)
+            .where(ExercisePlan.user_id == user.id)
+            .order_by(desc(ExercisePlan.created_at))
+            .limit(30)
+        )
+        ex_result = await db.execute(ex_stmt)
+        all_exercises = list(ex_result.scalars().all())
+        week_exercises = [e for e in all_exercises if e.created_at and e.created_at.date() >= period_start]
+        total_exercises = len(week_exercises)
+
+        # Trend hesaplama (son 3 gün vs ilk 3 gün)
+        trend_text = ""
+        if len(valid_records) >= 6:
+            sorted_recs = sorted(valid_records, key=lambda r: r.record_date)
+            first_half = sorted_recs[:3]
+            second_half = sorted_recs[-3:]
+            first_avg_steps = sum(r.steps for r in first_half) / 3
+            second_avg_steps = sum(r.steps for r in second_half) / 3
+            if first_avg_steps > 0:
+                step_change = ((second_avg_steps - first_avg_steps) / first_avg_steps) * 100
+                trend_text = f"Adım trendi: Hafta başına göre %{abs(step_change):.0f} {'artış' if step_change > 0 else 'azalış'}. "
+
+        # AI Prompt oluştur
+        data_summary = f"""
+Son 7 gün sağlık verileri:
+- Ortalama Adım: {avg_steps:.0f} adım/gün
+- Ortalama Uyku: {avg_sleep:.1f} saat/gece
+- Ortalama Nabız: {avg_hr:.0f} bpm
+- Ortalama Su Tüketimi: {avg_water:.0f} ml/gün
+- Bu hafta kaydedilen öğün: {total_meals}
+- Bu hafta yapılan egzersiz planı: {total_exercises}
+{trend_text}
+"""
+
+        if latest_risk:
+            data_summary += f"- Son Risk Skoru: {latest_risk.score:.0f}/100 ({latest_risk.level_label})\n"
+
+        # Günlük detaylar
+        if valid_records:
+            sorted_recs = sorted(valid_records, key=lambda r: r.record_date)
+            daily_details = []
+            for r in sorted_recs:
+                day_str = r.record_date.strftime("%A")
+                details = f"  {day_str}: {int(r.steps)} adım, {r.sleep_hours:.1f}s uyku"
+                if r.heart_rate > 0:
+                    details += f", {int(r.heart_rate)} bpm"
+                if r.water_ml > 0:
+                    details += f", {int(r.water_ml)} ml su"
+                daily_details.append(details)
+            data_summary += "\nGünlük Detaylar:\n" + "\n".join(daily_details)
+
+        system_prompt = (
+            "Sen AKSA, deneyimli bir sağlık koçu ve yazarsın. "
+            "Kullanıcının son 7 günlük sağlık verilerini analiz edip, samimi ve motive edici bir haftalık değerlendirme mektubu yaz. "
+            "Kurallar:\n"
+            "1. 4-6 cümle olsun, KISA ve ÖZ tut.\n"
+            "2. Hem olumlu gelişmeleri vurgula hem de iyileştirme alanlarını nazikçe belirt.\n"
+            "3. Somut verilere referans ver (kaç adım, kaç saat uyku gibi).\n"
+            "4. Gelecek hafta için 1 pratik öneri ver.\n"
+            "5. Tıbbi tanı koyma, genel yaşam tarzı tavsiyesi ver.\n"
+            "6. Türkçe yaz, samimi ve destekleyici bir ton kullan.\n"
+            "7. Emoji kullanabilirsin ama abartma (en fazla 3-4)."
+        )
+
+        digest = await ask_text(
+            prompt=data_summary,
+            system_prompt=system_prompt,
+            history=[],
+            json_mode=False,
+        )
+
+        if not digest:
+            digest = (
+                f"Bu hafta ortalama {avg_steps:.0f} adım attınız ve {avg_sleep:.1f} saat uyudunuz. "
+                f"Verileriniz genel olarak normal aralıkta görünüyor. Sağlıklı yaşam alışkanlıklarınızı sürdürmeye devam edin! 💪"
+            )
+
+        return WeeklyDigestResponse(
+            digest=digest,
+            period_start=period_start.isoformat(),
+            period_end=period_end.isoformat(),
+            avg_steps=round(avg_steps, 1),
+            avg_sleep=round(avg_sleep, 1),
+            avg_heart_rate=round(avg_hr, 1),
+            total_meals=total_meals,
+            total_exercises=total_exercises,
+        )
+
+    except Exception as e:
+        logger.exception(f"Weekly Digest Error: {e}")
+        return WeeklyDigestResponse(
+            digest="Haftalık değerlendirme şu an oluşturulamadı. Lütfen daha sonra tekrar deneyin.",
+            period_start=(date.today() - timedelta(days=7)).isoformat(),
+            period_end=date.today().isoformat(),
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  İLERLEME ÖZETİ (Progress Summary)
+# ═══════════════════════════════════════════════════════════════════
+
+
+class ProgressSummaryResponse(BaseModel):
+    total_meal_days: int = 0
+    total_exercise_days: int = 0
+    days_in_period: int = 30
+    meal_streak: int = 0
+    exercise_streak: int = 0
+    total_calories_burned: int = 0
+    total_exercise_minutes: int = 0
+    avg_health_score: float = 0
+    monthly_meals: list = []
+    monthly_exercises: list = []
+
+
+@router.get("/progress-summary", response_model=ProgressSummaryResponse)
+async def progress_summary(
+    days: int = Query(default=30, ge=7, le=90),
+    uid: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Son N günlük yemek ve egzersiz geçmişinden ilerleme istatistiklerini çıkarır.
+    """
+    try:
+        user = await crud.get_or_create_user(db, uid)
+        since = date.today() - timedelta(days=days)
+
+        # Yemek geçmişi
+        meal_history = await crud.get_meal_history(db, user, limit=200)
+        period_meals = [m for m in meal_history if m.analyzed_at and m.analyzed_at.date() >= since]
+        meal_dates = set(m.analyzed_at.date() for m in period_meals if m.analyzed_at)
+        total_meal_days = len(meal_dates)
+
+        # Yemek sağlık skoru ortalaması
+        health_scores = [m.health_score for m in period_meals if m.health_score and m.health_score > 0]
+        avg_health_score = sum(health_scores) / len(health_scores) if health_scores else 0
+
+        # Egzersiz geçmişi
+        from sqlalchemy import select, desc
+        from db_models import ExercisePlan
+        ex_stmt = (
+            select(ExercisePlan)
+            .where(ExercisePlan.user_id == user.id)
+            .order_by(desc(ExercisePlan.created_at))
+            .limit(200)
+        )
+        ex_result = await db.execute(ex_stmt)
+        all_exercises = list(ex_result.scalars().all())
+        period_exercises = [e for e in all_exercises if e.created_at and e.created_at.date() >= since]
+        exercise_dates = set(e.created_at.date() for e in period_exercises if e.created_at)
+        total_exercise_days = len(exercise_dates)
+
+        total_calories_burned = sum(e.total_calories or 0 for e in period_exercises)
+        total_exercise_minutes = sum(e.total_duration_minutes or 0 for e in period_exercises)
+
+        # Streak hesaplama (ardışık gün sayısı)
+        def calc_streak(dates_set):
+            if not dates_set:
+                return 0
+            sorted_dates = sorted(dates_set, reverse=True)
+            streak = 0
+            current = date.today()
+            for d in sorted_dates:
+                if d == current or d == current - timedelta(days=1):
+                    streak += 1
+                    current = d
+                else:
+                    break
+            return streak
+
+        meal_streak = calc_streak(meal_dates)
+        exercise_streak = calc_streak(exercise_dates)
+
+        # Aylık yemek listesi (son 10 benzersiz yemek)
+        seen_foods = set()
+        monthly_meals_list = []
+        for m in period_meals:
+            if m.food_name not in seen_foods and len(monthly_meals_list) < 10:
+                seen_foods.add(m.food_name)
+                monthly_meals_list.append({
+                    "food_name": m.food_name,
+                    "calories": m.calories,
+                    "health_score": m.health_score or 0,
+                    "date": m.analyzed_at.date().isoformat() if m.analyzed_at else "",
+                })
+
+        # Aylık egzersiz listesi (son 10 plan)
+        monthly_exercises_list = []
+        for e in period_exercises[:10]:
+            monthly_exercises_list.append({
+                "total_duration": e.total_duration_minutes or 0,
+                "total_calories": e.total_calories or 0,
+                "exercise_count": len(e.exercises) if e.exercises else 0,
+                "date": e.created_at.date().isoformat() if e.created_at else "",
+                "has_feedback": bool(e.feedback),
+            })
+
+        return ProgressSummaryResponse(
+            total_meal_days=total_meal_days,
+            total_exercise_days=total_exercise_days,
+            days_in_period=days,
+            meal_streak=meal_streak,
+            exercise_streak=exercise_streak,
+            total_calories_burned=total_calories_burned,
+            total_exercise_minutes=total_exercise_minutes,
+            avg_health_score=round(avg_health_score, 1),
+            monthly_meals=monthly_meals_list,
+            monthly_exercises=monthly_exercises_list,
+        )
+
+    except Exception as e:
+        logger.exception(f"Progress Summary Error: {e}")
+        return ProgressSummaryResponse()

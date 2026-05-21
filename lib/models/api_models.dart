@@ -487,3 +487,91 @@ class ChatHistoryItem {
         createdAt: json['created_at'] as String,
       );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Haftalık AI Digest
+// ═══════════════════════════════════════════════════════════════
+
+class WeeklyDigestResponse {
+  final String digest;
+  final String periodStart;
+  final String periodEnd;
+  final double avgSteps;
+  final double avgSleep;
+  final double avgHeartRate;
+  final int totalMeals;
+  final int totalExercises;
+
+  const WeeklyDigestResponse({
+    required this.digest,
+    required this.periodStart,
+    required this.periodEnd,
+    this.avgSteps = 0,
+    this.avgSleep = 0,
+    this.avgHeartRate = 0,
+    this.totalMeals = 0,
+    this.totalExercises = 0,
+  });
+
+  factory WeeklyDigestResponse.fromJson(Map<String, dynamic> json) =>
+      WeeklyDigestResponse(
+        digest: json['digest'] as String? ?? '',
+        periodStart: json['period_start'] as String? ?? '',
+        periodEnd: json['period_end'] as String? ?? '',
+        avgSteps: (json['avg_steps'] as num?)?.toDouble() ?? 0,
+        avgSleep: (json['avg_sleep'] as num?)?.toDouble() ?? 0,
+        avgHeartRate: (json['avg_heart_rate'] as num?)?.toDouble() ?? 0,
+        totalMeals: json['total_meals'] as int? ?? 0,
+        totalExercises: json['total_exercises'] as int? ?? 0,
+      );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// İlerleme Özeti (Progress Summary)
+// ═══════════════════════════════════════════════════════════════
+
+class ProgressSummaryResponse {
+  final int totalMealDays;
+  final int totalExerciseDays;
+  final int daysInPeriod;
+  final int mealStreak;
+  final int exerciseStreak;
+  final int totalCaloriesBurned;
+  final int totalExerciseMinutes;
+  final double avgHealthScore;
+  final List<Map<String, dynamic>> monthlyMeals;
+  final List<Map<String, dynamic>> monthlyExercises;
+
+  const ProgressSummaryResponse({
+    this.totalMealDays = 0,
+    this.totalExerciseDays = 0,
+    this.daysInPeriod = 30,
+    this.mealStreak = 0,
+    this.exerciseStreak = 0,
+    this.totalCaloriesBurned = 0,
+    this.totalExerciseMinutes = 0,
+    this.avgHealthScore = 0,
+    this.monthlyMeals = const [],
+    this.monthlyExercises = const [],
+  });
+
+  factory ProgressSummaryResponse.fromJson(Map<String, dynamic> json) =>
+      ProgressSummaryResponse(
+        totalMealDays: json['total_meal_days'] as int? ?? 0,
+        totalExerciseDays: json['total_exercise_days'] as int? ?? 0,
+        daysInPeriod: json['days_in_period'] as int? ?? 30,
+        mealStreak: json['meal_streak'] as int? ?? 0,
+        exerciseStreak: json['exercise_streak'] as int? ?? 0,
+        totalCaloriesBurned: json['total_calories_burned'] as int? ?? 0,
+        totalExerciseMinutes: json['total_exercise_minutes'] as int? ?? 0,
+        avgHealthScore: (json['avg_health_score'] as num?)?.toDouble() ?? 0,
+        monthlyMeals: (json['monthly_meals'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            [],
+        monthlyExercises: (json['monthly_exercises'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            [],
+      );
+}

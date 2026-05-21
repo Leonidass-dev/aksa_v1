@@ -1,4 +1,4 @@
-import '../api_service.dart' show FoodAnalysisResult, DietPlanResult, AnomalyApiResult, ExerciseApiRequest, ExerciseApiResult, RiskApiRequest, RiskApiResult, RiskHistoryItem, MealHistoryItem, AssistantChatResponse, ChatHistoryItem, MoodAdviceResponse;
+import '../api_service.dart' show FoodAnalysisResult, DietPlanResult, AnomalyApiResult, ExerciseApiRequest, ExerciseApiResult, RiskApiRequest, RiskApiResult, RiskHistoryItem, MealHistoryItem, AssistantChatResponse, ChatHistoryItem, MoodAdviceResponse, WeeklyDigestResponse, ProgressSummaryResponse;
 import '../health_service.dart' show HealthEntry;
 import '../user_profile_service.dart' show UserProfile;
 
@@ -43,4 +43,8 @@ abstract class IApiService {
   Future<bool> deleteUserFromBackend();
 
   Future<FoodAnalysisResult?> saveManualFood(String foodName, String portion);
+
+  Future<WeeklyDigestResponse?> fetchWeeklyDigest();
+
+  Future<ProgressSummaryResponse?> fetchProgressSummary({int days = 30});
 }

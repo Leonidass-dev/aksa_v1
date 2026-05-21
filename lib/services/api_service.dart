@@ -468,6 +468,52 @@ class ApiServiceImpl implements IApiService {
       return false;
     }
   }
+
+  // ── Haftalık AI Digest ──────────────────────────────────────────
+  @override
+  Future<WeeklyDigestResponse?> fetchWeeklyDigest() async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/assistant/weekly-digest'),
+            headers: headers,
+          )
+          .timeout(AppConstants.chatApiTimeout);
+
+      if (response.statusCode == 200) {
+        return WeeklyDigestResponse.fromJson(
+          jsonDecode(utf8.decode(response.bodyBytes)),
+        );
+      }
+    } catch (e) {
+      AppLogger.error('Weekly digest hatası: $e');
+    }
+    return null;
+  }
+
+  // ── İlerleme Özeti ──────────────────────────────────────────────
+  @override
+  Future<ProgressSummaryResponse?> fetchProgressSummary({int days = 30}) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/assistant/progress-summary?days=$days'),
+            headers: headers,
+          )
+          .timeout(AppConstants.longApiTimeout);
+
+      if (response.statusCode == 200) {
+        return ProgressSummaryResponse.fromJson(
+          jsonDecode(utf8.decode(response.bodyBytes)),
+        );
+      }
+    } catch (e) {
+      AppLogger.error('Progress summary hatası: $e');
+    }
+    return null;
+  }
 }
 
 /// Test edilebilir Statik Facade yapısı.
@@ -504,4 +550,6 @@ class ApiService {
   static Future<bool> syncProfileToBackend(UserProfile profile) => _instance.syncProfileToBackend(profile);
   static Future<bool> deleteUserFromBackend() => _instance.deleteUserFromBackend();
   static Future<FoodAnalysisResult?> saveManualFood(String foodName, String portion) => _instance.saveManualFood(foodName, portion);
+  static Future<WeeklyDigestResponse?> fetchWeeklyDigest() => _instance.fetchWeeklyDigest();
+  static Future<ProgressSummaryResponse?> fetchProgressSummary({int days = 30}) => _instance.fetchProgressSummary(days: days);
 }
