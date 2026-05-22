@@ -48,12 +48,10 @@ class ReportService {
       
       await file.writeAsString(csvContent.toString());
 
-      // Paylaş (yeni API)
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          text: 'Son 30 Günlük Sağlık Raporum',
-        ),
+      // Paylaş
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Son 30 Günlük Sağlık Raporum',
       );
 
     } catch (e) {

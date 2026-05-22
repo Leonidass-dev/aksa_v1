@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/theme_notifier.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Tercihler kartı — bildirim, dark mode ve gizlilik ayarları.
 class PreferencesCard extends StatefulWidget {
-  final bool notifications;
-  final ValueChanged<bool> onNotificationChanged;
   final VoidCallback onPrivacyTap;
 
   const PreferencesCard({
     super.key,
-    required this.notifications,
-    required this.onNotificationChanged,
     required this.onPrivacyTap,
   });
 
@@ -21,10 +18,33 @@ class PreferencesCard extends StatefulWidget {
 }
 
 class _PreferencesCardState extends State<PreferencesCard> {
+  bool _notifications = true;
   bool _waterNotif = true;
   bool _exerciseNotif = true;
   bool _summaryNotif = false;
   bool _useMetric = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _notifications = prefs.getBool('pref_notifications') ?? true;
+      _waterNotif = prefs.getBool('pref_water_notif') ?? true;
+      _exerciseNotif = prefs.getBool('pref_exercise_notif') ?? true;
+      _summaryNotif = prefs.getBool('pref_summary_notif') ?? false;
+      _useMetric = prefs.getBool('pref_use_metric') ?? true;
+    });
+  }
+
+  Future<void> _savePreference(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,28 +57,64 @@ class _PreferencesCardState extends State<PreferencesCard> {
         children: [
           Text('Tercihler', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
           const SizedBox(height: 16),
-          _toggleRow(context, Icons.notifications_outlined, AppColors.primary,
-              'Bildirimler', 'Tüm anlık bildirimler', widget.notifications, widget.onNotificationChanged),
-          if (widget.notifications) ...[
+          _toggleRow(
+            context, 
+            Icons.notifications_outlined, 
+            AppColors.primary,
+            'Bildirimler', 
+            'Tüm anlık bildirimler', 
+            _notifications, 
+            (v) {
+              setState(() => _notifications = v);
+              _savePreference('pref_notifications', v);
+            }
+          ),
+          if (_notifications) ...[
             Padding(
               padding: const EdgeInsets.only(left: 48, top: 8),
               child: Column(
                 children: [
-                  _subToggleRow(context, 'Su Hatırlatması', _waterNotif, (v) => setState(() => _waterNotif = v)),
-                  _subToggleRow(context, 'Egzersiz Hatırlatması', _exerciseNotif, (v) => setState(() => _exerciseNotif = v)),
-                  _subToggleRow(context, 'Günlük Özet', _summaryNotif, (v) => setState(() => _summaryNotif = v)),
+                  _subToggleRow(context, 'Su Hatırlatması', _waterNotif, (v) {
+                    setState(() => _waterNotif = v);
+                    _savePreference('pref_water_notif', v);
+                  }),
+                  _subToggleRow(context, 'Egzersiz Hatırlatması', _exerciseNotif, (v) {
+                    setState(() => _exerciseNotif = v);
+                    _savePreference('pref_exercise_notif', v);
+                  }),
+                  _subToggleRow(context, 'Günlük Özet', _summaryNotif, (v) {
+                    setState(() => _summaryNotif = v);
+                    _savePreference('pref_summary_notif', v);
+                  }),
                 ],
               ),
             ),
           ],
           Divider(color: cs.outlineVariant, height: 24),
-          _toggleRow(context, Icons.dark_mode_outlined, AppColors.accent,
-              'Karanlık Mod', 'Karanlık temaya geç', isDark,
-              (v) => themeNotifier.value = v ? ThemeMode.dark : ThemeMode.light),
+          _toggleRow(
+            context, 
+            Icons.dark_mode_outlined, 
+            AppColors.accent,
+            'Karanlık Mod', 
+            'Karanlık temaya geç', 
+            isDark,
+            (v) {
+              themeNotifier.value = v ? ThemeMode.dark : ThemeMode.light;
+            }
+          ),
           Divider(color: cs.outlineVariant, height: 24),
-          _toggleRow(context, Icons.straighten_outlined, AppColors.stepsIndigo,
-              'Ölçü Birimi', _useMetric ? 'Metrik (cm, kg)' : 'İmparatorluk (ft, lbs)', _useMetric,
-              (v) => setState(() => _useMetric = v)),
+          _toggleRow(
+            context, 
+            Icons.straighten_outlined, 
+            AppColors.stepsIndigo,
+            'Ölçü Birimi', 
+            _useMetric ? 'Metrik (cm, kg)' : 'İmparatorluk (ft, lbs)', 
+            _useMetric,
+            (v) {
+              setState(() => _useMetric = v);
+              _savePreference('pref_use_metric', v);
+            }
+          ),
           Divider(color: cs.outlineVariant, height: 24),
           _buildPrivacyRow(context),
         ],

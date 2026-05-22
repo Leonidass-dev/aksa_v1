@@ -29,6 +29,7 @@ NUTRITION_KNOWLEDGE_BASE = {
 
 class FoodAnalysisRequest(BaseModel):
     image_base64: str  # base64 encoded JPEG/PNG
+    grammage_hint: str | None = None  # Kullanıcının manuel girdiği gramaj bilgisi
 
 
 class NutrientInfo(BaseModel):
@@ -68,8 +69,8 @@ Sen dünyanın en iyi görsel beslenme uzmanısın. Fotoğraftaki tabağı anali
 
 TALİMATLAR:
 1. GÖRSEL ANALİZ: Fotoğrafta ne görüyorsan (örn: fasulye, pilav, salata, yoğurt, hamburger, pizza vb.) tam ismini yaz.
-2. PORSİYON: Her bir parça yemeğin yaklaşık gramajını tahmin et.
-3. HESAPLAMA: Toplam kalori ve makroları (protein, karbonhidrat, yağ, lif) gördüğün porsiyona göre hesapla. 
+2. PORSİYON: Eğer sana ekstra bir gramaj bilgisi (grammage_hint) verildiyse mutlaka o değeri baz alarak porsiyon hesapla. Verilmediyse, gördüğün porsiyonun yaklaşık gramajını tahmin et.
+3. HESAPLAMA: Toplam kalori ve makroları (protein, karbonhidrat, yağ, lif) belirlediğin bu gramaja/porsiyona göre hesapla. 
 4. BOŞ BIRAKMA: JSON içindeki tırnak içlerini ve rakamları sakın benim verdiğim gibi bırakma; mutlaka senin bulduğun gerçek sonuçlarla doldur.
 
 ÇIKTI FORMATI (SADECE JSON):
@@ -165,6 +166,9 @@ async def analyze_food(
         )
 
     augmented_prompt = f"{PROMPT}\n\n[SİSTEM ÖZEL BİLGİSİ / RAG BAĞLAMI]\nAşağıdaki tıbbi/bağlamsal bilgiye dayanarak 'recommendation' (öneri) kısmını bu kullanıcıya göre hiper-kişiselleştir:\n{rag_context}"
+    
+    if req.grammage_hint:
+        augmented_prompt += f"\n\n[KULLANICI BİLGİSİ]: Kullanıcı gramajın yaklaşık olarak {req.grammage_hint} olduğunu belirtti. Analizinde porsiyon gramajını kesinlikle buna göre yap."
 
     # AI Çağrısı (Merkezi Servis Üzerinden)
     try:

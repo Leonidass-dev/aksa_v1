@@ -52,15 +52,14 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
       return;
     }
 
-    // Bugünün kaydı en yeni entry; history = geri kalanlar
-    final todayEntry = entries.first;
-    final historyEntries = entries.skip(1).toList();
-    
+    // Bugünün kaydı
+    final todayFirestore = await HealthService.getTodayEntry();
+    final todayEntry = todayFirestore ?? HealthEntry(date: DateTime.now());
     _analyzedDate = todayEntry.date;
 
-    // Not: Eskiden burada 'en az 3 gün veri' şartı vardı. 
-    // Backend kendi geçmiş verisine sahip olabileceği için yerel kontrolü esnetiyoruz.
-    if (historyEntries.isEmpty && todayEntry.steps == 0 && todayEntry.heartRate == 0) {
+    final last7Days = await HealthService.getLastNDays(7);
+
+    if (last7Days.isEmpty && todayEntry.steps == 0 && todayEntry.heartRate == 0) {
       setState(() {
         _loading = false;
         _errorMsg = 'Analiz edilecek veri bulunamadı. Lütfen saat verilerinizi güncelleyin.';
@@ -68,19 +67,15 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
       return;
     }
 
-    Map<String, dynamic> entryToMap(HealthEntry e) => {
-      'date': e.date.toIso8601String(),
-      'steps': e.steps,
-      'sleep_hours': e.sleepHours,
-      'heart_rate': e.heartRate,
-      'systolic': e.systolic,
-      'diastolic': e.diastolic,
-      'spo2': e.spo2,
-      'weight': e.weight,
-    };
+    Map<String, dynamic> entryToMap(HealthEntry e) {
+      final json = e.toJson();
+      json.remove('updated_at');
+      json['date'] ??= DateTime.now().toIso8601String();
+      return json;
+    }
 
     final result = await ApiService.checkAnomalies(
-      history: historyEntries.map(entryToMap).toList(),
+      history: last7Days.map(entryToMap).toList(),
       today: entryToMap(todayEntry),
     );
 
@@ -241,36 +236,18 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
         ),
         const SizedBox(height: 12),
         AppCard(
-          padding: EdgeInsets.zero,
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 3,
-            separatorBuilder: (_, _) => Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
-            itemBuilder: (ctx, index) {
-              final date = DateTime.now().subtract(Duration(days: index + 1));
-              return ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.history_rounded, color: AppColors.secondary, size: 20),
+          padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(Icons.history_rounded, size: 32, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+                const SizedBox(height: 12),
+                Text(
+                  'Henüz geçmiş analiz bulunmuyor.',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
                 ),
-                title: Text(
-                  DateFormat('d MMMM yyyy').format(date),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                subtitle: const Text('Normal seviyeler tespit edildi', style: TextStyle(fontSize: 12)),
-                trailing: const Icon(Icons.chevron_right, size: 20),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Arşiv detayları yakında eklenecek.')),
-                  );
-                },
-              );
-            },
+              ],
+            ),
           ),
         ),
       ],

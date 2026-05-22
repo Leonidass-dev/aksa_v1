@@ -128,10 +128,56 @@ class _NutritionScreenState extends State<NutritionScreen>
       if (xfile == null) return;
 
       if (!mounted) return;
+
+      String? grammageHint;
+      final TextEditingController grammageCtrl = TextEditingController();
+      final bool? shouldProceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Gramaj Bilgisi (İsteğe Bağlı)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Yapay zekanın daha kesin sonuç vermesi için yemeğin yaklaşık gramajını veya miktarını belirtebilirsiniz. Boş bırakırsanız yapay zeka fotoğraftan tahmin edecektir.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: grammageCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Örn: 200 gram, 1 tabak, 2 dilim...',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('İptal', style: TextStyle(color: AppColors.mutedForeground)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                grammageHint = grammageCtrl.text;
+                Navigator.pop(ctx, true);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.foreground),
+              child: const Text('Devam Et'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldProceed != true) return;
+
+      if (!mounted) return;
       setState(() => _analyzing = true);
 
       final bytes = await xfile.readAsBytes();
-      final result = await ApiService.analyzeFoodImage(bytes);
+      final result = await ApiService.analyzeFoodImage(bytes, grammageHint: grammageHint);
 
       if (!mounted) return;
       setState(() => _analyzing = false);

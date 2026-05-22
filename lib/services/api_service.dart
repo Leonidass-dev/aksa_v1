@@ -64,16 +64,23 @@ class ApiServiceImpl implements IApiService {
   // ── Yemek Fotoğrafı Analizi ──────────────────────────────────
   @override
   Future<FoodAnalysisResult?> analyzeFoodImage(
-    List<int> imageBytes,
-  ) async {
+    List<int> imageBytes, {
+    String? grammageHint,
+  }) async {
     try {
       final base64Image = base64Encode(imageBytes);
       final headers = await _authHeaders();
+      
+      final Map<String, dynamic> body = {'image_base64': base64Image};
+      if (grammageHint != null && grammageHint.trim().isNotEmpty) {
+        body['grammage_hint'] = grammageHint.trim();
+      }
+      
       final response = await http
           .post(
             Uri.parse('$_baseUrl/analyze-food'),
             headers: headers,
-            body: jsonEncode({'image_base64': base64Image}),
+            body: jsonEncode(body),
           )
           .timeout(AppConstants.imageAnalysisTimeout);
 
@@ -528,7 +535,7 @@ class ApiService {
     required List<Map<String, dynamic>> stepsData,
   }) => _instance.preprocessRawData(heartRateData: heartRateData, stepsData: stepsData);
 
-  static Future<FoodAnalysisResult?> analyzeFoodImage(List<int> imageBytes) => _instance.analyzeFoodImage(imageBytes);
+  static Future<FoodAnalysisResult?> analyzeFoodImage(List<int> imageBytes, {String? grammageHint}) => _instance.analyzeFoodImage(imageBytes, grammageHint: grammageHint);
   static Future<DietPlanResult?> getDietPlan() => _instance.getDietPlan();
   
   static Future<AnomalyApiResult?> checkAnomalies({

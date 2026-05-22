@@ -1,4 +1,5 @@
 import 'package:aksa_v1/utils/app_logger.dart';
+import 'dart:io';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -408,28 +409,39 @@ class HealthService {
   /// Returns: 'available', 'unavailable', 'update_required', 'error'
   static Future<String> checkHealthConnectStatus() async {
     try {
+      final types = [
+        HealthDataType.STEPS,
+        HealthDataType.HEART_RATE,
+        HealthDataType.SLEEP_SESSION,
+      ];
+
+      // iOS'ta Health Connect (Google) değil HealthKit (Apple) kullanılır.
+      // Bu yüzden SDK varlık kontrolüne (getHealthConnectSdkStatus) gerek yoktur, sistemde yerleşiktir.
+      if (Platform.isIOS) {
+        try {
+          final hasPerms = await Health().hasPermissions(types);
+          return hasPerms == true ? 'connected' : 'needs_permission';
+        } catch (_) {
+          return 'available';
+        }
+      }
+
       final status = await Health().getHealthConnectSdkStatus();
       switch (status) {
         case HealthConnectSdkStatus.sdkAvailable:
-          // SDK var ama izinler verilmiş mi kontrol et
-          final types = [
-            HealthDataType.STEPS,
-            HealthDataType.HEART_RATE,
-            HealthDataType.SLEEP_SESSION,
-          ];
           try {
             final hasPerms = await Health().hasPermissions(types);
             if (hasPerms == true) {
-              return 'connected'; // SDK var + izinler verilmiş
+              return 'connected';
             } else {
-              return 'needs_permission'; // SDK var ama izinler verilmemiş
+              return 'needs_permission';
             }
           } catch (_) {
-            return 'available'; // İzin kontrolü başarısız, en azından SDK var
+            return 'available';
           }
         case HealthConnectSdkStatus.sdkUnavailable:
           return 'unavailable';
-        case HealthConnectSdkStatus.sdkUpdateRequired:
+        case HealthConnectSdkStatus.sdkUnavailableProviderUpdateRequired:
           return 'update_required';
         default:
           return 'unavailable';

@@ -8,7 +8,7 @@ abstract class IApiService {
     required List<Map<String, dynamic>> stepsData,
   });
 
-  Future<FoodAnalysisResult?> analyzeFoodImage(List<int> imageBytes);
+  Future<FoodAnalysisResult?> analyzeFoodImage(List<int> imageBytes, {String? grammageHint});
 
   Future<DietPlanResult?> getDietPlan();
 

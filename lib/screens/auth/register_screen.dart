@@ -96,6 +96,88 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _signInWithApple() async {
+    if (Theme.of(context).platform == TargetPlatform.android) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (context) => Container(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.apple, size: 40, color: AppColors.foreground),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Apple ile Giriş',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Android cihazlarda Google hesabı ile giriş yapmak size çok daha hızlı ve pürüzsüz bir deneyim sunacaktır.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _signInWithGoogle();
+                  },
+                  icon: const Icon(Icons.g_mobiledata, size: 28),
+                  label: const Text('Google ile Devam Et', style: TextStyle(fontSize: 16)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _performAppleSignIn();
+                  },
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Text('Yine de Apple Kullan', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+    _performAppleSignIn();
+  }
+
+  Future<void> _performAppleSignIn() async {
     setState(() => _loading = true);
     final result = await AuthService.signInWithApple();
     if (!mounted) return;
@@ -104,7 +186,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (result.isSuccess) {
       await _checkProfileAndRedirect();
     } else {
-      _showError(result.errorMessage!);
+      if (result.errorMessage!.contains('Apple')) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+           content: Row(
+             children: [
+               const Icon(Icons.apple, color: Colors.white), 
+               const SizedBox(width: 12), 
+               Expanded(child: Text(result.errorMessage!))
+             ]
+           ),
+           backgroundColor: AppColors.foreground,
+           behavior: SnackBarBehavior.floating,
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+         ));
+      } else {
+        _showError(result.errorMessage!);
+      }
     }
   }
 

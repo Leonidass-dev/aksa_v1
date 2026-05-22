@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -121,7 +122,9 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
           _targetWaterMl = HealthService.calculateWaterTarget(_userWeight, 0);
         });
       }
-    } catch (_) {}
+    } catch (e, st) {
+      AppLogger.error('Profil yüklenirken hata oluştu', error: e, stackTrace: st);
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -351,8 +354,6 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
 
                           // 7. Tercihler ve Bilgi
                           PreferencesCard(
-                            notifications: _notifications,
-                            onNotificationChanged: (v) => setState(() => _notifications = v),
                             onPrivacyTap: () => ProfileDialogs.showPrivacy(context),
                           ),
                           const SizedBox(height: 16),

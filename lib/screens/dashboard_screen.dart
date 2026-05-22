@@ -423,7 +423,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Health Connect kurulum banner'ı
-                    if (_hcStatus != 'available' && _hcStatus != 'checking' && !_hcBannerDismissed) ...[
+                    if (_hcStatus != 'connected' && _hcStatus != 'checking' && !_hcBannerDismissed) ...[
                       _buildHealthConnectBanner(context),
                       const SizedBox(height: 16),
                     ],
@@ -553,7 +553,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: [
                 _buildHeaderIcon(Icons.sync_rounded, _handleManualSync),
                 const SizedBox(width: 8),
-                _buildHeaderIcon(Icons.notifications_none_rounded, () => context.go('/app/alerts'), hasBadge: true),
+                _buildHeaderIcon(Icons.notifications_none_rounded, () => context.go('/app/alerts'), hasBadge: _anomalyResult?.hasAnomaly == true || _hcStatus == 'needs_permission'),
               ],
             ),
           ],
@@ -724,7 +724,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildHealthConnectBanner(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isUpdate = _hcStatus == 'update_required';
-    final bannerColor = isUpdate ? AppColors.accent : AppColors.primary;
+    final needsPermission = _hcStatus == 'needs_permission';
+    final bannerColor = (isUpdate || needsPermission) ? AppColors.accent : AppColors.primary;
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -753,7 +754,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  isUpdate ? Icons.system_update_rounded : Icons.health_and_safety_rounded,
+                  needsPermission 
+                      ? Icons.lock_outline_rounded 
+                      : (isUpdate ? Icons.system_update_rounded : Icons.health_and_safety_rounded),
                   color: bannerColor,
                   size: 24,
                 ),
@@ -764,44 +767,51 @@ class _DashboardScreenState extends State<DashboardScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isUpdate ? 'Health Connect Güncellemesi Gerekli' : 'Health Connect Gerekli',
+                      needsPermission 
+                          ? 'Health Connect İzin Gerekli' 
+                          : (isUpdate ? 'Health Connect Güncellemesi Gerekli' : 'Health Connect Gerekli'),
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: cs.onSurface),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isUpdate
-                          ? 'Akıllı saatinizden veri almaya devam etmek için Health Connect\'i güncellemeniz gerekiyor.'
-                          : 'Akıllı saat verilerinizi otomatik almak için Health Connect uygulamasını telefonunuza yükleyin.',
+                      needsPermission 
+                          ? 'Sağlık verilerinizi otomatik alabilmemiz için Health Connect uygulamasına erişim izni vermelisiniz.'
+                          : (isUpdate
+                              ? 'Akıllı saatinizden veri almaya devam etmek için Health Connect\'i güncellemeniz gerekiyor.'
+                              : 'Akıllı saat verilerinizi otomatik almak için Health Connect uygulamasını telefonunuza yükleyin.'),
                       style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.4),
                     ),
                   ],
                 ),
               ),
-              GestureDetector(
-                onTap: () => setState(() => _hcBannerDismissed = true),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(Icons.close_rounded, size: 18, color: cs.onSurfaceVariant),
-                ),
+              IconButton(
+                onPressed: () => setState(() => _hcBannerDismissed = true),
+                icon: Icon(Icons.close_rounded, size: 20, color: cs.onSurfaceVariant),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () async {
-                const marketUrl = 'market://details?id=com.google.android.apps.healthdata';
-                const webUrl = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
-                final marketUri = Uri.parse(marketUrl);
-                if (await canLaunchUrl(marketUri)) {
-                  await launchUrl(marketUri, mode: LaunchMode.externalApplication);
+                if (needsPermission) {
+                  context.go('/app/profile');
                 } else {
-                  await launchUrl(Uri.parse(webUrl), mode: LaunchMode.externalApplication);
+                  const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
+                  const marketUrl = 'market://details?id=com.google.android.apps.healthdata';
+                  final marketUri = Uri.parse(marketUrl);
+                  if (await canLaunchUrl(marketUri)) {
+                    await launchUrl(marketUri, mode: LaunchMode.externalApplication);
+                  } else {
+                    await launchUrl(Uri.parse(playStoreUrl), mode: LaunchMode.externalApplication);
+                  }
                 }
               },
-              icon: Icon(isUpdate ? Icons.system_update_rounded : Icons.download_rounded, size: 18),
-              label: Text(isUpdate ? 'Health Connect\'i Güncelle' : 'Play Store\'dan Yükle'),
+              icon: Icon(needsPermission ? Icons.arrow_forward_rounded : (isUpdate ? Icons.system_update_rounded : Icons.download_rounded), size: 18),
+              label: Text(needsPermission ? 'İzinleri Yönet' : (isUpdate ? 'Health Connect\'i Güncelle' : 'Play Store\'dan Yükle')),
               style: FilledButton.styleFrom(
                 backgroundColor: bannerColor,
                 padding: const EdgeInsets.symmetric(vertical: 12),
