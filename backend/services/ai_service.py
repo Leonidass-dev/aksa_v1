@@ -11,13 +11,9 @@ logger = logging.getLogger(__name__)
 # Config
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-PRIMARY_PROVIDER = os.getenv("PRIMARY_AI_PROVIDER", "ollama")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
-OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "llava")
 
 # URLs
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 import re  # noqa: E402
@@ -61,18 +57,13 @@ async def ask_text(
 ) -> Optional[str]:
     """
     General purpose text generation with fallback logic.
-    Providers: Ollama -> Groq -> Gemini
+    Providers: Gemini -> Groq
     """
-    # Metin tabanlı işlemlerde sadece Ollama (ve gerekirse Groq) kullanıyoruz.
-    providers = ["ollama", "groq"]
+    providers = ["groq", "gemini"]
 
     for provider in providers:
         try:
-            if provider == "ollama":
-                res = await _call_ollama(prompt, system_prompt, history, json_mode)
-                if res:
-                    return res
-            elif provider == "groq" and GROQ_API_KEY:
+            if provider == "groq" and GROQ_API_KEY:
                 res = await _call_groq(prompt, system_prompt, history, json_mode)
                 if res:
                     return res
@@ -106,10 +97,6 @@ async def ask_vision(
                 res = await _call_groq_vision(prompt, image_base64, json_mode)
                 if res:
                     return res
-            elif provider == "ollama":
-                res = await _call_ollama_vision(prompt, image_base64, json_mode)
-                if res:
-                    return res
         except Exception as e:
             logger.error(f"Vision Provider {provider} failed: {e}")
             continue
@@ -117,31 +104,6 @@ async def ask_vision(
 
 
 # --- Helper Methods ---
-
-
-async def _call_ollama(
-    prompt: str, system: str, history: List[Dict], json_mode: bool
-) -> Optional[str]:
-    url = f"{OLLAMA_BASE_URL}/api/chat"
-    messages = [{"role": "system", "content": system}]
-    if history:
-        messages.extend(history)
-    messages.append({"role": "user", "content": prompt})
-
-    payload = {
-        "model": OLLAMA_MODEL,
-        "messages": messages,
-        "stream": False,
-        "options": {"temperature": 0.4},
-    }
-    if json_mode:
-        payload["format"] = "json"
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(url, json=payload)
-        if resp.status_code == 200:
-            return resp.json()["message"]["content"]
-    return None
 
 
 async def _call_groq(
@@ -183,9 +145,14 @@ async def _call_gemini(prompt: str, system: str, history: List[Dict]) -> Optiona
         "generationConfig": {"temperature": 0.4},
     }
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(url, json=payload, headers=headers)
-        if resp.status_code == 200:
-            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        try:
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 200:
+                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            else:
+                logger.error(f"Gemini API Error ({resp.status_code}): {resp.text}")
+        except Exception as e:
+            logger.error(f"Gemini Connection Error: {e}")
     return None
 
 
@@ -254,24 +221,4 @@ async def _call_groq_vision(
                 )
         except Exception as e:
             logger.error(f"Groq Vision Bağlantı Hatası: {e}")
-    return None
-
-
-async def _call_ollama_vision(
-    prompt: str, image_base64: str, json_mode: bool
-) -> Optional[str]:
-    url = f"{OLLAMA_BASE_URL}/api/chat"
-    payload = {
-        "model": OLLAMA_VISION_MODEL,
-        "messages": [{"role": "user", "content": prompt, "images": [image_base64]}],
-        "stream": False,
-        "options": {"temperature": 0.2},
-    }
-    if json_mode:
-        payload["format"] = "json"
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(url, json=payload)
-        if resp.status_code == 200:
-            return resp.json()["message"]["content"]
     return None

@@ -91,6 +91,7 @@ class NotificationService {
         importance: Importance.max,
         priority: Priority.high,
       ),
+      iOS: DarwinNotificationDetails(),
     );
     await _notifications.show(AppConstants.notificationIdInstant, title, body, details);
   }

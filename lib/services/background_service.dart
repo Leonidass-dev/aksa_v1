@@ -97,8 +97,12 @@ Future<void> _showNotification(int id, String title, String body) async {
   
   const AndroidInitializationSettings initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initializationSettings =
-      InitializationSettings(android: initializationSettingsAndroid);
+  const DarwinInitializationSettings initializationSettingsIOS =
+      DarwinInitializationSettings();
+  const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+  );
       
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
@@ -111,8 +115,14 @@ Future<void> _showNotification(int id, String title, String body) async {
     showWhen: true,
   );
   
+  const DarwinNotificationDetails iosPlatformChannelSpecifics =
+      DarwinNotificationDetails();
+  
   const NotificationDetails platformChannelSpecifics =
-      NotificationDetails(android: androidPlatformChannelSpecifics);
+      NotificationDetails(
+        android: androidPlatformChannelSpecifics,
+        iOS: iosPlatformChannelSpecifics,
+      );
       
   await flutterLocalNotificationsPlugin.show(
     id,

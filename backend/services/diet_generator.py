@@ -47,8 +47,8 @@ DİYETİSYEN TALİMATLARI:
    - Yüksek Nabız/Kardiyak risk varsa: Kafein, rafine şeker ve ağır doymuş yağları tamamen çıkar.
    - Hareketsiz günlerde: Glisemik indeksi düşük, lif oranı yüksek besinler.
 4. TÜBER UYUMLU: Türkiye Beslenme Rehberi (TÜBER) standartlarına ve Türk damak tadına uygun içerikler seç.
-5. ÇEŞİTLİLİK VE ROTASYON: Her defasında balık veya aynı ızgara et türünü önerme. Türk mutfağındaki sebze yemekleri, kurubaklagiller, kırmızı et, hindi, yumurta ve alternatif protein kaynaklarını dönüşümlü olarak kullan. Rastgelelik kat.
-6. DETAYLI PORSİYON: 'Biraz' veya 'Az' gibi belirsiz ifadeler yerine '1 orta boy (150g)', '2 yemek kaşığı' gibi net ölçüler kullan.
+5. ÇEŞİTLİLİK VE ZENGİN MENÜ (ÇOK ÖNEMLİ): Kullanıcılar tek tip yemekten (örneğin sadece ızgara balık veya tavuk) sıkılıyor. Her öğünü tek bir yemek olarak DEĞİL, birbirini tamamlayan çeşitli yemeklerden oluşan zengin bir MENÜ olarak öner (Örn: Sadece 'Izgara Balık' yerine 'Fırında Çipura, Fesleğenli Kinoa Salatası ve Yoğurtlu Semizotu' veya 'Zeytinyağlı Enginar, Karabuğday Pilavı ve Cacık' gibi). Asla sürekli aynı klişe diyet yemeklerini önerme. Her öğünde en az 2-3 çeşit yiyeceği bir araya getir.
+6. DETAYLI PORSİYON: 'Biraz' veya 'Az' gibi belirsiz ifadeler yerine menüdeki her bir çeşit için '1 orta boy (150g) + 4 yemek kaşığı + 1 kase' gibi net ölçüler kullan.
 7. NEDENSELLİK (Reasoning): Her öğün için 'Neden bu besin?' sorusunu kullanıcının klinik risklerine atıfta bulunarak açıkla.
 
 Yanıtı SADECE aşağıdaki JSON yapısında döndür:
@@ -58,8 +58,8 @@ Yanıtı SADECE aşağıdaki JSON yapısında döndür:
   "meals": [
     {{
       "meal_type": "Sabah / Öğle / Akşam / Ara Öğün",
-      "food_name": "Yemeğin tam adı",
-      "portion": "Net gramaj ve ölçü birimi (örn: 150g Izgara Tavuk, 6 kaşık Zeytinyağlı Fasulye)",
+      "food_name": "Menüdeki yemeklerin tamamı (Örn: Yeşil Mercimek Yemeği, Bulgur Pilavı ve Cacık)",
+      "portion": "Menüdeki her bir yemeğin gramajı ve ölçüsü (Örn: 8 kaşık mercimek, 4 kaşık bulgur, 1 kase cacık)",
       "calories": 350,
       "reasoning": "Kullanıcının [Risk Faktörü] durumu için [Besin Bileşeni] sayesinde [Fayda] sağlar."
     }}

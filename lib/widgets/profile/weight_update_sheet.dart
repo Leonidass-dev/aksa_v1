@@ -20,7 +20,7 @@ class WeightUpdateSheet extends StatelessWidget {
   });
 
   void show(BuildContext context) {
-    double newWeight = currentWeight;
+    double newWeight = currentWeight > 0 ? currentWeight.clamp(30.0, 250.0) : 75.0;
 
     showModalBottomSheet(
       context: context,
@@ -75,7 +75,7 @@ class WeightUpdateSheet extends StatelessWidget {
                     inactiveTrackColor: AppColors.primary.withValues(alpha: 0.2),
                   ),
                   child: Slider(
-                    value: newWeight, min: 30, max: 200,
+                    value: newWeight, min: 30, max: 250,
                     onChanged: (v) => setLocal(() => newWeight = double.parse(v.toStringAsFixed(1))),
                   ),
                 ),

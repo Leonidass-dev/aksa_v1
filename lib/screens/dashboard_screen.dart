@@ -504,7 +504,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         if (mood == 'stressed' || mood == 'tired') {
                           // Yapay zeka rahatlama tavsiyesi
                           final res = await ApiService.fetchMoodAdvice(mood);
-                          if (res != null && mounted) {
+                          if (res != null && context.mounted) {
                             _showMoodAdviceModal(context, res.advice, mood);
                           }
                         }

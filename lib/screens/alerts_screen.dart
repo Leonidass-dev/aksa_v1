@@ -40,10 +40,10 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
       AppLogger.debug("Senkronizasyon hatası (geçiliyor): $e");
     }
 
-    // Son 7 günün verisini Firestore'dan çek
-    final entries = await HealthService.getLastNDays(8);
+    // Son 8 günün verisini Firestore'dan çek
+    final recentEntries = await HealthService.getLastNDays(8);
 
-    if (entries.isEmpty) {
+    if (recentEntries.isEmpty) {
       setState(() {
         _loading = false;
         _errorMsg =
@@ -57,9 +57,14 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
     final todayEntry = todayFirestore ?? HealthEntry(date: DateTime.now());
     _analyzedDate = todayEntry.date;
 
-    final last7Days = await HealthService.getLastNDays(7);
+    // Geçmiş verilerini (bugünü hariç tutarak) filtrele
+    final historyEntries = recentEntries.where((e) {
+      return e.date.year != todayEntry.date.year ||
+             e.date.month != todayEntry.date.month ||
+             e.date.day != todayEntry.date.day;
+    }).take(7).toList();
 
-    if (last7Days.isEmpty && todayEntry.steps == 0 && todayEntry.heartRate == 0) {
+    if (historyEntries.isEmpty && todayEntry.steps == 0 && todayEntry.heartRate == 0) {
       setState(() {
         _loading = false;
         _errorMsg = 'Analiz edilecek veri bulunamadı. Lütfen saat verilerinizi güncelleyin.';
@@ -71,11 +76,13 @@ class _AlertsScreenState extends State<AlertsScreen> with ThemeAwareMixin {
       final json = e.toJson();
       json.remove('updated_at');
       json['date'] ??= DateTime.now().toIso8601String();
+      // 0 değerleri kaldır ki backend bunları gerçek "0 tansiyon" sanıp ortalamayı bozmasın (NaN olarak algılasın)
+      json.removeWhere((key, value) => value == 0 || value == 0.0);
       return json;
     }
 
     final result = await ApiService.checkAnomalies(
-      history: last7Days.map(entryToMap).toList(),
+      history: historyEntries.map(entryToMap).toList(),
       today: entryToMap(todayEntry),
     );
 

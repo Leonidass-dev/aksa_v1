@@ -17,6 +17,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
   double _systolic = 120;
   double _diastolic = 80;
   double _weight = 75;
+  double _heartRate = 75;
 
   DateTime _selectedDate = DateTime.now();
 
@@ -37,15 +38,16 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
     if (mounted) {
       setState(() {
         if (entry != null) {
-          if (entry.systolic > 0) _systolic = entry.systolic;
-          if (entry.diastolic > 0) _diastolic = entry.diastolic;
+          if (entry.systolic > 0) _systolic = entry.systolic.clamp(60.0, 260.0);
+          if (entry.diastolic > 0) _diastolic = entry.diastolic.clamp(40.0, 160.0);
+          if (entry.heartRate > 0) _heartRate = entry.heartRate.clamp(40.0, 220.0);
           // Eğer bugün zaten bir kilo girilmişse onu kullan
-          if (entry.weight > 0) _weight = entry.weight;
+          if (entry.weight > 0) _weight = entry.weight.clamp(40.0, 250.0);
         }
 
         // Eğer bugün henüz veri girilmemişse veya kilo 0 ise profildeki kiloyu al
         if (_weight <= 0 && profile != null) {
-          _weight = profile.weight;
+          _weight = profile.weight.clamp(40.0, 250.0);
         }
       });
     }
@@ -75,6 +77,8 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         weight: _weight,
         systolic: _systolic,
         diastolic: _diastolic,
+        heartRate: _heartRate,
+        heartRateTime: DateTime.now(),
         source: 'manual',
       );
       await HealthService.saveHealthEntry(entry);
@@ -106,7 +110,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             systolic: _systolic,
             diastolic: _diastolic,
             heartRateResting: entry.heartRate,
-            heartRateAvg: entry.heartRate, // Manuel girişte mevcut nabzı koru
+            heartRateAvg: _heartRate, // Manuel girilen nabzı kullan
           ),
         );
       } catch (e) {
@@ -149,6 +153,8 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             _buildDatePicker(context),
             const SizedBox(height: 16),
             _buildBPCard(context),
+            const SizedBox(height: 16),
+            _buildHeartRateCard(context),
             const SizedBox(height: 16),
             _buildWeightCard(context),
             const SizedBox(height: 32),
@@ -246,9 +252,9 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: _buildBPInput('Sistolik', _systolic, 80, 250, (v) => setState(() => _systolic = v))),
+                Expanded(child: _buildBPInput('Sistolik', _systolic, 60, 260, (v) => setState(() => _systolic = v))),
                 const SizedBox(width: 16),
-                Expanded(child: _buildBPInput('Diastolik', _diastolic, 40, 150, (v) => setState(() => _diastolic = v))),
+                Expanded(child: _buildBPInput('Diastolik', _diastolic, 40, 160, (v) => setState(() => _diastolic = v))),
               ],
             ),
           ],
@@ -265,6 +271,38 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         Text(val.toInt().toString(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         Slider(value: val, min: min, max: max, onChanged: onChanged, activeColor: AppColors.primary),
       ],
+    );
+  }
+
+  Widget _buildHeartRateCard(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.favorite, color: Colors.redAccent),
+                const SizedBox(width: 12),
+                Text('Nabız (BPM)', style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            Slider(
+              value: _heartRate,
+              min: 40,
+              max: 220,
+              onChanged: (v) => setState(() => _heartRate = v),
+              activeColor: Colors.redAccent,
+            ),
+            Text('${_heartRate.toInt()} bpm', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
     );
   }
 

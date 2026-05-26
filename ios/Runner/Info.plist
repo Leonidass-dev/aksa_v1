@@ -84,5 +84,22 @@
 	<string>Adım, uyku ve nabız gibi verilerinizi analiz etmek ve size daha iyi asistanlık yapabilmek için Apple Health verilerine okuma izni istiyoruz.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Adım, uyku ve nabız gibi verilerinizi analiz etmek ve size daha iyi asistanlık yapabilmek için Apple Health verilerine okuma izni istiyoruz.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Profil fotoğrafı ve beslenme analizi için kameraya erişim gereklidir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Profil fotoğrafı ve beslenme analizi için galerinizden fotoğraf seçebilmeniz için erişim gereklidir.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Video kaydı yapabilmeniz için mikrofona erişim gereklidir.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+		<string>remote-notification</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>be.tramckrijte.workmanagerExample.taskId</string>
+		<string>dev.flutter.background.refresh</string>
+	</array>
 </dict>
 </plist>
