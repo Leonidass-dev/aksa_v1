@@ -587,7 +587,8 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                     },
                   ),
                 ),
-              );
+              ),
+            );
             }),
           ),
         ],
