@@ -154,12 +154,13 @@ async def calculate_risk(
 @router.get("/risk-history", response_model=list[RiskHistoryItem])
 async def risk_history(
     limit: int = 30,
+    offset: int = 0,
     uid: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Kullanıcının risk skoru geçmişini getirir."""
     user = await crud.get_or_create_user(db, uid)
-    records = await crud.get_risk_history(db, user, limit)
+    records = await crud.get_risk_history(db, user, limit, offset)
     return [
         RiskHistoryItem(
             id=r.id,

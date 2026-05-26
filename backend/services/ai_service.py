@@ -17,7 +17,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "llava")
 
 # URLs
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 import re  # noqa: E402
@@ -169,7 +169,8 @@ async def _call_groq(
 
 
 async def _call_gemini(prompt: str, system: str, history: List[Dict]) -> Optional[str]:
-    url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
+    url = f"{GEMINI_URL}"
+    headers = {"x-goog-api-key": GEMINI_API_KEY}
     # Gemini 1.5 doesn't have a simple 'system' role in the same way, we prepend it
     full_prompt = f"{system}\n\n"
     if history:
@@ -182,7 +183,7 @@ async def _call_gemini(prompt: str, system: str, history: List[Dict]) -> Optiona
         "generationConfig": {"temperature": 0.4},
     }
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(url, json=payload)
+        resp = await client.post(url, json=payload, headers=headers)
         if resp.status_code == 200:
             return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     return None
@@ -192,7 +193,8 @@ async def _call_gemini(prompt: str, system: str, history: List[Dict]) -> Optiona
 
 
 async def _call_gemini_vision(prompt: str, image_base64: str) -> Optional[str]:
-    url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
+    url = f"{GEMINI_URL}"
+    headers = {"x-goog-api-key": GEMINI_API_KEY}
     payload = {
         "contents": [
             {
@@ -206,7 +208,7 @@ async def _call_gemini_vision(prompt: str, image_base64: str) -> Optional[str]:
     }
     async with httpx.AsyncClient(timeout=90.0) as client:
         try:
-            resp = await client.post(url, json=payload)
+            resp = await client.post(url, json=payload, headers=headers)
             if resp.status_code == 200:
                 return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
             else:

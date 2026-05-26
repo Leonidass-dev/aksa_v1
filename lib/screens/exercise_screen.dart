@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -80,6 +81,7 @@ class _ExerciseScreenState extends State<ExerciseScreen>
   }
 
   Future<void> _loadExercisePlan({bool force = false}) async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _errorMsg = null;
@@ -839,6 +841,8 @@ class _ExerciseTimerDialogState extends State<_ExerciseTimerDialog> {
   bool _isRunning = false;
   bool _isComplete = false;
 
+  Timer? _timer;
+
   @override
   void initState() {
     super.initState();
@@ -848,27 +852,31 @@ class _ExerciseTimerDialogState extends State<_ExerciseTimerDialog> {
 
   void _startTimer() {
     setState(() => _isRunning = true);
-    _tick();
-  }
-
-  void _tick() {
-    Future.delayed(const Duration(seconds: 1), () {
-      if (!mounted || !_isRunning) return;
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       setState(() {
         _remainingSeconds--;
         if (_remainingSeconds <= 0) {
           _isRunning = false;
           _isComplete = true;
+          timer.cancel();
           widget.onComplete();
         }
       });
-      if (_isRunning) _tick();
     });
   }
 
   void _togglePause() {
     setState(() => _isRunning = !_isRunning);
-    if (_isRunning) _tick();
+    if (_isRunning) {
+      _startTimer();
+    } else {
+      _timer?.cancel();
+    }
   }
 
   String get _timeText {
@@ -882,6 +890,7 @@ class _ExerciseTimerDialogState extends State<_ExerciseTimerDialog> {
 
   @override
   void dispose() {
+    _timer?.cancel();
     _isRunning = false;
     super.dispose();
   }

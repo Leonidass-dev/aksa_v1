@@ -37,8 +37,9 @@ class _WaterWaveWidgetState extends State<WaterWaveWidget>
 
   @override
   Widget build(BuildContext context) {
-    final double fillPercentage =
-        (widget.currentMl / widget.targetMl).clamp(0.0, 1.0);
+    final double fillPercentage = widget.targetMl > 0 
+        ? (widget.currentMl / widget.targetMl).clamp(0.0, 1.0)
+        : 0.0;
 
     return Container(
       width: 120,

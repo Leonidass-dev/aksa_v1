@@ -411,9 +411,9 @@ class RiskHistoryItem {
       RiskHistoryItem(
         id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
         score: double.tryParse(json['score']?.toString() ?? '0') ?? 0.0,
-        level: json['level'] as String? ?? 'low',
-        levelLabel: json['level_label'] as String?,
-        calculatedAt: json['calculated_at'] as String,
+        level: json['level']?.toString() ?? 'low',
+        levelLabel: json['level_label']?.toString(),
+        calculatedAt: json['calculated_at']?.toString() ?? '',
       );
 }
 
@@ -457,9 +457,9 @@ class MealHistoryItem {
         fatG: double.tryParse(json['fat_g']?.toString() ?? '0') ?? 0.0,
         fiberG: double.tryParse(json['fiber_g']?.toString() ?? '0') ?? 0.0,
         healthScore: int.tryParse(json['health_score']?.toString() ?? '0') ?? 0,
-        recommendation: json['recommendation'] as String?,
+        recommendation: json['recommendation']?.toString(),
         tags: (json['tags'] as List?)?.map((e) => e.toString()).toList(),
-        analyzedAt: json['analyzed_at'] as String,
+        analyzedAt: json['analyzed_at']?.toString() ?? '',
       );
 }
 
@@ -483,7 +483,7 @@ class ChatHistoryItem {
         id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
         role: json['role']?.toString() ?? '',
         content: json['content']?.toString() ?? '',
-        isSafe: json['is_safe'] as bool? ?? true,
+        isSafe: json['is_safe'] == true || json['is_safe'] == 'true',
         createdAt: json['created_at']?.toString() ?? '',
       );
 }

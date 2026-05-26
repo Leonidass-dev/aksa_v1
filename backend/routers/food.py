@@ -253,12 +253,13 @@ async def analyze_food(
 @router.get("/meal-history", response_model=list[MealHistoryItem])
 async def meal_history(
     limit: int = 30,
+    offset: int = 0,
     uid: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Kullanıcının yemek analiz geçmişini getirir."""
     user = await crud.get_or_create_user(db, uid)
-    records = await crud.get_meal_history(db, user, limit)
+    records = await crud.get_meal_history(db, user, limit, offset)
     return [
         MealHistoryItem(
             id=r.id,

@@ -4,6 +4,10 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from database import init_db
 from routers import (
     risk,
@@ -15,6 +19,9 @@ from routers import (
     data_pipeline,
     user,
 )
+
+# Global Rate Limiter (Dakikada 100 istek sınırı)
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 
 @asynccontextmanager
@@ -31,13 +38,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
 
 # Canlı ortamda ALLOWED_ORIGINS env var ile kısıtla
 _allowed_origins = os.getenv(
     "ALLOWED_ORIGINS",
     "http://localhost:3000,http://10.0.2.2:3000,http://localhost:8000",  # Geliştirme varsayılanları
 ).split(",")
-_allowed_origins.append("*")  # Mobil cihazlar CORS kullanmaz, geliştirme kolaylığı
+# _allowed_origins.append("*")  # Kaldırıldı (Güvenlik zafiyeti - CORS Wildcard)
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,7 +74,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global hata yakalandı: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"error": "Geçici sistem hatası", "detail": str(exc)},
+        content={"error": "Geçici sistem hatası", "detail": "Sunucu içinde beklenmeyen bir hata oluştu."},
     )
 
 

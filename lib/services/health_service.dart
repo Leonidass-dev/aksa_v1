@@ -28,6 +28,11 @@ class HealthServiceImpl implements IHealthService {
   Stream<bool> get syncUpdates => _syncUpdateController.stream;
   static void notifySync() => _syncUpdateController.add(true);
 
+  // Önbellek değişkenleri (Faz 5 Performans İyileştirmesi)
+  HealthEntry? _cachedTodayEntry;
+  DateTime? _lastCacheTime;
+  final Duration _cacheTTL = const Duration(minutes: 5);
+
   // Son senkronizasyon kaynak bilgileri
   ParsedHealthData? _lastParsedData;
 
@@ -56,6 +61,12 @@ class HealthServiceImpl implements IHealthService {
       await ApiService.syncHealthToBackend(entry);
     } catch (e) {
       AppLogger.debug("Backend sync hatası: $e");
+    }
+
+    // Cache'i güncelle (Eğer bugünün verisiyse)
+    if (entry.date.year == DateTime.now().year && entry.date.day == DateTime.now().day) {
+      _cachedTodayEntry = entry;
+      _lastCacheTime = DateTime.now();
     }
   }
 
@@ -294,11 +305,25 @@ class HealthServiceImpl implements IHealthService {
 
   // ── Bugünün verisini oku ──────────────────────────────────────
   @override
-  Future<HealthEntry?> getTodayEntry() async {
+  Future<HealthEntry?> getTodayEntry({bool force = false}) async {
     final uid = _uid;
     if (uid == null) return null;
 
-    return getEntryByDate(DateTime.now());
+    final now = DateTime.now();
+    
+    // Cache kontrolü
+    if (!force && _cachedTodayEntry != null && _lastCacheTime != null) {
+      final diff = now.difference(_lastCacheTime!);
+      if (diff < _cacheTTL && _cachedTodayEntry!.date.day == now.day) {
+        return _cachedTodayEntry;
+      }
+    }
+
+    final entry = await getEntryByDate(now);
+    
+    _cachedTodayEntry = entry;
+    _lastCacheTime = now;
+    return entry;
   }
 
   // ── Belirli bir günün verisini oku ────────────────────────────
@@ -384,7 +409,7 @@ class HealthService {
 
   static Future<void> saveHealthEntry(HealthEntry entry) => _instance.saveHealthEntry(entry);
   static Future<bool> syncFromDevice({bool force = false}) => _instance.syncFromDevice(force: force);
-  static Future<HealthEntry?> getTodayEntry() => _instance.getTodayEntry();
+  static Future<HealthEntry?> getTodayEntry({bool force = false}) => _instance.getTodayEntry(force: force);
   static Future<HealthEntry?> getEntryByDate(DateTime date) => _instance.getEntryByDate(date);
   static Future<List<HealthEntry>> getLastNDays(int n) => _instance.getLastNDays(n);
   static Future<void> updateWater(double ml) => _instance.updateWater(ml);

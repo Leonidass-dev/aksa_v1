@@ -16,6 +16,7 @@ from db_models import (
     ChatMessage,
     DailyDietPlan,
     UserMemory,
+    get_turkey_time,
 )
 
 
@@ -97,7 +98,7 @@ async def save_health_record(
     data: dict,
 ) -> HealthRecord:
     """Günlük sağlık verisini kaydet (upsert: aynı gün varsa güncelle)."""
-    record_date = data.get("record_date", date.today())
+    record_date = data.get("record_date", get_turkey_time().date())
     if isinstance(record_date, str):
         record_date = date.fromisoformat(record_date)
 
@@ -140,9 +141,13 @@ async def save_health_record(
     if "source" in data:
         record.source = data["source"]
 
-    record.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    await db.commit()
-    await db.refresh(record)
+    record.updated_at = get_turkey_time()
+    try:
+        await db.commit()
+        await db.refresh(record)
+    except Exception as e:
+        await db.rollback()
+        raise e
     return record
 
 
@@ -150,9 +155,11 @@ async def get_health_records(
     db: AsyncSession,
     user: User,
     days: int = 7,
+    offset: int = 0,
+    limit: int = 365,
 ) -> list[HealthRecord]:
-    """Son N günün sağlık kayıtlarını getir."""
-    since = date.today() - timedelta(days=days)
+    """Son N günün sağlık kayıtlarını getir (sayfalamalı)."""
+    since = get_turkey_time().date() - timedelta(days=days)
     stmt = (
         select(HealthRecord)
         .where(
@@ -160,6 +167,8 @@ async def get_health_records(
             HealthRecord.record_date >= since,
         )
         .order_by(desc(HealthRecord.record_date))
+        .offset(offset)
+        .limit(limit)
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
@@ -169,7 +178,7 @@ async def get_today_health(db: AsyncSession, user: User) -> HealthRecord | None:
     """Bugünün sağlık kaydını getir."""
     stmt = select(HealthRecord).where(
         HealthRecord.user_id == user.id,
-        HealthRecord.record_date == date.today(),
+        HealthRecord.record_date == get_turkey_time().date(),
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -222,12 +231,14 @@ async def get_risk_history(
     db: AsyncSession,
     user: User,
     limit: int = 30,
+    offset: int = 0,
 ) -> list[RiskScore]:
     """Risk skoru geçmişini getir."""
     stmt = (
         select(RiskScore)
         .where(RiskScore.user_id == user.id)
         .order_by(desc(RiskScore.calculated_at))
+        .offset(offset)
         .limit(limit)
     )
     result = await db.execute(stmt)
@@ -289,12 +300,14 @@ async def get_meal_history(
     db: AsyncSession,
     user: User,
     limit: int = 30,
+    offset: int = 0,
 ) -> list[MealRecord]:
     """Yemek analiz geçmişini getir."""
     stmt = (
         select(MealRecord)
         .where(MealRecord.user_id == user.id)
         .order_by(desc(MealRecord.analyzed_at))
+        .offset(offset)
         .limit(limit)
     )
     result = await db.execute(stmt)
@@ -303,9 +316,7 @@ async def get_meal_history(
 
 async def get_today_meals(db: AsyncSession, user: User) -> list[MealRecord]:
     """Bugün analiz edilen yemekleri getir."""
-    from datetime import datetime
-
-    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_start = get_turkey_time().replace(hour=0, minute=0, second=0, microsecond=0)
     stmt = (
         select(MealRecord)
         .where(
@@ -411,12 +422,14 @@ async def get_chat_history(
     db: AsyncSession,
     user: User,
     limit: int = 50,
+    offset: int = 0,
 ) -> list[ChatMessage]:
     """Chat geçmişini getir (eskiden yeniye)."""
     stmt = (
         select(ChatMessage)
         .where(ChatMessage.user_id == user.id)
         .order_by(desc(ChatMessage.created_at))
+        .offset(offset)
         .limit(limit)
     )
     result = await db.execute(stmt)

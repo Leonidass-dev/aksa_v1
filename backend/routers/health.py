@@ -148,12 +148,14 @@ async def save_health(
 @router.get("/health", response_model=list[HealthRecordResponse])
 async def get_health_history(
     days: int = Query(default=7, ge=1, le=365, description="Son kaç gün"),
+    limit: int = Query(default=365, ge=1, le=1000, description="Kayıt limiti"),
+    offset: int = Query(default=0, ge=0, description="Sayfalama ofseti"),
     uid: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Son N günün sağlık kayıtlarını getir."""
     user = await crud.get_or_create_user(db, uid)
-    records = await crud.get_health_records(db, user, days)
+    records = await crud.get_health_records(db, user, days, offset, limit)
     return [_record_to_response(r) for r in records]
 
 

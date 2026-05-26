@@ -288,12 +288,13 @@ async def mood_advice(
 @router.get("/history", response_model=list[ChatHistoryItem])
 async def chat_history(
     limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     uid: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Kullanıcının chat geçmişini getirir (eskiden yeniye)."""
     user = await crud.get_or_create_user(db, uid)
-    messages = await crud.get_chat_history(db, user, limit)
+    messages = await crud.get_chat_history(db, user, limit, offset)
     return [
         ChatHistoryItem(
             id=m.id,

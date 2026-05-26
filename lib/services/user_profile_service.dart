@@ -120,6 +120,10 @@ class UserProfileServiceImpl implements IUserProfileService {
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
+  UserProfile? _cachedProfile;
+  DateTime? _lastCacheTime;
+  final Duration _cacheTTL = const Duration(minutes: 5);
+
   String? get _uid => _auth.currentUser?.uid;
 
   /// Profil var mı kontrol et (onboarding atlandı mı?)
@@ -145,18 +149,33 @@ class UserProfileServiceImpl implements IUserProfileService {
         
     // Profile güncellendiğinde backend'e de (PostgreSQL) senkronize et
     await ApiService.syncProfileToBackend(profile);
+
+    _cachedProfile = profile;
+    _lastCacheTime = DateTime.now();
   }
 
-  /// Profili oku
+  // Profili oku
   @override
-  Future<UserProfile?> getProfile() async {
+  Future<UserProfile?> getProfile({bool force = false}) async {
     final uid = _uid;
     if (uid == null) return null;
+
+    final now = DateTime.now();
+    if (!force && _cachedProfile != null && _lastCacheTime != null) {
+      if (now.difference(_lastCacheTime!) < _cacheTTL) {
+        return _cachedProfile;
+      }
+    }
+
     final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists) return null;
     final data = doc.data();
     if (data == null) return null;
-    return UserProfile.fromMap(uid, data);
+    
+    final profile = UserProfile.fromMap(uid, data);
+    _cachedProfile = profile;
+    _lastCacheTime = now;
+    return profile;
   }
 }
 
@@ -170,5 +189,5 @@ class UserProfileService {
 
   static Future<bool> profileExists() => _instance.profileExists();
   static Future<void> saveProfile(UserProfile profile) => _instance.saveProfile(profile);
-  static Future<UserProfile?> getProfile() => _instance.getProfile();
+  static Future<UserProfile?> getProfile({bool force = false}) => _instance.getProfile(force: force);
 }

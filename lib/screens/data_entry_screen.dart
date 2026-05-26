@@ -18,6 +18,8 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
   double _diastolic = 80;
   double _weight = 75;
 
+  DateTime _selectedDate = DateTime.now();
+
   bool _saving = false;
   bool _saved = false;
   String? _errorMessage;
@@ -29,7 +31,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    final entry = await HealthService.getTodayEntry();
+    final entry = await HealthService.getEntryByDate(_selectedDate);
     final profile = await UserProfileService.getProfile();
 
     if (mounted) {
@@ -68,8 +70,8 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
 
       // Firestore'a kaydet (M1)
       // Mevcut Health Connect verilerini koruyarak sadece manuel alanları güncelle
-      final existingEntry = await HealthService.getTodayEntry();
-      final entry = (existingEntry ?? HealthEntry(date: DateTime.now())).copyWith(
+      final existingEntry = await HealthService.getEntryByDate(_selectedDate);
+      final entry = (existingEntry ?? HealthEntry(date: _selectedDate)).copyWith(
         weight: _weight,
         systolic: _systolic,
         diastolic: _diastolic,
@@ -144,6 +146,8 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            _buildDatePicker(context),
+            const SizedBox(height: 16),
             _buildBPCard(context),
             const SizedBox(height: 16),
             _buildWeightCard(context),
@@ -151,6 +155,68 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
             if (_errorMessage != null)
               Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
             _buildSaveButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePicker(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dateText = '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}';
+    
+    return InkWell(
+      onTap: () async {
+        final DateTime? picked = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate,
+          firstDate: DateTime(2020),
+          lastDate: DateTime.now(),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: AppColors.primary,
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+        if (picked != null && picked != _selectedDate) {
+          setState(() {
+            _selectedDate = picked;
+            _saved = false;
+            _errorMessage = null;
+          });
+          _loadInitialData();
+        }
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.calendar_today_rounded, color: AppColors.primary, size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  'Kayıt Tarihi',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+            Text(
+              dateText,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
           ],
         ),
       ),

@@ -484,12 +484,17 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
           const SizedBox(height: 24),
           SizedBox(
             height: 200,
-            child: LineChart(
-              LineChartData(
+            child: Builder(builder: (context) {
+              // BUG-22 Çözümü: Tek veri noktası olduğunda grafiğin patlamaması için veriyi çoğalt
+              final displayData = data.length == 1 ? [data.first, data.first] : data;
+              final maxX = (displayData.length - 1).toDouble();
+
+              return LineChart(
+                LineChartData(
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  horizontalInterval: _getInterval(_activeTab, data),
+                  horizontalInterval: _getInterval(_activeTab, displayData),
                   getDrawingHorizontalLine: (value) => FlLine(
                     color: cs.outlineVariant.withValues(alpha: 0.5),
                     strokeWidth: 1,
@@ -506,11 +511,14 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                       reservedSize: 30,
                       interval: _timeframe == 'month' ? 5 : 1,
                       getTitlesWidget: (value, meta) {
-                        if (value.toInt() >= 0 && value.toInt() < _labels.length) {
+                        int idx = value.toInt();
+                        if (data.length == 1 && idx == 1) idx = 0; // Tek veri varsa etiketi de kopyala
+                        
+                        if (idx >= 0 && idx < _labels.length) {
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Text(
-                              _labels[value.toInt()],
+                              _labels[idx],
                               style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
                             ),
                           );
@@ -522,7 +530,7 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      interval: _getInterval(_activeTab, data),
+                      interval: _getInterval(_activeTab, displayData),
                       reservedSize: 42,
                       getTitlesWidget: (value, meta) {
                         return Text(
@@ -536,12 +544,12 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: (data.length - 1).toDouble(),
-                minY: _getMinY(_activeTab, data),
-                maxY: _getMaxY(_activeTab, data),
+                maxX: maxX,
+                minY: _getMinY(_activeTab, displayData),
+                maxY: _getMaxY(_activeTab, displayData),
                 lineBarsData: [
                   LineChartBarData(
-                    spots: data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
+                    spots: displayData.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
                     isCurved: true,
                     gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.7)]),
                     barWidth: 4,
@@ -579,8 +587,8 @@ class _ReportsScreenState extends State<ReportsScreen> with ThemeAwareMixin {
                     },
                   ),
                 ),
-              ),
-            ),
+              );
+            }),
           ),
         ],
       ),

@@ -3,9 +3,16 @@ import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class Onboarding4Screen extends StatelessWidget {
+class Onboarding4Screen extends StatefulWidget {
   final PageController? controller;
   const Onboarding4Screen({super.key, this.controller});
+
+  @override
+  State<Onboarding4Screen> createState() => _Onboarding4ScreenState();
+}
+
+class _Onboarding4ScreenState extends State<Onboarding4Screen> {
+  bool _acceptedKVKK = false;
 
   @override
   Widget build(BuildContext context) {
@@ -98,17 +105,47 @@ class Onboarding4Screen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [_dot(), _dot(), _dot(), _dot(active: true)],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+                    // KVKK Checkbox
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Checkbox(
+                            value: _acceptedKVKK,
+                            onChanged: (val) {
+                              setState(() => _acceptedKVKK = val ?? false);
+                            },
+                            activeColor: AppColors.primary,
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 10.0),
+                              child: const Text(
+                                'KVKK ve Açık Rıza Metnini okudum ve onaylıyorum. Sağlık verilerimin anonimleştirilerek güvenli veritabanında işlenmesini ve analiz edilmesini kabul ediyorum.',
+                                style: TextStyle(fontSize: 11, color: AppColors.mutedForeground, height: 1.4),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
+                        onPressed: _acceptedKVKK ? () async {
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setBool('onboarding_completed', true);
                           if (context.mounted) {
                             context.go('/register');
                           }
-                        },
+                        } : null,
                         child: const Text('Hesap Oluştur'),
                       ),
                     ),
@@ -116,13 +153,13 @@ class Onboarding4Screen extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
-                        onPressed: () async {
+                        onPressed: _acceptedKVKK ? () async {
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setBool('onboarding_completed', true);
                           if (context.mounted) {
                             context.go('/login');
                           }
-                        },
+                        } : null,
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 56),
                           shape: RoundedRectangleBorder(

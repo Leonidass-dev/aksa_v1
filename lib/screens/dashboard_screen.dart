@@ -336,32 +336,39 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _handleManualSync() async {
-    HapticFeedback.mediumImpact();
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    scaffoldMessenger.showSnackBar(
-      const SnackBar(
-        content: Row(children: [
-          SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
-          SizedBox(width: 12),
-          Text('Akıllı saatten veri çekiliyor...'),
-        ]),
-        duration: Duration(seconds: 3),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-
-    final ok = await HealthService.syncFromDevice(force: true);
-    if (mounted) await _loadTodayData();
-
-    scaffoldMessenger.hideCurrentSnackBar();
-    if (ok) {
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
+    
+    try {
+      HapticFeedback.mediumImpact();
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
       scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('Veri başarıyla güncellendi! ✅'), backgroundColor: AppColors.secondary),
+        const SnackBar(
+          content: Row(children: [
+            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+            SizedBox(width: 12),
+            Text('Akıllı saatten veri çekiliyor...'),
+          ]),
+          duration: Duration(seconds: 3),
+          backgroundColor: AppColors.primary,
+        ),
       );
-    } else {
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(content: Text('Veri çekilemedi. Health Connect izinlerini kontrol edin. ❌'), backgroundColor: Colors.redAccent),
-      );
+
+      final ok = await HealthService.syncFromDevice(force: true);
+      if (mounted) await _loadTodayData();
+
+      scaffoldMessenger.hideCurrentSnackBar();
+      if (ok) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('Veri başarıyla güncellendi! ✅'), backgroundColor: AppColors.secondary),
+        );
+      } else {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('Veri çekilemedi. Health Connect izinlerini kontrol edin. ❌'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
     }
   }
 
@@ -451,11 +458,33 @@ class _DashboardScreenState extends State<DashboardScreen>
                           style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                       ),
-                    DashboardMetricsGrid(
-                      todayEntry: _todayEntry,
-                      onBPTap: () => BPEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
-                      onStressTap: () => StressEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
-                    ),
+                    if (_todayEntry == null || (_todayEntry!.steps == 0 && _todayEntry!.sleepHours == 0 && _todayEntry!.heartRate == 0 && _todayEntry!.activeCalories == 0))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20, bottom: 20),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              Icon(Icons.monitor_heart_outlined, size: 48, color: Theme.of(context).colorScheme.outlineVariant),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Bugün için henüz veri yok.',
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Aşağıdaki + butonunu kullanarak manuel veri ekleyebilirsiniz.',
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      DashboardMetricsGrid(
+                        todayEntry: _todayEntry,
+                        onBPTap: () => BPEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
+                        onStressTap: () => StressEntrySheet(todayEntry: _todayEntry, onSaved: _loadTodayData).show(context),
+                      ),
                     const SizedBox(height: 24),
                     WaterTrackerCard(
                       currentMl: _todayEntry?.waterMl ?? 0,

@@ -21,9 +21,11 @@ class AssistantScreen extends StatefulWidget {
 
 class _AssistantScreenState extends State<AssistantScreen> {
   final TextEditingController _controller = TextEditingController();
-  final List<ChatMessage> _messages = [];
+  static final List<ChatMessage> _messages = [];
+  static bool _hasLoadedHistory = false;
   bool _isLoading = false;
-  bool _hasUserMessages = false;
+
+  bool get _hasUserMessages => _messages.any((m) => m.isUser);
 
   static const _quickQuestions = [
     'Bugün ne yemeliyim?',
@@ -37,7 +39,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
   @override
   void initState() {
     super.initState();
-    _loadChatHistory();
+    if (!_hasLoadedHistory) {
+      _loadChatHistory();
+    }
   }
 
   @override
@@ -66,15 +70,18 @@ class _AssistantScreenState extends State<AssistantScreen> {
           }
         } else {
           // İlk kez açılıyor — karşılama mesajı
-          _messages.add(
-            ChatMessage(
-              text:
-                  "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
+          if (_messages.isEmpty) {
+            _messages.add(
+              ChatMessage(
+                text:
+                    "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
+                isUser: false,
+                timestamp: DateTime.now(),
+              ),
+            );
+          }
         }
+        _hasLoadedHistory = true;
       });
     }
   }
@@ -87,7 +94,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
     setState(() {
       _messages.insert(0, ChatMessage(text: text, isUser: true, timestamp: DateTime.now()));
       _isLoading = true;
-      _hasUserMessages = true;
     });
 
     final res = await ApiService.sendAssistantMessage(text);
@@ -195,7 +201,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                                     if (success) {
                                       setState(() {
                                         _messages.clear();
-                                        _hasUserMessages = false;
+                                        _hasLoadedHistory = true;
                                         _messages.add(ChatMessage(
                                           text: "Merhaba! Ben AKSA Sağlık Asistanı. Size temel konularda sağlık ve yaşam tavsiyeleri verebilirim. (Tanı ve tedavi sağlayamam).\n\nNasıl hissediyorsunuz?",
                                           isUser: false,

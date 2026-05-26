@@ -15,6 +15,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     JSON,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -96,6 +97,7 @@ class HealthRecord(Base):
     """
 
     __tablename__ = "health_records"
+    __table_args__ = (UniqueConstraint("user_id", "record_date", name="uq_user_date"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
@@ -224,6 +226,7 @@ class DailyDietPlan(Base):
     """Günü birlik diyet planı önbelleği."""
 
     __tablename__ = "daily_diet_plans"
+    __table_args__ = (UniqueConstraint("user_id", "plan_date", name="uq_user_diet_date"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)

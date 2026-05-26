@@ -44,36 +44,39 @@ async def get_current_user(
     """
     Firebase ID token doğrular ve uid döner.
 
-    - Token yoksa veya Firebase başlatılmamışsa → dev mode UID döner.
-    - Token geçersizse → 401 Unauthorized.
+    - DEV_MODE=true ise ve token yoksa dev mode UID döner.
+    - Token geçersizse veya auth yoksa → 401 Unauthorized.
     """
-    # Header yoksa dev mode
+    is_dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
+    
+    # Header yoksa
     if not authorization:
-        return DEV_MODE_UID
+        if is_dev_mode:
+            return DEV_MODE_UID
+        raise HTTPException(status_code=401, detail="Yetkilendirme başlığı (Authorization header) eksik.")
 
     # Bearer token çıkar
     token = authorization.replace("Bearer ", "").strip()
     if not token:
-        return DEV_MODE_UID
-
-    # Firebase başlatılmamışsa dev mode ama token varsa UID'yi token içinden oku
-    if not _firebase_initialized:
-        try:
-            import base64
-            import json
-
-            # JWT formatı: header.payload.signature
-            payload_b64 = token.split(".")[1]
-            # Base64 padding ekle
-            payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
-            payload_json = base64.urlsafe_b64decode(payload_b64).decode("utf-8")
-            decoded_unverified = json.loads(payload_json)
-            # Firebase token'ında uid genelde 'user_id' alanındadır
-            extracted_uid = decoded_unverified.get("user_id", DEV_MODE_UID)
-            return extracted_uid
-        except Exception as e:
-            logger.warning(f"DEV MODE token decode error: {e}")
+        if is_dev_mode:
             return DEV_MODE_UID
+        raise HTTPException(status_code=401, detail="Token bulunamadı.")
+
+    # Firebase başlatılmamışsa
+    if not _firebase_initialized:
+        if is_dev_mode:
+            # Geliştirme kolaylığı için JWT payload kısmını base64 decode et
+            try:
+                import base64
+                import json
+                payload_b64 = token.split(".")[1]
+                payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+                payload_json = base64.urlsafe_b64decode(payload_b64).decode("utf-8")
+                decoded_unverified = json.loads(payload_json)
+                return decoded_unverified.get("user_id", DEV_MODE_UID)
+            except Exception:
+                return DEV_MODE_UID
+        raise HTTPException(status_code=500, detail="Firebase kimlik doğrulama yapılandırılmamış.")
 
     try:
         decoded = firebase_auth.verify_id_token(token)

@@ -85,7 +85,12 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.imageAnalysisTimeout);
 
       if (response.statusCode == 200) {
-        return FoodAnalysisResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+        try {
+          return FoodAnalysisResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+        } catch (formatException) {
+          AppLogger.error('Invalid JSON response: $formatException');
+          return null;
+        }
       }
     } catch (e) {
       AppLogger.error('Food analysis hatası: $e');
@@ -109,8 +114,12 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.apiTimeout);
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        return FoodAnalysisResult.fromJson(data);
+        try {
+          final data = jsonDecode(utf8.decode(response.bodyBytes));
+          return FoodAnalysisResult.fromJson(data);
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Manual food save hatası: $e');
@@ -129,9 +138,13 @@ class ApiServiceImpl implements IApiService {
       ).timeout(AppConstants.longApiTimeout);
       
       if (res.statusCode == 200) {
-        return DietPlanResult.fromJson(
-          jsonDecode(utf8.decode(res.bodyBytes)),
-        );
+        try {
+          return DietPlanResult.fromJson(
+            jsonDecode(utf8.decode(res.bodyBytes)),
+          );
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Diet plan API hatası: $e');
@@ -153,9 +166,13 @@ class ApiServiceImpl implements IApiService {
         body: jsonEncode({'history': history, 'today': today}),
       ).timeout(AppConstants.longApiTimeout);
       if (res.statusCode == 200) {
-        return AnomalyApiResult.fromJson(
-          jsonDecode(utf8.decode(res.bodyBytes)),
-        );
+        try {
+          return AnomalyApiResult.fromJson(
+            jsonDecode(utf8.decode(res.bodyBytes)),
+          );
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Anomaly API hatası: $e');
@@ -176,9 +193,13 @@ class ApiServiceImpl implements IApiService {
         body: jsonEncode(req.toJson()),
       ).timeout(AppConstants.longApiTimeout);
       if (res.statusCode == 200) {
-        return ExerciseApiResult.fromJson(
-          jsonDecode(utf8.decode(res.bodyBytes)),
-        );
+        try {
+          return ExerciseApiResult.fromJson(
+            jsonDecode(utf8.decode(res.bodyBytes)),
+          );
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Exercise API hatası: $e');
@@ -219,7 +240,11 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.longApiTimeout);
 
       if (response.statusCode == 200) {
-        return RiskApiResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+        try {
+          return RiskApiResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Risk score hatası: $e');
@@ -235,7 +260,11 @@ class ApiServiceImpl implements IApiService {
           .get(Uri.parse('$_baseUrl/risk-score/demo'))
           .timeout(AppConstants.longApiTimeout);
       if (response.statusCode == 200) {
-        return RiskApiResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+        try {
+          return RiskApiResult.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Demo risk API hatası: $e');
@@ -258,8 +287,12 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.longApiTimeout);
 
       if (response.statusCode == 200) {
-        final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
-        return list.map((e) => RiskHistoryItem.fromJson(e)).toList();
+        try {
+          final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+          return list.map((e) => RiskHistoryItem.fromJson(e)).toList();
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Risk history hatası: $e');
@@ -282,8 +315,12 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.longApiTimeout);
 
       if (response.statusCode == 200) {
-        final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
-        return list.map((e) => MealHistoryItem.fromJson(e)).toList();
+        try {
+          final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+          return list.map((e) => MealHistoryItem.fromJson(e)).toList();
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Meal history hatası: $e');
@@ -307,9 +344,13 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.chatApiTimeout);
 
       if (response.statusCode == 200) {
-        return AssistantChatResponse.fromJson(
-          jsonDecode(utf8.decode(response.bodyBytes)),
-        );
+        try {
+          return AssistantChatResponse.fromJson(
+            jsonDecode(utf8.decode(response.bodyBytes)),
+          );
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Assistant API hatası: $e');
@@ -331,9 +372,13 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.apiTimeout);
 
       if (response.statusCode == 200) {
-        return MoodAdviceResponse.fromJson(
-          jsonDecode(utf8.decode(response.bodyBytes)),
-        );
+        try {
+          return MoodAdviceResponse.fromJson(
+            jsonDecode(utf8.decode(response.bodyBytes)),
+          );
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Mood Advice API hatası: $e');
@@ -356,8 +401,12 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.chatApiTimeout);
 
       if (response.statusCode == 200) {
-        final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
-        return list.map((e) => ChatHistoryItem.fromJson(e)).toList();
+        try {
+          final list = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+          return list.map((e) => ChatHistoryItem.fromJson(e)).toList();
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Chat history hatası: $e');
@@ -489,9 +538,13 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.chatApiTimeout);
 
       if (response.statusCode == 200) {
-        return WeeklyDigestResponse.fromJson(
-          jsonDecode(utf8.decode(response.bodyBytes)),
-        );
+        try {
+          return WeeklyDigestResponse.fromJson(
+            jsonDecode(utf8.decode(response.bodyBytes)),
+          );
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Weekly digest hatası: $e');
@@ -512,9 +565,13 @@ class ApiServiceImpl implements IApiService {
           .timeout(AppConstants.longApiTimeout);
 
       if (response.statusCode == 200) {
-        return ProgressSummaryResponse.fromJson(
-          jsonDecode(utf8.decode(response.bodyBytes)),
-        );
+        try {
+          return ProgressSummaryResponse.fromJson(
+            jsonDecode(utf8.decode(response.bodyBytes)),
+          );
+        } catch (e) {
+          AppLogger.error('Invalid JSON response: $e');
+        }
       }
     } catch (e) {
       AppLogger.error('Progress summary hatası: $e');
