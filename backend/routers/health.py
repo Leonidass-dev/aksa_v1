@@ -141,7 +141,7 @@ async def save_health(
     Aynı gün için tekrar çağrılırsa mevcut kaydı günceller (upsert).
     """
     user = await crud.get_or_create_user(db, uid)
-    record = await crud.save_health_record(db, user, req.model_dump())
+    record = await crud.save_health_record(db, user, req.model_dump(exclude_unset=True))
     return _record_to_response(record)
 
 

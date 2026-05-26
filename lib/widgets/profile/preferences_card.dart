@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/theme_notifier.dart';
 import '../../widgets/common_widgets.dart';
+import '../../services/notification_service.dart';
 
 /// Tercihler kartı — bildirim, dark mode ve gizlilik ayarları.
 class PreferencesCard extends StatefulWidget {
@@ -44,6 +45,11 @@ class _PreferencesCardState extends State<PreferencesCard> {
   Future<void> _savePreference(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
+    
+    // Bildirim ayarı değiştiyse arka plan servisini güncelle
+    if (key.startsWith('pref_') && key.contains('notif')) {
+      await NotificationService.scheduleNudges();
+    }
   }
 
   @override

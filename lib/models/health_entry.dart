@@ -90,7 +90,7 @@ class HealthEntry {
         return;
       }
       if (isDevice && skipZeroOnDevice) return;
-      if (isDevice) map[key] = value;
+      map[key] = value;
     }
 
     put('steps', steps);

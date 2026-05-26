@@ -134,15 +134,8 @@ async def save_health_record(
         "mood",
         "ml_features",
     ]:
-        new_val = data.get(field)
-        if new_val is not None:
-            # health_connect kaynağından gelen 0 değerler meşrudur (kullanıcı hareket etmemiş olabilir)
-            is_device = data.get("source") == "health_connect"
-            if isinstance(new_val, (int, float)):
-                if new_val > 0 or is_device:
-                    setattr(record, field, new_val)
-            elif new_val:
-                setattr(record, field, new_val)
+        if field in data:
+            setattr(record, field, data[field])
 
     if "source" in data:
         record.source = data["source"]
@@ -423,11 +416,11 @@ async def get_chat_history(
     stmt = (
         select(ChatMessage)
         .where(ChatMessage.user_id == user.id)
-        .order_by(ChatMessage.created_at)
+        .order_by(desc(ChatMessage.created_at))
         .limit(limit)
     )
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    return list(result.scalars().all())[::-1]
 
 
 async def clear_chat_history(db: AsyncSession, user: User) -> bool:

@@ -1,27 +1,28 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:aksa_v1/utils/app_logger.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/bmi_utils.dart';
 import '../widgets/theme_aware_state.dart';
-import '../widgets/profile/body_metrics_card.dart';
-import '../widgets/profile/health_goals_card.dart';
+import '../widgets/common_widgets.dart';
+import '../widgets/profile/metrics_and_goals_card.dart';
 import '../widgets/profile/preferences_card.dart';
 import '../widgets/profile/about_card.dart';
 import '../widgets/profile/sign_out_button.dart';
 import '../widgets/profile/edit_profile_sheet.dart';
 import '../widgets/profile/weight_update_sheet.dart';
+import '../widgets/profile/height_update_sheet.dart';
 import '../widgets/profile/profile_dialogs.dart';
 import '../widgets/profile/health_goals_sheet.dart';
 import '../services/health_service.dart';
-import '../widgets/profile/health_id_card.dart';
+import '../widgets/profile/medical_id_card.dart';
 import '../widgets/profile/activity_rings.dart';
-import '../widgets/profile/integrations_card.dart';
-import '../widgets/profile/device_center_card.dart';
-import '../widgets/profile/clinical_profile_card.dart';
-import '../widgets/profile/report_export_card.dart';
+import '../widgets/profile/sync_hub_card.dart';
 import '../widgets/profile/profile_skeleton.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -88,8 +89,8 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) return;
     setState(() {
-      _fullName = u.displayName ?? '';
-      _photoUrl = u.photoURL ?? '';
+      if (_fullName.isEmpty) _fullName = u.displayName ?? '';
+      if (_photoUrl.isEmpty) _photoUrl = u.photoURL ?? '';
     });
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(u.uid).get();
@@ -171,6 +172,9 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
           if (validDays > 0) {
             _currentAvgSteps = totalSteps / validDays;
             _currentAvgSleep = totalSleep / validDays;
+          } else {
+            _currentAvgSteps = 0;
+            _currentAvgSleep = 0;
           }
         });
       }
@@ -206,6 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
       fullName: _fullName, bio: _bio, age: _age,
       gender: _gender, bloodType: _bloodType, 
       allergies: _allergies.join(', '), emergencyContact: _emergencyContact,
+      dietPreference: _dietPreference,
       height: _height, weight: _userWeight,
       mode: mode,
       onSaved: (result) {
@@ -217,6 +222,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
           _bloodType = result.bloodType;
           _allergies = result.allergies.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
           _emergencyContact = result.emergencyContact;
+          _dietPreference = result.dietPreference;
           _height = result.height;
           _userWeight = result.weight;
         });
@@ -298,7 +304,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                           ),
                           const SizedBox(height: 16),
 
-                          BodyMetricsCard(
+                          MetricsAndGoalsCard(
                             bmi: _bmi,
                             bmiCategory: _bmiCategory,
                             bmiColor: _bmiColor,
@@ -306,48 +312,32 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                             weight: _userWeight,
                             age: _age,
                             gender: _gender,
-                            onEdit: () => _showEditProfileSheet(mode: EditMode.metrics),
+                            goals: _buildGoalItems(),
+                            onEditMetrics: () => _showEditProfileSheet(mode: EditMode.metrics),
+                            onEditGoals: _showHealthGoalsSheet,
                             onWeightTap: () => WeightUpdateSheet(
                               currentWeight: _userWeight,
                               userHeight: _height,
                               userAge: _age,
                               onSaved: (w) => setState(() => _userWeight = w),
                             ).show(context),
-                          ),
-
-                          // ═══ KLİNİK PROFİL ═══
-                          _sectionHeader('Klinik Profil', Icons.medical_services_outlined),
-
-                          ClinicalProfileCard(
-                            bloodType: _bloodType,
-                            allergies: _allergies,
-                            dietPreference: _dietPreference,
-                            onEdit: () => _showEditProfileSheet(mode: EditMode.identity),
+                            onHeightTap: () => HeightUpdateSheet(
+                              currentHeight: _height,
+                              userWeight: _userWeight,
+                              userAge: _age,
+                              onSaved: (h) => setState(() => _height = h),
+                            ).show(context),
                           ),
                           const SizedBox(height: 16),
 
-                          // 3. Sağlık Hedefleri
-                          HealthGoalsCard(
-                            goals: _buildGoalItems(),
-                            onEdit: _showHealthGoalsSheet,
-                          ),
-                          const SizedBox(height: 16),
-
-                          // 4. Sağlık Raporu Dışa Aktarma
-                          const ReportExportCard(),
 
                           // ═══ CİHAZ & BAĞLANTILAR ═══
                           _sectionHeader('Cihaz & Bağlantılar', Icons.devices_rounded),
 
-                          // 5. Cihaz Merkezi (Dinamik Kaynak Takibi)
-                          DeviceCenterCard(
+                          SyncHubCard(
                             data: HealthService.getLastSyncSourceInfo(),
                             lastSyncTime: _lastSyncTime,
                           ),
-                          const SizedBox(height: 16),
-
-                          // 6. Bağlantı Merkezi
-                          const IntegrationsCard(),
 
                           // ═══ AYARLAR ═══
                           _sectionHeader('Ayarlar', Icons.settings_outlined),
@@ -357,12 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
                             onPrivacyTap: () => ProfileDialogs.showPrivacy(context),
                           ),
                           const SizedBox(height: 16),
-                          AboutCard(
-                            onHelpTap: () => ProfileDialogs.showHelp(context),
-                            onTermsTap: () => ProfileDialogs.showTerms(context),
-                            onPrivacyPolicyTap: () => ProfileDialogs.showPrivacyPolicy(context),
-                            onDisclaimerTap: () => ProfileDialogs.showMedicalDisclaimer(context),
-                          ),
+                          const AboutCard(),
                           const SizedBox(height: 32),
                           
                           // 8. Çıkış Butonu
@@ -391,7 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
 
   Widget _buildSliverHeader(BuildContext context) {
     return SliverAppBar(
-      expandedHeight: 280,
+      expandedHeight: 460, // Increased to fit the new MedicalIdCard
       pinned: true,
       backgroundColor: AppColors.primary,
       elevation: 0,
@@ -413,13 +398,17 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                HealthIdCard(
+                MedicalIdCard(
                   name: _fullName,
+                  photoUrl: _photoUrl,
                   bloodType: _bloodType,
                   age: _age,
                   gender: _gender,
-                  photoUrl: _photoUrl,
-                  onTap: () => _showEditProfileSheet(mode: EditMode.identity),
+                  allergies: _allergies,
+                  dietPreference: _dietPreference,
+                  emergencyContact: _emergencyContact,
+                  onEdit: () => _showEditProfileSheet(mode: EditMode.identity),
+                  onPhotoTap: _pickImage,
                 ),
               ],
             ),
@@ -427,5 +416,37 @@ class _ProfileScreenState extends State<ProfileScreen> with ThemeAwareMixin {
         ),
       ),
     );
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      
+      if (image != null) {
+        // Read image bytes and convert to base64 for saving
+        final bytes = await image.readAsBytes();
+        final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        
+        setState(() {
+          _photoUrl = base64String;
+        });
+        
+        // Save to Firebase via UserProfileService
+        // Assuming we update the profile with the new photoUrl
+        final profile = await UserProfileService.getProfile();
+        if (profile != null) {
+          await UserProfileService.saveProfile(profile.copyWith(photoUrl: base64String));
+        }
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profil fotoğrafı güncellendi.')),
+          );
+        }
+      }
+    } catch (e) {
+      AppLogger.error('Fotoğraf seçilirken hata: $e');
+    }
   }
 }

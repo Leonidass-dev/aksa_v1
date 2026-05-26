@@ -157,7 +157,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _silentSyncAndLoad() async {
     if (_isSyncing) return;
-    _isSyncing = true;
+    if (mounted) setState(() => _isSyncing = true);
+    else _isSyncing = true;
 
     try {
       await HealthService.syncFromDevice();
@@ -215,6 +216,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         });
       } else {
         setState(() {
+          _todayEntry = null;
           _isDataMissing = true;
         });
       }
@@ -351,6 +353,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final ok = await HealthService.syncFromDevice(force: true);
     if (mounted) await _loadTodayData();
 
+    scaffoldMessenger.hideCurrentSnackBar();
     if (ok) {
       scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('Veri başarıyla güncellendi! ✅'), backgroundColor: AppColors.secondary),

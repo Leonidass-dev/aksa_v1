@@ -129,7 +129,7 @@ class HealthDataParser {
     }
 
     // ── Kaynak kümeleme: Giyilebilir cihaz öncelikli çözümleme ────
-    final totalSteps = _resolveSourceValue(stepsBySrc);
+    final totalSteps = _resolveSourceValue(stepsBySrc, useMax: true);
     final activeCalories = _resolveSourceValue(activeCalBySrc, useMax: true);
     final totalCalories = _resolveSourceValue(totalCalBySrc, useMax: true);
     final distanceM = _resolveSourceValue(distanceBySrc, useMax: true);
@@ -145,11 +145,11 @@ class HealthDataParser {
     double finalTotalSleepMin = sleepAsleepResolved > 0 ? sleepAsleepResolved : sleepSessionResolved;
 
     // Anlık metrikler için giyilebilir öncelikli son değer seçimi
-    final latestHeartRate = _resolveLatestValue(hrBySrc);
-    final latestRestingHr = _resolveLatestValue(rhrBySrc);
-    final latestSpo2 = _resolveLatestValue(spo2BySrc);
-    final latestSystolic = _resolveLatestValue(sysBySrc);
-    final latestDiastolic = _resolveLatestValue(diaBySrc);
+    final latestHeartRateData = _resolveLatestValue(hrBySrc);
+    final latestRestingHrData = _resolveLatestValue(rhrBySrc);
+    final latestSpo2 = _resolveLatestValue(spo2BySrc)?.$1 ?? 0;
+    final latestSystolic = _resolveLatestValue(sysBySrc)?.$1 ?? 0;
+    final latestDiastolic = _resolveLatestValue(diaBySrc)?.$1 ?? 0;
 
     if (stepsBySrc.isNotEmpty) {
       AppLogger.debug("Adım kaynakları: $stepsBySrc → Seçilen: $totalSteps");
@@ -161,13 +161,13 @@ class HealthDataParser {
 
     // ── Nabız Seçim Mantığı ──
     // İyileştirme: Eğer aktif nabız (HEART_RATE) gelmiyorsa, dinlenik nabzı (RESTING_HEART_RATE) yedek olarak kullan.
-    double finalHR = latestHeartRate > 0 ? latestHeartRate : latestRestingHr;
+    double finalHR = latestHeartRateData != null ? latestHeartRateData.$1 : (latestRestingHrData?.$1 ?? 0);
     DateTime? finalHRTime;
 
-    if (latestHeartRate > 0) {
-      finalHRTime = hrBySrc.values.map((v) => v.$2).reduce((a, b) => a.isAfter(b) ? a : b);
-    } else if (latestRestingHr > 0) {
-      finalHRTime = rhrBySrc.values.map((v) => v.$2).reduce((a, b) => a.isAfter(b) ? a : b);
+    if (latestHeartRateData != null) {
+      finalHRTime = latestHeartRateData.$2;
+    } else if (latestRestingHrData != null) {
+      finalHRTime = latestRestingHrData.$2;
     }
 
     if (finalHR <= 0 && todayEntry != null) {
@@ -175,7 +175,7 @@ class HealthDataParser {
       finalHRTime = todayEntry.heartRateTime;
       AppLogger.debug("ℹ️ [HealthParser] Cihazdan yeni nabız/dinlenik nabız gelmedi, eski veri korunuyor: $finalHR (Zaman: $finalHRTime)");
     } else if (finalHR > 0) {
-      String typeStr = latestHeartRate > 0 ? "AKTİF" : "DİNLENİK";
+      String typeStr = latestHeartRateData != null ? "AKTİF" : "DİNLENİK";
       AppLogger.debug("✅ [HealthParser] Cihazdan taze $typeStr nabız alındı: $finalHR (Zaman: $finalHRTime)");
     }
 
@@ -183,7 +183,7 @@ class HealthDataParser {
       steps: totalSteps > 0 ? totalSteps : (todayEntry?.steps ?? 0),
       heartRate: finalHR,
       heartRateTime: finalHRTime,
-      restingHeartRate: latestRestingHr > 0 ? latestRestingHr : (todayEntry?.restingHeartRate ?? 0),
+      restingHeartRate: (latestRestingHrData?.$1 ?? 0) > 0 ? latestRestingHrData!.$1 : (todayEntry?.restingHeartRate ?? 0),
       spo2: latestSpo2 > 0 ? latestSpo2 : (todayEntry?.spo2 ?? 0),
       stressLevel: todayEntry?.stressLevel ?? 0,
       systolic: latestSystolic > 0 ? latestSystolic : (todayEntry?.systolic ?? 0),
@@ -220,8 +220,8 @@ class HealthDataParser {
   }
 
   /// Kaynaklar arasından en güncel değeri seçer, giyilebilir cihazlara öncelik verir.
-  static double _resolveLatestValue(Map<String, (double, DateTime)> bySource) {
-    if (bySource.isEmpty) return 0;
+  static (double, DateTime)? _resolveLatestValue(Map<String, (double, DateTime)> bySource) {
+    if (bySource.isEmpty) return null;
 
     const wearableKeywords = [
       'xiaomi', 'wearable', 'mi.fitness', 'zepp', 'garmin', 
@@ -238,13 +238,13 @@ class HealthDataParser {
     if (wearableEntries.isNotEmpty) {
       // Giyilebilir cihazlar içinden en güncel olanı seç
       wearableEntries.sort((a, b) => b.value.$2.compareTo(a.value.$2));
-      return wearableEntries.first.value.$1;
+      return wearableEntries.first.value;
     }
 
     // Giyilebilir cihaz yoksa tüm kaynaklar içinden en güncelini al
     final allEntries = bySource.entries.toList();
     allEntries.sort((a, b) => b.value.$2.compareTo(a.value.$2));
-    return allEntries.first.value.$1;
+    return allEntries.first.value;
   }
 
   /// Kaynak değerleri arasından en güvenilir olanı seçer.

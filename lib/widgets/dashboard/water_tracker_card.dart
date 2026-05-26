@@ -21,10 +21,12 @@ class WaterTrackerCard extends StatelessWidget {
     required this.onAddWater,
   });
 
-  void _addWithUndo(BuildContext context, double amount) {
+  void _addWithUndo(BuildContext context, double amount) async {
     // 1. Hemen ekle (iyimser güncelleme)
     HapticFeedback.lightImpact();
-    onAddWater(amount);
+    await onAddWater(amount);
+    
+    if (!context.mounted) return;
     
     // 2. SnackBar ile Geri Al seçeneği sun
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -37,9 +39,9 @@ class WaterTrackerCard extends StatelessWidget {
         action: SnackBarAction(
           label: 'GERİ AL',
           textColor: Colors.amber,
-          onPressed: () {
+          onPressed: () async {
             // Negatif miktar göndererek geri al
-            onAddWater(-amount);
+            await onAddWater(-amount);
           },
         ),
       ),

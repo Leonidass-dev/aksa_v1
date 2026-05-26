@@ -16,6 +16,7 @@ class EditProfileSheet extends StatelessWidget {
   final String bloodType;
   final String allergies;
   final String emergencyContact;
+  final String dietPreference;
   final double height;
   final double weight;
   final EditMode mode;
@@ -30,6 +31,7 @@ class EditProfileSheet extends StatelessWidget {
     required this.bloodType,
     required this.allergies,
     required this.emergencyContact,
+    required this.dietPreference,
     required this.height,
     required this.weight,
     required this.onSaved,
@@ -49,10 +51,11 @@ class EditProfileSheet extends StatelessWidget {
         bloodType: bloodType,
         allergies: allergies,
         emergencyContact: emergencyContact,
+        dietPreference: dietPreference,
         height: height,
         weight: weight,
         mode: mode,
-        onSave: (name, bio, age, gender, bloodType, allergies, emergencyContact, height, weight) async {
+        onSave: (name, bio, age, gender, bloodType, allergies, emergencyContact, dietPref, height, weight) async {
           final u = FirebaseAuth.instance.currentUser;
           if (u == null) return;
 
@@ -68,6 +71,7 @@ class EditProfileSheet extends StatelessWidget {
             'bloodType': bloodType,
             'allergies': allergies,
             'emergencyContact': emergencyContact,
+            'dietPreference': dietPref,
             'height': height,
             'weight': weight,
           }, SetOptions(merge: true));
@@ -84,7 +88,7 @@ class EditProfileSheet extends StatelessWidget {
           onSaved(ProfileUpdateResult(
             name: name, bio: bio, age: age, gender: gender, 
             bloodType: bloodType, allergies: allergies, 
-            emergencyContact: emergencyContact, height: height, weight: weight,
+            emergencyContact: emergencyContact, dietPreference: dietPref, height: height, weight: weight,
           ));
         },
       ),
@@ -96,13 +100,13 @@ class EditProfileSheet extends StatelessWidget {
 }
 
 class ProfileUpdateResult {
-  final String name, bio, gender, bloodType, allergies, emergencyContact;
+  final String name, bio, gender, bloodType, allergies, emergencyContact, dietPreference;
   final int age;
   final double height, weight;
   const ProfileUpdateResult({
     required this.name, required this.bio, required this.age,
     required this.gender, required this.bloodType, 
-    required this.allergies, required this.emergencyContact,
+    required this.allergies, required this.emergencyContact, required this.dietPreference,
     required this.height, required this.weight,
   });
 }
@@ -115,10 +119,11 @@ class _EditProfileContent extends StatefulWidget {
   final String bloodType;
   final String allergies;
   final String emergencyContact;
+  final String dietPreference;
   final double height;
   final double weight;
   final EditMode mode;
-  final Future<void> Function(String, String, int, String, String, String, String, double, double) onSave;
+  final Future<void> Function(String, String, int, String, String, String, String, String, double, double) onSave;
 
   const _EditProfileContent({
     required this.initialName,
@@ -128,6 +133,7 @@ class _EditProfileContent extends StatefulWidget {
     required this.bloodType,
     required this.allergies,
     required this.emergencyContact,
+    required this.dietPreference,
     required this.height,
     required this.weight,
     required this.mode,
@@ -148,6 +154,7 @@ class _EditProfileContentState extends State<_EditProfileContent> {
   late String selectedBloodType;
   late TextEditingController allergyCtrl;
   late TextEditingController contactCtrl;
+  late TextEditingController dietPrefCtrl;
 
   @override
   void initState() {
@@ -161,6 +168,7 @@ class _EditProfileContentState extends State<_EditProfileContent> {
     selectedBloodType = widget.bloodType.isEmpty ? 'A Rh+' : widget.bloodType;
     allergyCtrl = TextEditingController(text: widget.allergies);
     contactCtrl = TextEditingController(text: widget.emergencyContact);
+    dietPrefCtrl = TextEditingController(text: widget.dietPreference);
   }
 
   @override
@@ -172,6 +180,7 @@ class _EditProfileContentState extends State<_EditProfileContent> {
     weightCtrl.dispose();
     allergyCtrl.dispose();
     contactCtrl.dispose();
+    dietPrefCtrl.dispose();
     super.dispose();
   }
 
@@ -287,6 +296,16 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                 ),
                 const SizedBox(height: 16),
                 TextField(
+                  controller: dietPrefCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Diyet Tercihi',
+                    hintText: 'Örn: Vegan, Vejetaryen, Glutensiz, Standart...',
+                    prefixIcon: const Icon(Icons.restaurant_menu),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
                   controller: bioCtrl,
                   maxLines: 2,
                   maxLength: 100,
@@ -335,6 +354,7 @@ class _EditProfileContentState extends State<_EditProfileContent> {
                         selectedBloodType, 
                         allergyCtrl.text.trim(),
                         contactCtrl.text.trim(),
+                        dietPrefCtrl.text.trim(),
                         heightVal, 
                         weightVal
                       );

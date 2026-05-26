@@ -88,6 +88,12 @@ class BPEntrySheet extends StatelessWidget {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () async {
+                      if (dia >= sys) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(content: Text('Küçük tansiyon, büyük tansiyondan büyük veya eşit olamaz!'), backgroundColor: Colors.red),
+                        );
+                        return;
+                      }
                       final existing = await HealthService.getTodayEntry();
                       final updated = (existing ?? HealthEntry(date: DateTime.now())).copyWith(
                         systolic: sys,

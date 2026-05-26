@@ -175,8 +175,8 @@ class DietMealItem {
         mealType: json['meal_type'] as String? ?? '',
         foodName: json['food_name'] as String? ?? '',
         portion: json['portion'] as String? ?? '',
-        calories: json['calories'] as int? ?? 0,
-        reasoning: json['reasoning'] as String? ?? '',
+        calories: int.tryParse(json['calories']?.toString() ?? '0') ?? 0,
+        reasoning: json['reasoning']?.toString() ?? '',
       );
 }
 
@@ -260,7 +260,7 @@ class AnomalyApiResult {
         anomalies: (json['anomalies'] as List? ?? [])
             .map((e) => AnomalyApiItem.fromJson(e))
             .toList(),
-        checkedMetrics: (json['checked_metrics'] ?? 0) as int,
+        checkedMetrics: int.tryParse(json['checked_metrics']?.toString() ?? '0') ?? 0,
         modelVersion: json['model_version'] ?? '',
       );
 }
@@ -480,11 +480,11 @@ class ChatHistoryItem {
 
   factory ChatHistoryItem.fromJson(Map<String, dynamic> json) =>
       ChatHistoryItem(
-        id: json['id'] as int,
-        role: json['role'] as String,
-        content: json['content'] as String,
+        id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+        role: json['role']?.toString() ?? '',
+        content: json['content']?.toString() ?? '',
         isSafe: json['is_safe'] as bool? ?? true,
-        createdAt: json['created_at'] as String,
+        createdAt: json['created_at']?.toString() ?? '',
       );
 }
 

@@ -64,14 +64,42 @@ class UserProfile {
       uid: uid,
       fullName: m['fullName'] ?? '',
       email: m['email'] ?? '',
-      age: (m['age'] ?? 25) as int,
-      height: (m['height'] ?? 170).toDouble(),
+      age: (m['age'] as num?)?.toInt() ?? 25,
+      height: (m['height'] as num?)?.toDouble() ?? 170.0,
       weight: (m['weight'] ?? 70).toDouble(),
       gender: m['gender'] ?? 'M',
       photoUrl: m['photoUrl'] as String?,
       bio: m['bio'] as String?,
       allergies: parsedAllergies,
       dietPreference: m['dietPreference'] as String?,
+    );
+  }
+
+  UserProfile copyWith({
+    String? uid,
+    String? fullName,
+    String? email,
+    int? age,
+    double? height,
+    double? weight,
+    String? gender,
+    String? photoUrl,
+    String? bio,
+    List<String>? allergies,
+    String? dietPreference,
+  }) {
+    return UserProfile(
+      uid: uid ?? this.uid,
+      fullName: fullName ?? this.fullName,
+      email: email ?? this.email,
+      age: age ?? this.age,
+      height: height ?? this.height,
+      weight: weight ?? this.weight,
+      gender: gender ?? this.gender,
+      photoUrl: photoUrl ?? this.photoUrl,
+      bio: bio ?? this.bio,
+      allergies: allergies ?? this.allergies,
+      dietPreference: dietPreference ?? this.dietPreference,
     );
   }
 

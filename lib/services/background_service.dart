@@ -68,6 +68,7 @@ void callbackDispatcher() {
         sleepHours: todayData?.sleepHours ?? 0,
         systolic: todayData?.systolic ?? 0,
         diastolic: todayData?.diastolic ?? 0,
+        heartRateResting: todayData?.restingHeartRate ?? 0,
         heartRateAvg: todayData?.heartRate ?? 0,
         spo2: todayData?.spo2 ?? 0,
         stressLevel: todayData?.stressLevel ?? 0,

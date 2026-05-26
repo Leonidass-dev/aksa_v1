@@ -120,11 +120,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (!mounted) return;
-    setState(() => _loading = false);
-
     if (result.isSuccess) {
       await _checkDeletionStatusAndRedirect();
     } else {
+      setState(() => _loading = false);
       _showError(result.errorMessage!);
     }
   }
@@ -133,11 +132,10 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
     final result = await AuthService.signInWithGoogle();
     if (!mounted) return;
-    setState(() => _loading = false);
-
     if (result.isSuccess) {
       await _checkDeletionStatusAndRedirect();
     } else {
+      setState(() => _loading = false);
       _showError(result.errorMessage!);
     }
   }
@@ -228,11 +226,10 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
     final result = await AuthService.signInWithApple();
     if (!mounted) return;
-    setState(() => _loading = false);
-
     if (result.isSuccess) {
       await _checkDeletionStatusAndRedirect();
     } else {
+      setState(() => _loading = false);
       if (result.errorMessage!.contains('Apple')) {
          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
            content: Row(
