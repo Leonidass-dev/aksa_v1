@@ -76,7 +76,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.YOUR_REVERSED_CLIENT_ID</string>
+				<string>com.googleusercontent.apps.616893123716-kr0lddc1tcqcm2ioui65964m01dit5hd</string>
 			</array>
 		</dict>
 	</array>
@@ -98,7 +98,7 @@
 	</array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>be.tramckrijte.workmanagerExample.taskId</string>
+		<string>fetchBackground</string>
 		<string>dev.flutter.background.refresh</string>
 	</array>
 </dict>

@@ -9,10 +9,15 @@ import 'package:flutter/foundation.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'interfaces/i_auth_service.dart';
 import 'api_service.dart';
+import '../firebase_options.dart';
 
 class AuthServiceImpl implements IAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+        ? DefaultFirebaseOptions.ios.iosClientId
+        : null,
+  );
 
   // Mevcut kullanıcı stream'i
   @override

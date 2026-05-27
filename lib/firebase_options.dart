@@ -65,6 +65,7 @@ class DefaultFirebaseOptions {
     projectId: 'aksa-v1-e1cf1',
     storageBucket: 'aksa-v1-e1cf1.firebasestorage.app',
     iosBundleId: 'com.example.aksaV1',
+    iosClientId: '616893123716-kr0lddc1tcqcm2ioui65964m01dit5hd.apps.googleusercontent.com',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -74,6 +75,7 @@ class DefaultFirebaseOptions {
     projectId: 'aksa-v1-e1cf1',
     storageBucket: 'aksa-v1-e1cf1.firebasestorage.app',
     iosBundleId: 'com.example.aksaV1',
+    iosClientId: '616893123716-kr0lddc1tcqcm2ioui65964m01dit5hd.apps.googleusercontent.com',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
