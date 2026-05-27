@@ -96,7 +96,7 @@ Future<void> _showNotification(int id, String title, String body) async {
   final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   
   const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+      AndroidInitializationSettings('@mipmap/launcher_icon');
   const DarwinInitializationSettings initializationSettingsIOS =
       DarwinInitializationSettings();
   const InitializationSettings initializationSettings = InitializationSettings(

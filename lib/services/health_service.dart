@@ -107,18 +107,20 @@ class HealthServiceImpl implements IHealthService {
     final permissions = types.map((e) => HealthDataAccess.READ).toList();
 
     try {
-      // Health Connect SDK Durum Kontrolü (Android 11-13 için önemli)
-      HealthConnectSdkStatus? sdkStatus;
-      try {
-        sdkStatus = await Health().getHealthConnectSdkStatus();
-      } catch (e) {
-        AppLogger.debug("Health Connect SDK durum sorgulama hatası: $e");
-        return false;
-      }
+      // Health Connect SDK Durum Kontrolü (Sadece Android — iOS'ta HealthKit her zaman mevcuttur)
+      if (Platform.isAndroid) {
+        HealthConnectSdkStatus? sdkStatus;
+        try {
+          sdkStatus = await Health().getHealthConnectSdkStatus();
+        } catch (e) {
+          AppLogger.debug("Health Connect SDK durum sorgulama hatası: $e");
+          return false;
+        }
 
-      if (sdkStatus != HealthConnectSdkStatus.sdkAvailable) {
-        AppLogger.debug("Health Connect SDK uygun değil: $sdkStatus");
-        return false;
+        if (sdkStatus != HealthConnectSdkStatus.sdkAvailable) {
+          AppLogger.debug("Health Connect SDK uygun değil: $sdkStatus");
+          return false;
+        }
       }
 
       bool authorized = await _healthFactory.requestAuthorization(
