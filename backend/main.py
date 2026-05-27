@@ -71,10 +71,12 @@ logger = logging.getLogger(__name__)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Global hata yakalandı: {exc}", exc_info=True)
+    import traceback
+    print("GLOBAL ERROR:", exc)
+    traceback.print_exc()
     return JSONResponse(
         status_code=500,
-        content={"error": "Geçici sistem hatası", "detail": "Sunucu içinde beklenmeyen bir hata oluştu."},
+        content={"error": "Geçici sistem hatası", "detail": str(exc)},
     )
 
 

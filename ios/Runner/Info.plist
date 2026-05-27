@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>fetchBackground</string>
+		<string>dev.flutter.background.refresh</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -22,10 +27,34 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.616893123716-kr0lddc1tcqcm2ioui65964m01dit5hd</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Profil fotoğrafı ve beslenme analizi için kameraya erişim gereklidir.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Adım, uyku ve nabız gibi verilerinizi analiz etmek ve size daha iyi asistanlık yapabilmek için Apple Health verilerine okuma izni istiyoruz.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Adım, uyku ve nabız gibi verilerinizi analiz etmek ve size daha iyi asistanlık yapabilmek için Apple Health verilerine okuma izni istiyoruz.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Video kaydı yapabilmeniz için mikrofona erişim gereklidir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Profil fotoğrafı ve beslenme analizi için galerinizden fotoğraf seçebilmeniz için erişim gereklidir.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -49,6 +78,12 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -65,41 +100,6 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.616893123716-kr0lddc1tcqcm2ioui65964m01dit5hd</string>
-			</array>
-		</dict>
-	</array>
-	<key>NSHealthShareUsageDescription</key>
-	<string>Adım, uyku ve nabız gibi verilerinizi analiz etmek ve size daha iyi asistanlık yapabilmek için Apple Health verilerine okuma izni istiyoruz.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Adım, uyku ve nabız gibi verilerinizi analiz etmek ve size daha iyi asistanlık yapabilmek için Apple Health verilerine okuma izni istiyoruz.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Profil fotoğrafı ve beslenme analizi için kameraya erişim gereklidir.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Profil fotoğrafı ve beslenme analizi için galerinizden fotoğraf seçebilmeniz için erişim gereklidir.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Video kaydı yapabilmeniz için mikrofona erişim gereklidir.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
-		<string>processing</string>
-		<string>remote-notification</string>
-	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>fetchBackground</string>
-		<string>dev.flutter.background.refresh</string>
 	</array>
 </dict>
 </plist>

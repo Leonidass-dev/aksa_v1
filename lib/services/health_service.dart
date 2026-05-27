@@ -89,19 +89,20 @@ class HealthServiceImpl implements IHealthService {
     final types = [
       HealthDataType.STEPS,
       HealthDataType.ACTIVE_ENERGY_BURNED,
-      HealthDataType.TOTAL_CALORIES_BURNED,
+      if (Platform.isAndroid) HealthDataType.TOTAL_CALORIES_BURNED,
       HealthDataType.HEART_RATE,
       HealthDataType.RESTING_HEART_RATE,
       HealthDataType.BLOOD_OXYGEN,
       HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
       HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
       HealthDataType.SLEEP_ASLEEP,
-      HealthDataType.SLEEP_DEEP,
-      HealthDataType.SLEEP_LIGHT,
-      HealthDataType.SLEEP_REM,
-      HealthDataType.SLEEP_SESSION,
-      HealthDataType.SLEEP_AWAKE,
-      HealthDataType.DISTANCE_DELTA,
+      if (Platform.isIOS) HealthDataType.SLEEP_IN_BED, // iOS'ta session yerine in_bed kullanilir
+      if (Platform.isAndroid) HealthDataType.SLEEP_DEEP,
+      if (Platform.isAndroid) HealthDataType.SLEEP_LIGHT,
+      if (Platform.isAndroid) HealthDataType.SLEEP_REM,
+      if (Platform.isAndroid) HealthDataType.SLEEP_SESSION,
+      if (Platform.isAndroid) HealthDataType.SLEEP_AWAKE,
+      if (Platform.isAndroid) HealthDataType.DISTANCE_DELTA,
     ];
 
     final permissions = types.map((e) => HealthDataAccess.READ).toList();
@@ -123,12 +124,19 @@ class HealthServiceImpl implements IHealthService {
         }
       }
 
-      bool authorized = await _healthFactory.requestAuthorization(
-        types,
-        permissions: permissions,
-      );
+      bool authorized = false;
+      try {
+        authorized = await _healthFactory.requestAuthorization(
+          types,
+          permissions: permissions,
+        );
+      } catch (e) {
+        AppLogger.error("HealthKit izin isteği başarısız. Ücretsiz geliştirici hesabı kullanılıyorsa Apple Health erişimi engellenmiş olabilir: $e");
+        return false;
+      }
+      
       if (!authorized) {
-        AppLogger.debug("Health Connect izini reddedildi.");
+        AppLogger.debug("Health Connect / HealthKit izni reddedildi.");
         return false;
       }
 
@@ -151,19 +159,20 @@ class HealthServiceImpl implements IHealthService {
       // STEPS hariç diğer tipler — adımı zaten yukarıda ayrıca çektik
       final remainingTypes = [
         HealthDataType.ACTIVE_ENERGY_BURNED,
-        HealthDataType.TOTAL_CALORIES_BURNED,
+        if (Platform.isAndroid) HealthDataType.TOTAL_CALORIES_BURNED,
         HealthDataType.HEART_RATE,
         HealthDataType.RESTING_HEART_RATE,
         HealthDataType.BLOOD_OXYGEN,
         HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
         HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
         HealthDataType.SLEEP_ASLEEP,
-        HealthDataType.SLEEP_DEEP,
-        HealthDataType.SLEEP_LIGHT,
-        HealthDataType.SLEEP_REM,
-        HealthDataType.SLEEP_SESSION,
-        HealthDataType.SLEEP_AWAKE,
-        HealthDataType.DISTANCE_DELTA,
+        if (Platform.isIOS) HealthDataType.SLEEP_IN_BED,
+        if (Platform.isAndroid) HealthDataType.SLEEP_DEEP,
+        if (Platform.isAndroid) HealthDataType.SLEEP_LIGHT,
+        if (Platform.isAndroid) HealthDataType.SLEEP_REM,
+        if (Platform.isAndroid) HealthDataType.SLEEP_SESSION,
+        if (Platform.isAndroid) HealthDataType.SLEEP_AWAKE,
+        if (Platform.isAndroid) HealthDataType.DISTANCE_DELTA,
       ];
 
       List<HealthDataPoint> healthData = await _healthFactory
@@ -439,18 +448,15 @@ class HealthService {
       final types = [
         HealthDataType.STEPS,
         HealthDataType.HEART_RATE,
-        HealthDataType.SLEEP_SESSION,
+        if (Platform.isAndroid) HealthDataType.SLEEP_SESSION,
+        if (Platform.isIOS) HealthDataType.SLEEP_IN_BED,
       ];
 
       // iOS'ta Health Connect (Google) değil HealthKit (Apple) kullanılır.
-      // Bu yüzden SDK varlık kontrolüne (getHealthConnectSdkStatus) gerek yoktur, sistemde yerleşiktir.
+      // Apple, gizlilik gereği okuma izinlerinin sorgulanmasına (hasPermissions) izin vermez.
+      // Adımlar başarıyla okunabildiği için doğrudan 'connected' döndürüyoruz.
       if (Platform.isIOS) {
-        try {
-          final hasPerms = await Health().hasPermissions(types);
-          return hasPerms == true ? 'connected' : 'needs_permission';
-        } catch (_) {
-          return 'available';
-        }
+        return 'connected';
       }
 
       final status = await Health().getHealthConnectSdkStatus();
@@ -485,19 +491,20 @@ class HealthService {
       final types = [
         HealthDataType.STEPS,
         HealthDataType.ACTIVE_ENERGY_BURNED,
-        HealthDataType.TOTAL_CALORIES_BURNED,
+        if (Platform.isAndroid) HealthDataType.TOTAL_CALORIES_BURNED,
         HealthDataType.HEART_RATE,
         HealthDataType.RESTING_HEART_RATE,
         HealthDataType.BLOOD_OXYGEN,
         HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
         HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
         HealthDataType.SLEEP_ASLEEP,
-        HealthDataType.SLEEP_DEEP,
-        HealthDataType.SLEEP_LIGHT,
-        HealthDataType.SLEEP_REM,
-        HealthDataType.SLEEP_SESSION,
-        HealthDataType.SLEEP_AWAKE,
-        HealthDataType.DISTANCE_DELTA,
+        if (Platform.isIOS) HealthDataType.SLEEP_IN_BED,
+        if (Platform.isAndroid) HealthDataType.SLEEP_DEEP,
+        if (Platform.isAndroid) HealthDataType.SLEEP_LIGHT,
+        if (Platform.isAndroid) HealthDataType.SLEEP_REM,
+        if (Platform.isAndroid) HealthDataType.SLEEP_SESSION,
+        if (Platform.isAndroid) HealthDataType.SLEEP_AWAKE,
+        if (Platform.isAndroid) HealthDataType.DISTANCE_DELTA,
       ];
       final permissions = types.map((_) => HealthDataAccess.READ).toList();
       

@@ -1,6 +1,6 @@
 import Flutter
 import UIKit
-import workmanager
+import workmanager_apple
 import flutter_local_notifications
 
 @main
