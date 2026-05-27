@@ -1,155 +1,225 @@
 # AKSA (Akıllı Kişisel Sağlık Asistanı) 🧬🚀
 
-AKSA, akıllı saat sensör verilerini (Health Connect / HealthKit) ve kullanıcı profillerini kullanarak, **Makine Öğrenimi (Yapay Zeka)** destekli kişiselleştirilmiş analizler sunan, yeni nesil bir **Akıllı Sağlık Asistanı** mobil uygulamasıdır. 
+![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-blue)
+![Flutter](https://img.shields.io/badge/Framework-Flutter%203.x-02569B?logo=flutter)
+![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi)
+![AI](https://img.shields.io/badge/AI-PyTorch%20%7C%20XGBoost-EE4C2C?logo=pytorch)
 
-Bu proje, gelişmiş bir **Flutter** mobil arayüzü ile derin öğrenme ve büyük veri işleyen bir **Python (FastAPI)** backend sunucusunun entegrasyonundan oluşur. Proje, akademik bir tezin 7 ana modülünün mobil platforma aktarılmış halidir.
+AKSA, akıllı saat sensör verilerini (Health Connect / HealthKit) ve detaylı kullanıcı profillerini kullanarak, **Makine Öğrenimi (Yapay Zeka)** ve **Büyük Dil Modelleri (LLM)** destekli hiper-kişiselleştirilmiş analizler sunan, yeni nesil bir **Akıllı Sağlık Asistanı** mobil uygulamasıdır. 
+
+Bu proje, akademik bir tezin 7 ana modülünün doğrudan prodüksiyona hazır, gerçek zamanlı bir mobil platforma aktarılmış halidir.
+
+---
+
+## 📑 İçindekiler
+1. [🏗️ Mimari ve Teknolojiler](#️-mimari-ve-teknolojiler)
+2. [🧩 Sistem Modülleri (Tez Entegrasyonu)](#-sistem-modülleri-tez-entegrasyonu)
+3. [🧠 Yapay Zeka (AI & ML) Altyapısı](#-yapay-zeka-ai--ml-altyapısı)
+4. [🛠️ Kurulum ve Çalıştırma Rehberi](#️-kurulum-ve-çalıştırma-rehberi)
+   - [Backend Kurulumu](#1-backend-kurulumu-fastapi--postgresql)
+   - [Frontend Kurulumu (Android)](#2-frontend-kurulumu-flutter--android)
+   - [Frontend Kurulumu (iOS)](#3-frontend-kurulumu-flutter--ios)
+5. [🌐 Network ve API Yapılandırması (ÇOK ÖNEMLİ)](#-network-ve-api-yapılandırması-çok-önemli)
+6. [📂 Dizin Yapısı ve Kod Organizasyonu](#-dizin-yapısı-ve-kod-organizasyonu)
+7. [🛡️ Güvenlik, Exception Handling ve Hata Yakalama](#️-güvenlik-exception-handling-ve-hata-yakalama)
+8. [👥 Geliştiricilere Tavsiyeler (Best Practices)](#-geliştiricilere-tavsiyeler-best-practices)
 
 ---
 
 ## 🏗️ Mimari ve Teknolojiler
 
-Proje "Frontend", "Backend" ve "AI (Makine Öğrenimi)" olmak üzere üç ana ayaktan oluşur.
+Proje, birbirine entegre üç ana katmandan ("Frontend", "Backend", "AI") oluşur:
 
-### 📱 Frontend (Mobil Uygulama)
-- **Framework:** Flutter (Dart) - Android ve iOS Çapraz Platform desteği.
-- **State Management:** Provider / ValueNotifier (Hafif ve hızlı durum yönetimi).
-- **Routing:** GoRouter (Modern, auth-guard entegreli yönlendirme).
-- **Authentication:** Firebase Auth (Google Sign-In, Apple Sign-In, Email/Password).
-- **Cihaz Entegrasyonu:** `health` paketi. Android için **Google Health Connect**, iOS için **Apple HealthKit** entegrasyonu.
-- **Tasarım Dili:** Özel "Glassmorphism" ve Material 3 harmanı dinamik tasarım (Karanlık/Aydınlık mod destekli).
+### 📱 Frontend (Mobil Uygulama Katmanı)
+- **Çapraz Platform:** Flutter (Dart). Tek bir kod tabanıyla hem iOS hem Android native çıktıları üretilir.
+- **State Management:** Provider / ValueNotifier. UI performansını artırmak için gereksiz rebuild'leri engelleyen hafif state yönetimi tercih edilmiştir.
+- **Routing:** GoRouter. Kullanıcının giriş yapıp yapmadığını (Auth) denetleyen özel middleware yapısı (`_authGuard`) içerir.
+- **Authentication:** Firebase Auth kullanılarak güvenli Google Sign-In, Apple Sign-In ve Email/Password modülleri entegre edilmiştir.
+- **Veri Toplama (Sensörler):** `health` paketi aracılığıyla Android'de **Google Health Connect**, iOS'ta ise **Apple HealthKit** API'lerine bağlanarak saat üzerinden toplanan ham verileri asenkron okur.
+- **UI/UX Tasarımı:** Uygulama genelinde modern "Glassmorphism" tasarımı, dinamik renk temaları ve karanlık mod desteği mevcuttur.
 
-### ⚙️ Backend (API ve İş Mantığı)
-- **Framework:** FastAPI (Yüksek performanslı, asenkron Python API).
-- **Veritabanı:** PostgreSQL (SQLAlchemy ORM ile asenkron bağlantı - `asyncpg`).
-- **Migrasyon & Hata Yönetimi:** Küresel Exception Handler, `pool_recycle` ile dayanıklı bağlantı mimarisi.
-- **LLM (Büyük Dil Modelleri):** Gemini / OpenAI GPT altyapılı AI Asistan, diyet planı jeneratörü ve egzersiz programı üretici.
-- **Canlı Analiz:** PyTorch ve XGBoost modelleri kullanılarak saniyeler içinde anomali ve risk skoru hesabı.
-
-### 🧠 Yapay Zeka (AI & ML)
-- **Risk Analizi (M3):** XGBoost + GRU (Gated Recurrent Unit) modellerinin Ensemble (Topluluk) füzyonu. 
-- **Anomali Tespiti (M7):** PyTorch tabanlı **LSTM-Autoencoder** (Zaman serisi anomalileri tespiti).
-- **Açıklanabilir Yapay Zeka (XAI):** SHAP (Shapley Additive exPlanations) entegrasyonu ile risk faktörlerinin ağırlıklandırılması.
-- **Veri Güvenliği (Clamping):** Cihazlardan (akıllı saat vb.) gelen veri kirliliğine karşı yaş, boy, kilo ve tansiyon uç değerlerinin (outliers) filtrelenmesi.
+### ⚙️ Backend (API ve İş Mantığı Katmanı)
+- **Framework:** FastAPI (Python). Asenkron (`async/await`) yapısıyla eşzamanlı yüzlerce AI modeli tahminleme isteğini kaldırabilecek güçtedir.
+- **Veritabanı:** PostgreSQL. `SQLAlchemy` ORM üzerinden `asyncpg` asenkron driver'ı ile bağlanılmıştır.
+- **Connection Pooling:** `pool_recycle=3600` gibi mekanizmalarla kopan veritabanı bağlantıları otomatik olarak onarılır.
+- **LLM Entegrasyonu:** Gemini (veya Groq/OpenAI) kullanılarak tasarlanan özel prompt mühendisliğiyle çalışan AI Asistan, diyet ve egzersiz üretme modülleri bu katmandadır.
 
 ---
 
 ## 🧩 Sistem Modülleri (Tez Entegrasyonu)
 
-Bu proje, akademik bir çalışmanın aşağıdaki 7 modülünü kapsar:
+Bu proje salt bir uygulama değil, akademik bir "Akıllı Sağlık Ekosistemi" tezinin somutlaştırılmış versiyonudur. İşte 7 Temel Modül:
 
-1. **Modül 1 (Veri Toplama):** Google Health Connect (Android) ve Apple HealthKit (iOS) üzerinden akıllı saatlerden (nabız, uyku, adım, SpO2 vb.) otomatik veri çekilmesi. Ayrıca manuel giriş imkanı (`/app/data-entry`).
-2. **Modül 2 (Veri Ön İşleme):** Backend `_clean_data` metotlarıyla eksik veya hatalı verilerin (clamping & smoothing algoritmalarıyla) temizlenmesi.
-3. **Modül 3 (Risk Analizi):** Temizlenen verilerin XGBoost ve GRU modellerine sokularak 0-100 arası kardiyovasküler sağlık risk skorunun üretilmesi.
-4. **Modül 4 (Egzersiz Motoru):** Kullanıcının klinik risk grubuna (Sınıf 0 - Sınıf 4) göre AI destekli, dinamik spor salonu/ev egzersizi reçetesi yazılması.
-5. **Modül 5 (Beslenme Motoru):** TÜBER standartlarına uygun, LLM destekli hiper-kişiselleştirilmiş diyet planları. (Besin tanıma modülü de mevcuttur).
-6. **Modül 6 (AI Asistan):** Akıllı sohbet botu. Kullanıcının sensör verilerini bağlam (context) olarak alıp tavsiyeler verir.
-7. **Modül 7 (Anomali Tespiti):** LSTM-Autoencoder ile son 7 günlük sağlık serisindeki sapmaların bulunup mobil uygulamada "Uyarı" (Push Notification) olarak kullanıcıya bildirilmesi.
+1. **Modül 1 (Sürekli Veri Toplama):** Akıllı bileklik ve saatlerden `Adım, Nabız, Uyku Fazları (Derin, Hafif, REM), SpO2, Tansiyon` gibi 15 farklı sağlık metriğinin günde birkaç kez otonom çekilmesi.
+2. **Modül 2 (Veri Ön İşleme / Veri Boru Hattı):** Backend `_clean_data` metotları, "Data Clamping" tekniğini uygulayarak imkansız (outlier) değerleri filtreler (örn. 250 nabız) ve eksik verileri enterpolasyonla tamamlar.
+3. **Modül 3 (Kardiyovasküler Risk Analizi):** Temizlenmiş verilerin, eğitilmiş **XGBoost** ve **GRU (Zaman Serisi RNN)** ensemble modeline beslenmesi. Bu modeller kişinin anlık sağlık durumunu analiz edip 0'dan 100'e kadar objektif bir risk skoru ve Sınıf (0-4) atar.
+4. **Modül 4 (Akıllı Egzersiz Reçetesi):** Modül 3'ten çıkan Risk Sınıfı'na göre LLM destekli egzersiz programı üretimi. Örneğin Sınıf 3 bir hipertansiyon hastasına ağır kardiyo önermez; yoga ve hafif esneme önerir.
+5. **Modül 5 (Hiper-Kişiselleştirilmiş Beslenme Motoru):** TÜBER (Türkiye Beslenme Rehberi) standartlarına uygun olarak kişinin TDEE (Günlük Enerji İhtiyacı) hesaplanır. AI, matematiksel makro/mikro kısıtlamalarına uyan dinamik menüler oluşturur.
+6. **Modül 6 (Context-Aware AI Asistan):** Uygulama içindeki sohbet asistanı kör değildir. O anki tansiyonunuzu, dün kaç saat uyuduğunuzu ve kalp ritminizi bilerek ("context") bağlamsal sohbet ve sağlık danışmanlığı yapar.
+7. **Modül 7 (PyTorch LSTM-Autoencoder ile Anomali Tespiti):** Kişinin son 7 günlük normal uyku/adım/nabız döngüsü öğrenilir. Eğer dün geceki uyku kalitesi kullanıcının genel normalinden istatistiksel olarak aşırı sapmışsa (Anomali), mobil uygulama bir "Push Notification" (Bildirim) atarak kullanıcıyı uyarır.
 
 ---
 
-## 🛠️ Kurulum ve Çalıştırma
+## 🧠 Yapay Zeka (AI & ML) Altyapısı
 
-### 1. Gereksinimler
-- **Flutter SDK:** >= 3.0.0
-- **Python:** 3.10 veya 3.11 (PyTorch ve XGBoost için optimum sürümler)
-- **Veritabanı:** PostgreSQL (Lokal veya Neon/Supabase üzerinden).
-- **İşletim Sistemi:** Windows (Android için) / macOS (iOS için).
+AI katmanı tamamen `backend/ml_models` içerisinde barındırılan pre-trained ağırlıklarla (weights) çalışır.
 
-### 2. Backend Ortam Değişkenleri (Environment Variables)
-`backend/` dizininde `.env` dosyası oluşturun ve şu değişkenleri tanımlayın:
+- **Modeller:** XGBoost (Tabular veri için), GRU (Zaman serisi paternleri için), LSTM-Autoencoder (Zaman serisi rekonstrüksiyon anomalileri için).
+- **Ölçekleyiciler:** Veriler modellere girmeden önce `MinMaxScaler` ve `StandardScaler` (`*_scaler.pkl`) kullanılarak (örneğin 0-1 arasına) normalize edilir.
+- **XAI (Explainable AI):** Sistem sadece bir "Risk Skorusun" demekle kalmaz; arka planda SHAP (Shapley Additive exPlanations) algoritmasını çalıştırarak "Şu an tansiyonun yüksek olduğu için ve uykunu alamadığın için riskin bu kadar yüksek" gibi insan dilinde açıklamalar türetir.
+
+---
+
+## 🛠️ Kurulum ve Çalıştırma Rehberi
+
+Projeyi yerel makinenizde (Localhost) ayağa kaldırmak için adım adım talimatlar:
+
+### Gereksinimler
+- **Git** (Projeyi klonlamak için)
+- **Python 3.10 veya 3.11** (Backend için zorunlu - PyTorch vs. uyumluluğu)
+- **Flutter SDK** (Mobil taraf için - Sürüm 3.x)
+- **Android Studio / Xcode** (Cihaz emülatörleri ve build süreçleri için)
+
+### 1. Backend Kurulumu (FastAPI & PostgreSQL)
+
+Backend'in çalışması için bir `.env` dosyasına ihtiyacınız var. 
+`backend` klasörüne girip `.env` adında bir dosya oluşturun:
+
 ```ini
 # backend/.env
-GEMINI_API_KEY=AIzaSy... (Gemini API Anahtarınız)
+# LLM Altyapısı (Gemini Anahtarı)
+GEMINI_API_KEY=AIzaSy... (Kendi API Key'inizi Girin)
+
+# PostgreSQL Bağlantısı
 DATABASE_URL=postgresql+asyncpg://kullanici:sifre@localhost:5432/aksa_db
-# veya NeonDB kullanıyorsanız: postgresql+asyncpg://...
+
+# Geliştirme Modu (İsteğe bağlı test parametrelerini açar)
 DEV_MODE=true
 ```
 
-### 3. Backend'in Başlatılması
+Ardından sanal ortamı kurup başlatın:
+
 ```bash
 cd backend
+
+# Sanal ortam (venv) oluşturma
 python -m venv venv
-# Windows: venv\Scripts\activate
-# Mac/Linux: source venv/bin/activate
+
+# Aktivasyon (Windows)
+venv\Scripts\activate
+# Aktivasyon (Mac/Linux)
+source venv/bin/activate
+
+# Kütüphanelerin yüklenmesi
 pip install -r requirements.txt
+
+# Sunucunun başlatılması
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
-*(Alternatif olarak proje kök dizinindeki `python run_app.py` scripti tüm backend ve frontend'i tek tuşla başlatır).*
+> **İpucu:** FastAPI arayüzüne (Swagger UI) ulaşmak için tarayıcınızdan `http://localhost:8000/docs` adresine gidebilirsiniz.
 
-### 4. Frontend Ortamı (API IP Ayarı)
-**Çok Önemli:** Mobil uygulamanın backend'e bağlanabilmesi için IP adresinin doğru olması şarttır.
-`lib/services/api_service.dart` dosyasındaki `_baseUrl` kısmında yer alan `192.168.1.X` adresinin, backend'i çalıştıran bilgisayarın **Lokal IPv4 adresi** olduğuna emin olun.
+### 2. Frontend Kurulumu (Flutter & Android)
 
-**Eğer uzak bir cihazda (örneğin arkadaşınız) test edilecekse:**
-1. Backend bilgisayarında `ngrok` kurun (`ngrok http 8000`).
-2. Size verilen `https://abc-xyz.ngrok.app` adresini kopyalayın.
-3. Koddaki IP adresi yerine bu URL'yi koyun. Bu sayede dünyanın her yerinden cihaza bağlanılabilir.
-
-### 5. Frontend'i Çalıştırma
 ```bash
+# Projenin kök dizininde olduğunuzdan emin olun
 flutter pub get
-flutter run
+
+# Android emülatöründe veya cihaza bağlı olarak başlatın
+flutter run -d android
+```
+**Önemli Not (Android):** `Health Connect` uygulamasının cihazda/emülatörde kurulu olması gerekmektedir. Play Store'dan yükleyebilir veya ayarlardan aktifleştirebilirsiniz.
+
+### 3. Frontend Kurulumu (Flutter & iOS)
+
+iOS için macOS işletim sistemi ve Apple Developer hesabı **zorunludur**.
+
+```bash
+# Bağımlılıkları çekin
+flutter pub get
+
+# iOS CocoaPods paketlerini kurun
+cd ios
+pod install
+cd ..
+```
+Ardından Xcode üzerinden `ios/Runner.xcworkspace` (DİKKAT: `.xcodeproj` değil) dosyasını açın:
+1. **Signing & Capabilities** kısmından kendi Developer Team'inizi seçin.
+2. (Opsiyonel) Bundle ID'sini `com.aksa.health` şeklinde benzersiz bir isimle değiştirin.
+3. Aynı sayfada `+ Capability` butonuna basarak **HealthKit**'i projenize dahil edin. ("Background Delivery" kutusunu işaretlemeyi unutmayın).
+4. `flutter run -d ios` diyerek uygulamayı başlatın.
+
+---
+
+## 🌐 Network ve API Yapılandırması (ÇOK ÖNEMLİ)
+
+Eğer backend ve frontend (mobil uygulama) **aynı bilgisayar içinde emülatör** vasıtasıyla çalışmıyorsa; örneğin, uygulamanızı **gerçek bir cep telefonuna** kabloyla bağlayıp test etmek istiyorsanız `localhost` kavramı çalışmayacaktır!
+
+Telefonunuzun API'ye erişebilmesi için `lib/services/api_service.dart` dosyası içindeki IP adresini kendi ağınızın IP adresiyle değiştirmelisiniz:
+
+```dart
+// lib/services/api_service.dart
+final String _baseUrl = const String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://192.168.1.42:8000/api', // <-- Buradaki IP'yi kendi IPv4 adresiniz yapın!
+);
 ```
 
----
-
-## 📱 Platforma Özel Yapılandırmalar
-
-### 🤖 Android (Tamamlandı)
-- **Health Connect:** `AndroidManifest.xml` içerisine gerekli tüm `android.permission.health...` izinleri eklenmiştir. Android 14+ için Permission Dashboard entegrasyonu tamamdır.
-- **Arka Plan Servisleri:** `WorkManager` kullanılarak arka planda (2 saatte bir) periyodik olarak su, adım, risk uyarısı kontrolü yapılır.
-- **Bildirimler:** `flutter_local_notifications` kullanılarak anlık anomali uyarıları ve lokal hatırlatıcılar çalışır.
-
-### 🍏 iOS (Tamamlandı)
-- **HealthKit:** Uygulamanın çalışması için **Apple Developer Hesabı** gereklidir. Projeyi XCode ile açıp, *Signing & Capabilities* altından **HealthKit** (Background Delivery dahil) eklenmelidir. (Runner.entitlements dosyası kod içerisinde mevcuttur).
-- **Deployment Target:** Projenin ve Pod'ların minimum sürümü `iOS 14.0` olarak ayarlanmıştır.
-- **CocoaPods:** Projeyi klonladıktan sonra mutlaka `cd ios && pod install` komutu çalıştırılmalıdır.
-- **Apple Sign-In:** Sadece iOS'ta çalışacak şekilde ayarlanmıştır. Backend (Firebase) üzerinden callback'leri tanımlanmıştır. `syncFromDevice` metotlarında Android'e özel Health Connect fonksiyonları `Platform.isAndroid` ile ayrıştırılarak iOS'taki çökmelerin (crash) önüne geçilmiştir.
+### Takım Çalışması İçin (Ngrok Kullanımı)
+Diyelim ki backend Ali'nin bilgisayarında çalışıyor ama Ayşe evindeki telefondan bu API'ye bağlanarak iOS uygulamasını test etmek istiyor. Bunun için **Ngrok** kullanılmalıdır:
+1. Ali bilgisayarında `ngrok http 8000` yazar.
+2. Çıkan sonucu (`https://asdf-123.ngrok.app`) Ayşe'ye gönderir.
+3. Ayşe bu adresi `api_service.dart` dosyasına yazar ve projeyi çalıştırır. Dünyanın öbür ucundan bile uygulamadaki AI çalışmaya devam edecektir.
 
 ---
 
-## 📂 Dizin Yapısı
+## 📂 Dizin Yapısı ve Kod Organizasyonu
 
 ```text
 aksa_v1/
-├── backend/                  # FastAPI & Yapay Zeka Altyapısı
-│   ├── ml_models/            # PyTorch (.pt) ve XGBoost (.pkl) ağırlıkları
-│   ├── models/               # SQLAlchemy Veritabanı ve Pydantic Modelleri
-│   ├── routers/              # API Endpoint'leri (User, Health, Chat vb.)
-│   ├── services/             # İş Mantığı (AI, Diyet, Egzersiz Generatörleri)
-│   ├── database.py           # PostgreSQL Bağlantısı
+├── backend/                  # FastAPI Sunucu ve İş Mantığı
+│   ├── ml_models/            # Yapay Zeka ağırlıkları (.pt, .pkl) ve scaler dosyaları
+│   ├── ml_pipeline/          # Veri kirliliğini temizleyen tez algoritmaları
+│   ├── ml_training/          # Ağırlıkların eğitilmesinde kullanılan Jupyter Notebooks
+│   ├── models/               # SQLAlchemy Veritabanı Modelleri & Pydantic Validation
+│   ├── routers/              # API Endpoint'leri (User, Health, Chat, Diet)
+│   ├── services/             # Backend İş Mantığı (AI Asistan, Risk Engine)
+│   ├── database.py           # PostgreSQL Asenkron Bağlantı motoru
 │   └── main.py               # Uvicorn giriş noktası
-├── ios/                      # iOS (Swift & Xcode) Konfigürasyonları
-├── android/                  # Android (Kotlin & Gradle) Konfigürasyonları
+├── ios/                      # iOS Swift & Xcode Build Konfigürasyonları
+├── android/                  # Android Kotlin & Gradle Build Konfigürasyonları
 ├── lib/                      # Flutter Uygulaması (Dart)
-│   ├── constants/            # Uygulama içi sabit değerler
-│   ├── models/               # Dart modelleri (JSON Serialization)
-│   ├── screens/              # Ana Sayfalar, Onboarding, Chat, Raporlar
-│   ├── services/             # API Servisi, HealthKit/Connect, Firebase Servisleri
-│   ├── utils/                # Loglama mekanizmaları ve yardımcı fonksiyonlar
-│   ├── widgets/              # Tekrar kullanılabilen tasarımsal bileşenler (Glassmorphism vb.)
-│   └── main.py               # Uygulama başlatıcısı ve GoRouter ayarları
-├── pubspec.yaml              # Flutter paket bağımlılıkları
-└── README.md                 # Bu dosya
+│   ├── constants/            # Renk paletleri, tipografi, sabit UI değerleri
+│   ├── models/               # Dart Data Modelleri (JSON to Object)
+│   ├── screens/              # UI Sayfaları (Dashboard, Profile, Chat, Auth)
+│   ├── services/             # API HTTP istekleri, HealthKit servisleri, Local Storage
+│   ├── utils/                # Logger (AppLogger), validator'lar ve helper fonksiyonlar
+│   ├── widgets/              # Tekrar kullanılabilen tasarımsal custom komponentler
+│   └── main.py               # Uygulama başlatıcısı, ThemeProvider ve GoRouter
+├── scratch/                  # Geliştirme sürecinde kullanılan geçici DB Migration / test betikleri
+├── pubspec.yaml              # Flutter paket listesi ve asset konfigürasyonu
+└── README.md                 # Okumakta olduğunuz doküman
 ```
 
 ---
 
-## 🛡️ Hata Yakalama ve Güvenlik Mekanizmaları
+## 🛡️ Güvenlik, Exception Handling ve Hata Yakalama
 
-Canlı ortam (Production) hatalarını minimize etmek için sistemde şu önlemler bulunur:
-1. **Flutter Global Error Handling:** `FlutterError.onError` ve `PlatformDispatcher` ile yakalanamayan hatalar uygulamanın çökmesini (crash) engeller, `AppLogger`'a düşer.
-2. **Platform Çakışmaları:** `Health Connect SDK` sadece Android'de çalışır. Kod `Platform.isIOS` güvenlik bariyerleriyle donatılmıştır. iOS'ta sadece `HealthKit` yetkilendirmesi çağrılır.
-3. **Backend Global Exception Catcher:** Beklenmeyen tipler veya DB bağlantı kopmalarında FastAPI sunucusu kilitlenmez, güvenli bir şekilde `500 Internal Error` JSON yanıtı döner.
-4. **Pool Recycle:** `pool_recycle=3600` ile PostgreSQL uzun süre boşta kalan bağlantıları güvenli bir şekilde tazeler.
+Sistem, "Production-Ready" vizyonuyla tasarlandığı için çökmelere karşı koruma altındadır:
+
+1. **Mobil Tarafında Güvenlik Ağı:** `FlutterError.onError` ve `PlatformDispatcher.onError` yapıları uygulamada herhangi bir hata meydana geldiğinde kırmızı "korkutucu" hata ekranlarını gizler. Hatayı sessizce yakalayıp `AppLogger` servisine iletir.
+2. **Mounted Controller (Hafıza Sızıntısı Koruması):** HTTP API çağrıları çok uzun sürerse ve kullanıcı bu sırada ekranı kapatırsa uygulamanın çökmemesi için `if (!mounted) return;` denetimleri yapılmıştır.
+3. **Backend Fallback (Toleranslı Hata Yönetimi):** Veritabanı koparsa, API anahtarı biterse veya AI halüsinasyon görüp bozuk JSON dönerse, FastAPI sunucusu çökmek yerine güvenli bir `try-catch` yakalayıcısı ile `500 Internal Error` yanıtı döner. Mobil uygulama da bu `null` yanıtı işleyerek kullanıcıya tatlı bir "Bağlantı hatası oluştu" mesajı gösterir.
+4. **Soft Delete (GDPR Uyumluluğu):** Kullanıcı hesabını sildiğinde veriler anında yok olmaz; `deletion_scheduled_at` mantığıyla 30 günlük bir askıya alma havuzuna düşer. Bu, kullanıcının verilerini kaybetmemesi ve vazgeçebilmesi için global standartlarda bir protokoldür.
 
 ---
 
 ## 👥 Geliştiricilere Tavsiyeler (Best Practices)
 
-- **Loglama:** Geliştirme aşamasında `print()` kullanmak yerine uygulamanın her yerinde `AppLogger.info()`, `AppLogger.debug()`, veya hata durumlarında `AppLogger.error()` kullanın.
-- **State Yönetimi:** Mümkün oldukça state'i lokal tutun (`StatefulWidget`, `ValueNotifier`). UI'ı şişirmemeye özen gösterin.
-- **Model Güncellemeleri:** Eğer ML tarafında (`backend/ml_training`) bir model yeniden eğitilip güncellenecekse, `backend/models/risk_model.py` içindeki özellik (feature) girdi sayısının (örn. MinMaxScaler parametrelerinin) eşleştiğinden kesinlikle emin olun.
-- **API URL Değişimi:** Birden fazla geliştirici farklı ağlarda çalışıyorsa kodu değiştirmek yerine `flutter run --dart-define=API_BASE_URL=http://...` parametresi ile uygulamayı derlemeyi tercih edin.
+Projeye katkı sağlayacak veya geliştirmeye devam edecek mühendisler için:
 
-**AKSA** ile sağlık verilerini salt istatistik olmaktan çıkarıp, hayat kurtaran öngörülere dönüştürüyoruz. Katkılarınız için teşekkürler! 🌟
+- **State Yönetimi Sınırı:** Her şeyi global `Provider` içine atmayın. Sadece uygulamanın her yerini ilgilendiren şeyleri (Tema rengi, Auth User) globale koyun. Buton tıklama animasyonları gibi şeyler için lokal `setState` veya `ValueNotifier` daha performanslıdır.
+- **Loglama Kuralları:** Sistemin kalbinde bir yapay zeka olduğu için neyin yanlış gittiğini bulmak zor olabilir. Kod içerisinde klasik `print("hata")` komutunu ASLA kullanmayın. Bunun yerine `AppLogger.debug("Sensör verisi geldi: $data")` veya `AppLogger.error("API Cevap vermedi", error: e)` kullanın.
+- **Model Eğitim Eşleşmesi:** Eğer `backend/ml_training` klasöründeki Python scriptlerini çalıştırarak yeni bir XGBoost veya LSTM modeli eğitirseniz, modelin özellik (feature) girdi matrisi ile canlı sunucudaki `backend/services/risk_engine.py` matris boyutlarının milimetrik uyduğundan emin olun.
+
+**AKSA** ile sağlık verilerini salt "istatistik" olmaktan çıkarıp, hayat kurtaran "öngörülere" dönüştürüyoruz.
+Katkılarınız ve projemize göstermiş olduğunuz ilgi için teşekkürler! 🌟
