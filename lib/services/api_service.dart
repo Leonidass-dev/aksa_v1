@@ -18,7 +18,7 @@ export '../models/api_models.dart';
 class ApiServiceImpl implements IApiService {
   final String _baseUrl = const String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.1.109:8000/api',  // Lokal geliştirme (fiziksel cihaz)
+    defaultValue: 'http://192.168.1.42:8000/api',  // Lokal geliştirme (fiziksel cihaz)
   );
 
   // ── Firebase Token Helper ─────────────────────────────────────
