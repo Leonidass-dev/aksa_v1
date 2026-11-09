@@ -1,13 +1,19 @@
 import os
+import sys
 import pandas as pd
 import numpy as np
 
-WESAD_DIR = r"C:\Users\Leonidas\Desktop\dataset\WESAD"
-OUTPUT_FILE = "ml_training/data/wesad_processed.csv"
+WESAD_DIR = os.getenv("WESAD_DIR", os.path.join(os.path.dirname(__file__), "data", "WESAD"))
+OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "data", "wesad_processed.csv")
 
 SEQ_LEN = 5  # GRU/LSTM-AE için ardışık pencere dizisi uzunluğu
 WINDOW_SEC = 60  # 60 saniye pencere
 STEP_SEC = 10  # 10 saniye kayma
+
+if not os.path.exists(WESAD_DIR):
+    print(f"Uyarı: WESAD veri seti dizini bulunamadı: {WESAD_DIR}")
+    print("Veri setini 'backend/ml_training/data/WESAD' altına yerleştirebilir veya WESAD_DIR ortam değişkeni ile belirtebilirsiniz.")
+    sys.exit(0)
 
 feature_rows = []
 
@@ -28,93 +34,64 @@ for subj in os.listdir(WESAD_DIR):
     # 1Hz HR data
     hr_df = pd.read_csv(hr_path, header=None)
     # The first row is start timestamp, second is freq. Actual data starts at index 2
-    hr_values = hr_df.iloc[2:][0].values.astype(float)
+    hr_start_ts = hr_df.iloc[0, 0]
+    hr_fs = hr_df.iloc[1, 0]
+    hr_values = hr_df.iloc[2:, 0].values
 
-    # 32Hz ACC data
+    # 32Hz ACC data (x, y, z)
     acc_df = pd.read_csv(acc_path, header=None)
-    acc_values = acc_df.iloc[2:].values.astype(float)
-    # Convert XYZ to magnitude (vector norm) subtracted by gravity (~64 for E4)
-    acc_mag = np.linalg.norm(acc_values, axis=1) - 64.0
-    acc_mag = np.abs(acc_mag)
+    acc_start_ts = acc_df.iloc[0, 0]
+    acc_fs = acc_df.iloc[1, 0]
+    acc_values = acc_df.iloc[2:, :].values
 
-    window_idx = 0  # Denek içi pencere sıra numarası
+    # Süre kısıtı (saniye cinsinden ortak süre)
+    duration_sec = min(len(hr_values) / hr_fs, len(acc_values) / acc_fs)
 
-    for i in range(0, len(hr_values) - WINDOW_SEC, STEP_SEC):
-        hr_window = hr_values[i : i + WINDOW_SEC]
-        # ACC is 32Hz, so indices are * 32
-        acc_window = acc_mag[i * 32 : (i + WINDOW_SEC) * 32]
+    # 60 sn pencere, 10 sn kayma
+    for start in range(0, int(duration_sec - WINDOW_SEC), STEP_SEC):
+        end = start + WINDOW_SEC
 
-        hr_mean = np.mean(hr_window)
-        hr_min = np.min(hr_window)
-        hr_max = np.max(hr_window)
-        hr_std = np.std(hr_window)
+        # HR dilimi (1Hz olduğu için doğrudan index aralığı)
+        hr_window = hr_values[int(start * hr_fs):int(end * hr_fs)]
+        # ACC dilimi (32Hz)
+        acc_window = acc_values[int(start * acc_fs):int(end * acc_fs)]
 
-        # NOT: WESAD veri seti adım verisi İÇERMEZ.
-        # İvmeölçer büyüklüğünden fiziksel hareket tahmini yapılıyor.
-        # Bu değerler gerçek adım sayısı değil, "hareket yoğunluğu" proxy metrikleridir.
-        # Production'da Health Connect'ten gelen gerçek adım verileri kullanılır.
-        active_samples = np.sum(acc_window > 15)  # E4 ivmeölçer ölçeğinde hareket eşiği
-        activity_intensity = active_samples / 10.0  # Hareket yoğunluğu proxy değeri
-        active_mins = (active_samples / 32) / 60
+        if len(hr_window) == 0 or len(acc_window) == 0:
+            continue
 
-        activity_sum = activity_intensity
-        activity_active = max(0.0, float(active_mins))
-        activity_max = np.max(acc_window) if len(acc_window) > 0 else 0
-        missing_pct = np.sum(hr_window == 0) / len(hr_window)
+        # Öznitelik Mühendisliği
+        hr_mean = float(np.mean(hr_window))
+        hr_min = float(np.min(hr_window))
+        hr_max = float(np.max(hr_window))
+        hr_std = float(np.std(hr_window))
 
-        # ── Etiketleme: Uzman kural tabanlı (Expert System Labeling) ──
-        # NOT: Bu etiketler ideal değildir (model kuralları ezberler).
-        # İyileştirme: WESAD'ın kendi stres etiketleri kullanılabilir (pickle dosyaları).
-        # Mevcut yaklaşım tez kapsamında kabul edilebilir bir baseline'dır.
-        score = 0
-        if hr_mean > 100:
-            score += 40
-        elif hr_mean > 85:
-            score += 20
-        elif hr_mean < 50:
-            score += 30
+        # ACC Magnitude hesapla: sqrt(x^2 + y^2 + z^2)
+        acc_mag = np.sqrt(np.sum(acc_window**2, axis=1))
+        acc_mean = float(np.mean(acc_mag))
+        acc_std = float(np.std(acc_mag))
 
-        if activity_sum < 100:
-            score += 20
+        # Adım kestirimi (peak counting veya ACC standart sapmasından orantılı)
+        estimated_steps = int(acc_std * 15)
 
-        if hr_std > 20:
-            score += 15
-        elif hr_std < 2:
-            score += 10
+        # Aktif kalori kestirimi
+        estimated_calories = float((hr_mean * 0.05) + (acc_mean * 0.02))
 
-        if score > 50:
-            label = 2
-        elif score > 20:
-            label = 1
-        else:
-            label = 0
+        feature_rows.append({
+            "subject": subj,
+            "window_start": start,
+            "hr_mean": hr_mean,
+            "hr_min": hr_min,
+            "hr_max": hr_max,
+            "hr_std": hr_std,
+            "acc_mean": acc_mean,
+            "acc_std": acc_std,
+            "steps": estimated_steps,
+            "calories": estimated_calories
+        })
 
-        # Anomaly label
-        anomaly = 1 if (hr_max > 150 or hr_min < 45 or missing_pct > 0.3) else 0
-
-        feature_rows.append(
-            {
-                "subject_id": subj,  # Kullanıcı bazlı split için
-                "window_idx": window_idx,  # Sequence oluşturmak için sıra numarası
-                "hr_mean": hr_mean,
-                "hr_median": np.median(hr_window),
-                "hr_min": hr_min,
-                "hr_max": hr_max,
-                "hr_std": hr_std,
-                "steps_sum": activity_sum,  # Geriye uyumluluk için alan adı korundu
-                "steps_active_mins": activity_active,
-                "steps_max": activity_max,
-                "missing_pct": missing_pct,
-                "risk_prob": min(0.99, score / 100.0),
-                "risk_label": label,
-                "anomaly_label": anomaly,
-            }
-        )
-        window_idx += 1
-
-os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-df = pd.DataFrame(feature_rows)
-df.to_csv(OUTPUT_FILE, index=False)
-print(f"Toplam {len(df)} pencere işlendi ve {OUTPUT_FILE} konumuna kaydedildi.")
-print(f"Denek sayısı: {df['subject_id'].nunique()}")
-print(df["risk_label"].value_counts())
+print(f"Toplam çıkarılan pencere sayısı: {len(feature_rows)}")
+if feature_rows:
+    df_out = pd.DataFrame(feature_rows)
+    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
+    df_out.to_csv(OUTPUT_FILE, index=False)
+    print(f"İşlenmiş veri seti başarıyla kaydedildi -> {OUTPUT_FILE}")
