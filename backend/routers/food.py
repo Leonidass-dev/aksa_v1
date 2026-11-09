@@ -2,7 +2,7 @@ from datetime import date
 import json
 import logging
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -28,8 +28,16 @@ NUTRITION_KNOWLEDGE_BASE = {
 
 
 class FoodAnalysisRequest(BaseModel):
-    image_base64: str  # base64 encoded JPEG/PNG
-    grammage_hint: str | None = None  # Kullanıcının manuel girdiği gramaj bilgisi
+    image_base64: str = Field(
+        ...,
+        max_length=15_000_000,
+        description="Base64 kodlanmis gorsel verisi (Maksimum ~10MB)",
+    )
+    grammage_hint: str | None = Field(
+        default=None,
+        max_length=200,
+        description="Kullanicinin manuel girdigi gramaj bilgisi",
+    )
 
 
 class NutrientInfo(BaseModel):

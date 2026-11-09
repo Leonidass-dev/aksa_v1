@@ -12,17 +12,17 @@ services:
         condition: service_healthy
     environment:
       # Veritabanı URL'si (PostgreSQL)
-      - DATABASE_URL=postgresql+asyncpg://postgres:aksa_secret_password@db:5432/aksa_health
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-aksa_secure_password_dev}@db:5432/aksa_health
       
-      # Firebase Kimlik Doğrulama Bypass (Geliştirme aşaması için)
-      - DEV_MODE=True
+      # Firebase Kimlik Doğrulama Dev Modu (Geliştirme için varsayılan True, canlıda False yapılmalıdır)
+      - DEV_MODE=${DEV_MODE:-True}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
       
-      # Dış Servis API Anahtarları (Buralara kendi anahtarlarınızı .env üzerinden verebilirsiniz)
+      # Dış Servis API Anahtarları (.env dosyasından yüklenir)
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       
     volumes:
-      # Modellerin kalıcı olması ve host ile senkronize olması için (Opsiyonel)
       - ./ml_models:/app/ml_models
 
   db:
@@ -31,10 +31,11 @@ services:
     restart: always
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=aksa_secret_password
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-aksa_secure_password_dev}
       - POSTGRES_DB=aksa_health
     ports:
-      - "5432:5432"
+      # Sadece yerel arayüze bağlayarak dış ağdan doğrudan erişimi engeller
+      - "127.0.0.1:5432:5432"
     volumes:
       - aksa_pg_data:/var/lib/postgresql/data
     healthcheck:

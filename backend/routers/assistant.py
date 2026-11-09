@@ -216,7 +216,7 @@ async def chat_with_assistant(
         await crud.save_chat_message(db, user, role="user", content=req.message)
 
         # AI Çağrısı (Merkezi Servis Üzerinden)
-        full_prompt = f"{context}\n\nKullanıcı: {req.message}"
+        full_prompt = f"{context}\n\n[KULLANICI SORUSU]:\n\"\"\"\n{req.message}\n\"\"\""
 
         reply = await ask_text(
             prompt=full_prompt, system_prompt=PROMPT, history=history, json_mode=False

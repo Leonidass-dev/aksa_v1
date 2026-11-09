@@ -6,7 +6,7 @@ Geliştirme modunda auth devre dışı bırakılabilir.
 import os
 import logging
 from typing import Optional
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, status
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -44,49 +44,65 @@ async def get_current_user(
     """
     Firebase ID token doğrular ve uid döner.
 
-    - DEV_MODE=true ise ve token yoksa dev mode UID döner.
+    - DEV_MODE=true ise ve token yoksa güvenli geliştirici UID döner.
+    - Canlı (production) ortamında DEV_MODE yok sayılır ve katı token doğrulaması zorunludur.
     - Token geçersizse veya auth yoksa → 401 Unauthorized.
     """
-    is_dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    is_production = env in ["production", "prod"]
+    is_dev_mode = (os.getenv("DEV_MODE", "false").lower() == "true") and not is_production
     
     # Header yoksa
     if not authorization:
         if is_dev_mode:
+            logger.debug(f"[DEV_MODE] Auth header eksik, varsayılan test kullanıcısı kullanılıyor: {DEV_MODE_UID}")
             return DEV_MODE_UID
-        raise HTTPException(status_code=401, detail="Yetkilendirme başlığı (Authorization header) eksik.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Yetkilendirme başlığı (Authorization header) eksik.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     # Bearer token çıkar
     token = authorization.replace("Bearer ", "").strip()
     if not token:
         if is_dev_mode:
             return DEV_MODE_UID
-        raise HTTPException(status_code=401, detail="Token bulunamadı.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Yetkilendirme token'ı bulunamadı.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     # Firebase başlatılmamışsa
     if not _firebase_initialized:
         if is_dev_mode:
-            # Geliştirme kolaylığı için JWT payload kısmını base64 decode et
-            try:
-                import base64
-                import json
-                payload_b64 = token.split(".")[1]
-                payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
-                payload_json = base64.urlsafe_b64decode(payload_b64).decode("utf-8")
-                decoded_unverified = json.loads(payload_json)
-                return decoded_unverified.get("user_id", DEV_MODE_UID)
-            except Exception:
-                return DEV_MODE_UID
-        raise HTTPException(status_code=500, detail="Firebase kimlik doğrulama yapılandırılmamış.")
+            # Geliştirme ortamında imzasız token ayrıştırma yerine güvenli test UID'si kullan
+            return DEV_MODE_UID
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Kimlik doğrulama servisi yapılandırılmamış.",
+        )
 
     try:
         decoded = firebase_auth.verify_id_token(token)
         return decoded["uid"]
     except firebase_auth.ExpiredIdTokenError:
         raise HTTPException(
-            status_code=401, detail="Token süresi dolmuş. Lütfen tekrar giriş yapın."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token süresi dolmuş. Lütfen tekrar giriş yapın.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     except firebase_auth.InvalidIdTokenError:
-        raise HTTPException(status_code=401, detail="Geçersiz token.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Geçersiz yetkilendirme token'ı.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except Exception as e:
         logger.error(f"Token doğrulama hatası: {e}")
-        raise HTTPException(status_code=401, detail="Kimlik doğrulama başarısız.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Kimlik doğrulama başarısız.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

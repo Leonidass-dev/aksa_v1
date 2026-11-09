@@ -46,9 +46,8 @@ app.add_middleware(SlowAPIMiddleware)
 # Canlı ortamda ALLOWED_ORIGINS env var ile kısıtla
 _allowed_origins = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:3000,http://10.0.2.2:3000,http://localhost:8000",  # Geliştirme varsayılanları
+    "http://localhost:3000,http://10.0.2.2:3000,http://localhost:8000",
 ).split(",")
-# _allowed_origins.append("*")  # Kaldırıldı (Güvenlik zafiyeti - CORS Wildcard)
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,14 +68,20 @@ app.include_router(user.router, prefix="/api", tags=["Kullanıcı"])
 
 logger = logging.getLogger(__name__)
 
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    import traceback
-    print("GLOBAL ERROR:", exc)
-    traceback.print_exc()
+    logger.error(f"Global unhandled error: {exc}", exc_info=True)
+    is_dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
+    # Canlı ortamda hassas iç hata detaylarını (DB/şema/yol) istemciye sızdırma
+    detail_msg = (
+        str(exc)
+        if is_dev_mode
+        else "Sunucu kaynaklı geçici bir hata oluştu. Lütfen daha sonra tekrar deneyiniz."
+    )
     return JSONResponse(
         status_code=500,
-        content={"error": "Geçici sistem hatası", "detail": str(exc)},
+        content={"error": "Sistem Hatası", "detail": detail_msg},
     )
 
 
